@@ -1,0 +1,118 @@
+ws.go
+  d8bfdfa347fe8767 153,158-164,167
+localstorage-extension/popup.js
+  7e84caf5772ca23f 143-155,346,358,405-420,440,595,600,1500,1649-1661,1668,1688,1691,1706,1709,1711-1713,1753-1755,1758
+  d8bfdfa347fe8767 751-758,767,1271,1277,1280,1283,1293,1404,1407,1410,1416,1622
+ingest_processors.go
+  d8bfdfa347fe8767 90,149-154
+localstorage-extension/background.js
+  7e84caf5772ca23f 960,1544-1545
+models.go
+  cb94dc07f64f50a4 39-42,45
+  d8bfdfa347fe8767 43-44
+sample.json
+  d8bfdfa347fe8767 1-973
+auto_refresh.go
+  d8bfdfa347fe8767 407-412
+handlers.go
+  cb94dc07f64f50a4 605,619-620
+  d8bfdfa347fe8767 529,533-534,536,559-566,587-604,606-618,728-733
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "111daab13760614e18084be963c0a773a2225794",
+  "prompts": {
+    "1d64d47ec415b1e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c9607-4fb6-7281-a114-2d3c38396684",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 529,
+      "overriden_lines": 0
+    },
+    "2d0fb757abb5ba0a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ca16a-1478-7112-b21b-39e05474411b",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 249,
+      "overriden_lines": 0
+    },
+    "7e84caf5772ca23f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2197fdcb-4f99-439d-86b1-49501f5064b2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 63,
+      "overriden_lines": 0
+    },
+    "8bed1af5b9408a9c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c95dc-e248-75b3-b597-be6d72b2f18b",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 65,
+      "overriden_lines": 0
+    },
+    "cb94dc07f64f50a4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c93ae-37b8-7671-996a-aa8ed5741fde",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3653,
+      "overriden_lines": 0
+    },
+    "cfb99ede849ec055": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019c9564-81ba-7c23-8890-ba48394d61fd",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 313,
+      "overriden_lines": 0
+    },
+    "d8bfdfa347fe8767": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cb005-44bb-7360-92e5-ff4de6ed6f5a",
+        "model": "gpt-5.3-codex"
+      },
+      "human_author": null,
+      "messages": [],
+      "total_additions": 1073,
+      "total_deletions": 44,
+      "accepted_lines": 1068,
+      "overriden_lines": 0
+    }
+  }
+}
