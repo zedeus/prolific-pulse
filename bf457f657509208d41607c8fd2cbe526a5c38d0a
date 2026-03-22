@@ -1,0 +1,40 @@
+db.go
+  392aa6edb7bf4835 6,98-107,110-114
+stores.go
+  392aa6edb7bf4835 363,375,391,439-456,458-460,463-468,470,538,542,557-558,566
+studies_parser.go
+  392aa6edb7bf4835 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "bf457f657509208d41607c8fd2cbe526a5c38d0a",
+  "prompts": {
+    "392aa6edb7bf4835": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d80a4939-fc57-4bb4-bf55-51b2e2a88b2d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 281,
+      "overriden_lines": 0
+    },
+    "774ac02181cd8a1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d36794f5-ed64-417e-99bc-484b9257d6b2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}
