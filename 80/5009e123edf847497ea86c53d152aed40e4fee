@@ -1,0 +1,27 @@
+localstorage-extension/manifest.json
+  194afe971cc3e172 27
+localstorage-extension/background.js
+  194afe971cc3e172 1664,1672-1680,1692-1699
+tests-wdio/specs/06-studies-intercept.js
+  194afe971cc3e172 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "805009e123edf847497ea86c53d152aed40e4fee",
+  "prompts": {
+    "194afe971cc3e172": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "760b9d02-2271-4424-80f7-e11e6463d492",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 25,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    }
+  }
+}
