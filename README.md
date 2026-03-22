@@ -1,10 +1,16 @@
-# Prolific Watcher
+# Prolific Pulse
 
-Local Prolific companion with:
+Real-time Prolific study monitoring. A Go backend and Firefox extension work together to:
 
-- live cached studies
-- recent availability events
-- tracked submission state
+- Cache live studies and track availability changes
+- Record recent availability events (appeared / disappeared)
+- Track submission state across studies
+
+## Architecture
+
+- **Go server** (`*.go`) -- HTTP/WebSocket server on `:8080` with SQLite storage.
+- **Browser extension** (`extension/`) -- Firefox MV3 extension that intercepts Prolific API responses and forwards them to the server.
+- **Tests** (`tests-wdio/`) -- WebdriverIO integration tests with geckodriver.
 
 ## Setup
 
@@ -14,14 +20,21 @@ Local Prolific companion with:
 go run .
 ```
 
-2. Load extension:
+2. Load extension (pick one):
 
-- Open `about:debugging#/runtime/this-firefox`
-- Click `Load Temporary Add-on...`
-- Select `localstorage-extension/manifest.json`
+   **Temporary (development):**
+   - Open `about:debugging#/runtime/this-firefox`
+   - Click `Load Temporary Add-on...`
+   - Select `extension/manifest.json`
+
+   **From XPI:**
+   ```bash
+   ./build-xpi.sh          # produces dist/prolific-pulse-<version>.xpi
+   ```
+   Then install the `.xpi` via `about:addons`.
 
 3. Open Prolific and stay logged in.
-4. Open extension popup.
+4. Open the extension popup.
 
 ## Daily Use
 
@@ -31,6 +44,6 @@ go run .
 
 ## Troubleshooting
 
-- If popup data stops updating, confirm backend is running on `http://localhost:8080`.
+- If popup data stops updating, confirm the backend is running on `http://localhost:8080`.
 - Reload the extension from `about:debugging`.
 - Re-open a Prolific tab, then reopen the popup.

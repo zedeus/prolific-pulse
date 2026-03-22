@@ -1,11 +1,11 @@
-# Prolific Watcher
+# Prolific Pulse
 
-Go server + browser extension that monitors Prolific study availability in real-time.
+Go server + Firefox extension that monitors Prolific study availability in real-time.
 
 ## Architecture
 
 - **Go server** (`*.go`): HTTP/WS server on `:8080`. Stores studies, submissions, refresh state in SQLite.
-- **Browser extension** (`localstorage-extension/`): Firefox MV3 extension that intercepts Prolific API responses and forwards them to the Go server via WebSocket.
+- **Browser extension** (`extension/`): Firefox MV3 extension that intercepts Prolific API responses and forwards them to the Go server via WebSocket.
 - **Popup** (`popup.html/popup.js`): Extension popup with live studies, feed, submissions, settings tabs and debug diagnostics.
 
 ## Key Patterns
@@ -32,7 +32,11 @@ Go server + browser extension that monitors Prolific study availability in real-
 ## Building
 
 ```bash
+# Go server
 go build -o prolific_watcher .
+
+# Extension XPI (outputs to dist/)
+./build-xpi.sh
 ```
 
 ## Testing
@@ -59,7 +63,7 @@ HEADLESS=1 npx wdio run wdio.conf.js
 ```
 
 ### Extension Loading
-The extension has `browser_specific_settings.gecko.id` set to `localstorage-viewer@prolific-watcher`.
+The extension has `browser_specific_settings.gecko.id` set to `prolific-pulse@prolific-pulse`.
 Tests use WebdriverIO Firefox with a persistent profile at `tests/profiles/prolific/`.
 The extension is zipped at runtime and installed via `browser.installAddOn()`.
 The extension UUID is pre-seeded via `extensions.webextensions.uuids` Firefox preference for deterministic popup URLs.

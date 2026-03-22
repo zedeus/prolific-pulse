@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
 
 func (s *Service) handleHome(w http.ResponseWriter, _ *http.Request) {
-	html := "<!doctype html><html><body><h1>Prolific Watcher Service</h1><p>See README for endpoint details.</p></body></html>"
+	html := "<!doctype html><html><body><h1>Prolific Pulse Service</h1><p>See README for endpoint details.</p></body></html>"
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(html))
 }
@@ -303,7 +304,7 @@ func buildSubmissionSnapshot(
 		ParticipantID: participantID,
 		Status:        status,
 		Phase:         normalizedSubmissionPhase(status),
-		Payload:       append(json.RawMessage(nil), payload...),
+		Payload:       slices.Clone(payload),
 	}, nil
 }
 
@@ -332,7 +333,7 @@ func normalizeSubmissionSnapshot(body []byte) (*SubmissionSnapshot, error) {
 		participantID,
 		studyID,
 		parsed.Study.Name,
-		append(json.RawMessage(nil), body...),
+		slices.Clone(body),
 	)
 }
 
@@ -361,7 +362,7 @@ func normalizeSubmissionSnapshotFromParticipantListItem(itemPayload json.RawMess
 		participantID,
 		studyID,
 		item.Study.Name,
-		append(json.RawMessage(nil), itemPayload...),
+		slices.Clone(itemPayload),
 	)
 	if err != nil {
 		return nil, err
@@ -521,7 +522,7 @@ func (s *Service) ingestStudiesPayload(
 
 func (s *Service) handleDebugExtensionState(w http.ResponseWriter, _ *http.Request) {
 	s.extensionDebugStateMu.Lock()
-	state := append(json.RawMessage(nil), s.extensionDebugState...)
+	state := slices.Clone(s.extensionDebugState)
 	receivedAt := s.extensionDebugStateAt
 	s.extensionDebugStateMu.Unlock()
 

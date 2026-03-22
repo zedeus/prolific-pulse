@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
-export const EXTENSION_DIR = path.join(PROJECT_ROOT, 'localstorage-extension');
+export const EXTENSION_DIR = path.join(PROJECT_ROOT, 'extension');
 export const PROFILE_DIR = path.join(PROJECT_ROOT, 'tests', 'profiles', 'prolific');
-const ADDON_ID = 'localstorage-viewer@prolific-watcher';
+const ADDON_ID = 'prolific-pulse@prolific-pulse';
 const ADDON_UUID = 'a1b2c3d4-0000-4000-8000-000000000001';
 export const GO_SERVER_URL = 'http://localhost:8080';
 export const PROLIFIC_APP_URL = 'https://app.prolific.com';

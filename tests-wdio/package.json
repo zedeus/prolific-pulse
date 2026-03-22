@@ -1,5 +1,5 @@
 {
-  "name": "prolific-watcher-tests",
+  "name": "prolific-pulse-tests",
   "private": true,
   "type": "module",
   "devDependencies": {

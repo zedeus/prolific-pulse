@@ -33,9 +33,9 @@ go.work
 .DS_Store
 Thumbs.db
 
-# LocalStorage extension (keep source, ignore packaged artifacts)
-localstorage-extension/*.xpi
-localstorage-extension/*.zip
+# Extension (keep source, ignore packaged artifacts)
+extension/*.xpi
+extension/*.zip
 
 # Build artifacts
 dist/

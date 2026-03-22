@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "LocalStorage Viewer",
+  "name": "Prolific Pulse",
   "version": "1.1.0",
-  "description": "Automatically sync OIDC access_token from open Prolific tabs to a local Go service.",
+  "description": "Real-time study monitoring for Prolific. Get instant alerts when studies matching your criteria become available.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": [
     "scripting",
     "tabs",
@@ -38,11 +45,17 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "localstorage-viewer@prolific-watcher"
+      "id": "prolific-pulse@prolific-pulse",
+      "strict_min_version": "110.0"
     }
   },
+  "homepage_url": "https://github.com/zedeus/prolific-pulse",
   "action": {
-    "default_title": "LocalStorage Viewer",
-    "default_popup": "popup.html"
+    "default_title": "Prolific Pulse",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   }
 }

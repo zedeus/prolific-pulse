@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -262,7 +263,7 @@ func (s *Service) processDebugState(payload json.RawMessage) (map[string]any, er
 
 	now := time.Now().UTC()
 	s.extensionDebugStateMu.Lock()
-	s.extensionDebugState = append(json.RawMessage(nil), trimmed...)
+	s.extensionDebugState = slices.Clone(trimmed)
 	s.extensionDebugStateAt = now
 	s.extensionDebugStateMu.Unlock()
 

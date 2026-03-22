@@ -1,4 +1,4 @@
-module prolific-watcher
+module prolific-pulse
 
 go 1.24.9
 
