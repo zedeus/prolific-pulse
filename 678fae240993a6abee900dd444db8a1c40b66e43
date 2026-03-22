@@ -1,0 +1,23 @@
+localstorage-extension/background.js
+  194afe971cc3e172 779-786,793-794,797-800
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "678fae240993a6abee900dd444db8a1c40b66e43",
+  "prompts": {
+    "194afe971cc3e172": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "760b9d02-2271-4424-80f7-e11e6463d492",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 2,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}
