@@ -43,7 +43,6 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	s.registerExtensionRoute(mux, "/studies", http.MethodGet, s.handleStudies)
 	s.registerExtensionRoute(mux, "/submissions", http.MethodGet, s.handleSubmissions)
 	s.registerExtensionRoute(mux, "/debug/extension-state", http.MethodGet, s.handleDebugExtensionState)
-	s.registerExtensionRoute(mux, "/debug/open-popup-tab", http.MethodPost, s.handleDebugOpenPopupTab)
 }
 
 func (s *Service) registerExtensionRoute(mux *http.ServeMux, path, method string, handler http.HandlerFunc) {

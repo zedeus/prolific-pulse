@@ -105,8 +105,6 @@ type normalizedStudy struct {
 
 type normalizedStudiesResponse struct {
 	Results []normalizedStudy `json:"results"`
-	Links   apiStudiesLinks   `json:"_links"`
-	Meta    map[string]any    `json:"meta"`
 }
 
 func normalizeStudiesResponse(body []byte) (*normalizedStudiesResponse, error) {
@@ -179,10 +177,6 @@ func normalizeStudiesResponse(body []byte) (*normalizedStudiesResponse, error) {
 
 	normalized := normalizedStudiesResponse{
 		Results: results,
-		Links:   raw.Links,
-		Meta: map[string]any{
-			"count": len(results),
-		},
 	}
 
 	return &normalized, nil

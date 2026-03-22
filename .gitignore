@@ -1,6 +1,4 @@
-# Tokens and credentials
-token.json
-studies_headers.json
+# Credentials
 .prolific-auth
 prolific_watcher.db
 prolific_watcher.db-shm
@@ -43,11 +41,8 @@ localstorage-extension/*.zip
 dist/
 build/
 
-# Python / test artifacts
-__pycache__/
-.pytest_cache/
+# Test artifacts
 tests/profiles/
-venv/
 
 # WebdriverIO / Node.js test artifacts
 tests-wdio/node_modules/

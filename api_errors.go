@@ -11,14 +11,14 @@ func (e *apiError) Error() string {
 	return e.message
 }
 
-func badRequest(message string, _ error) *apiError {
+func badRequest(message string) *apiError {
 	return &apiError{message: message}
 }
 
-func serviceUnavailable(message string, _ error) *apiError {
+func serviceUnavailable(message string) *apiError {
 	return &apiError{message: message}
 }
 
-func internalServerError(message string, _ error) *apiError {
+func internalServerError(message string) *apiError {
 	return &apiError{message: message}
 }

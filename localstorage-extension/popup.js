@@ -90,10 +90,7 @@ const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat(undefined, { numeric
 const DEBUG_EVENT_LABELS = Object.freeze({
   "token.sync.ok": "Token synced",
   "token.sync.error": "Token sync failed",
-  "token.service_cleared": "Signed-out token cleared",
-  "token.service_clear.error": "Token clear failed",
   "oauth.capture.ok": "OAuth token captured",
-  "oauth.capture.error": "OAuth capture failed",
   "studies.refresh.post.ok": "Refresh forwarded",
   "studies.refresh.post.error": "Refresh forward failed",
   "studies.response.ingest.ok": "Response ingested",
@@ -101,8 +98,6 @@ const DEBUG_EVENT_LABELS = Object.freeze({
   "studies.response.parse.error": "Response parse failed",
   "studies.response.filter.error": "Response capture failed",
   "studies.response.capture.on_parsed_error": "Response parse hook failed",
-  "studies.headers.capture.ok": "Headers captured",
-  "studies.headers.capture.error": "Headers capture failed",
   "settings.auto_open.updated": "Auto-open updated",
   "settings.priority_filter.updated": "Priority filter saved",
   "priority.alert.disabled": "Priority alert disabled",
@@ -112,7 +107,6 @@ const DEBUG_EVENT_LABELS = Object.freeze({
   "priority.alert.played": "Priority alert played",
   "priority.alert.error": "Priority alert failed",
   "settings.studies_refresh_policy.updated": "Cadence saved",
-  "settings.studies_refresh_policy.schedule_error": "Cadence schedule failed",
   "settings.studies_refresh_policy.schedule_ok": "Cadence schedule applied",
   "service.ws.command_error": "WS command error",
   "service.ws.unknown_message_type": "WS message ignored"
@@ -1286,9 +1280,6 @@ function deriveErrorMessage(state, sourceError) {
   if (state.token_ok === false) {
     return normalizeServiceHealthMessage(state.token_reason || "Token sync error.");
   }
-  if (state.studies_headers_ok === false) {
-    return normalizeServiceHealthMessage(state.studies_headers_reason || "Studies header capture error.");
-  }
   if (state.studies_refresh_ok === false) {
     return normalizeServiceHealthMessage(state.studies_refresh_reason || "Studies refresh sync error.");
   }
@@ -1412,9 +1403,6 @@ function formatDebugIssue(state) {
   }
   if (state.token_ok === false) {
     return compactText(normalizeServiceHealthMessage(state.token_reason || "token sync failed"));
-  }
-  if (state.studies_headers_ok === false) {
-    return compactText(normalizeServiceHealthMessage(state.studies_headers_reason || "headers capture failed"));
   }
   if (state.studies_refresh_ok === false) {
     return compactText(normalizeServiceHealthMessage(state.studies_refresh_reason || "refresh sync failed"));

@@ -7,7 +7,7 @@ import (
 func normalizeURLOrAPIError(raw string, normalize func(string) (string, bool), message string) (string, error) {
 	normalizedURL, ok := normalize(raw)
 	if !ok {
-		return "", badRequest(message, nil)
+		return "", badRequest(message)
 	}
 	return normalizedURL, nil
 }
@@ -16,7 +16,7 @@ func requireNonEmptyJSONBody(body []byte) error {
 	if len(body) > 0 {
 		return nil
 	}
-	return badRequest("body cannot be empty", nil)
+	return badRequest("body cannot be empty")
 }
 
 func (s *Service) processReceiveStudiesRefresh(payload StudiesRefreshUpdate) (map[string]any, error) {
@@ -34,14 +34,14 @@ func (s *Service) processReceiveStudiesRefresh(payload StudiesRefreshUpdate) (ma
 
 	if err := s.markStudiesRefresh(payload); err != nil {
 		logWarn("studies.refresh.persist_failed", "error", err)
-		return nil, internalServerError("failed to persist studies refresh", err)
+		return nil, internalServerError("failed to persist studies refresh")
 	}
 
 	logInfo("studies.refresh.received", "source", payload.Source, "status_code", payload.StatusCode, "url", payload.URL, "observed_at", payload.ObservedAt)
 	return map[string]any{"success": true}, nil
 }
 
-func (s *Service) processReceiveStudiesResponse(payload interceptedStudiesResponsePayload) (map[string]any, error) {
+func (s *Service) processReceiveStudiesResponse(payload interceptedResponsePayload) (map[string]any, error) {
 	normalizedURL, err := normalizeURLOrAPIError(
 		payload.URL,
 		normalizeStudiesCollectionURL,
@@ -63,7 +63,7 @@ func (s *Service) processReceiveStudiesResponse(payload interceptedStudiesRespon
 			URL:        payload.URL,
 			StatusCode: payload.StatusCode,
 		}); err != nil {
-			return nil, internalServerError("failed to persist studies refresh status", err)
+			return nil, internalServerError("failed to persist studies refresh status")
 		}
 		return map[string]any{"success": true}, nil
 	}
@@ -71,7 +71,7 @@ func (s *Service) processReceiveStudiesResponse(payload interceptedStudiesRespon
 	normalized, availability, err := s.ingestStudiesPayload(payload.Body, payload.ObservedAt, "extension.intercepted_response", payload.URL, http.StatusOK)
 	if err != nil {
 		logWarn("studies.response.ingest_failed", "source", "extension.intercepted_response", "url", payload.URL, "error", err)
-		return nil, badRequest("failed to ingest studies response", err)
+		return nil, badRequest("failed to ingest studies response")
 	}
 
 	response := map[string]any{"success": true, "meta": map[string]any{"count": len(normalized.Results)}}
@@ -83,9 +83,9 @@ func (s *Service) processReceiveStudiesResponse(payload interceptedStudiesRespon
 	return response, nil
 }
 
-func (s *Service) processReceiveSubmissionResponse(payload interceptedSubmissionResponsePayload) (map[string]any, error) {
+func (s *Service) processReceiveSubmissionResponse(payload interceptedResponsePayload) (map[string]any, error) {
 	if s.submissionsStore == nil {
-		return nil, serviceUnavailable("submissions store not configured", nil)
+		return nil, serviceUnavailable("submissions store not configured")
 	}
 
 	normalizedURL, err := normalizeURLOrAPIError(
@@ -106,7 +106,7 @@ func (s *Service) processReceiveSubmissionResponse(payload interceptedSubmission
 	update, err := s.ingestSubmissionPayload(payload.Body, observedAt)
 	if err != nil {
 		logWarn("submission.response.ingest_failed", "source", "extension.intercepted_submission_response", "url", payload.URL, "error", err)
-		return nil, badRequest("failed to ingest submission response", err)
+		return nil, badRequest("failed to ingest submission response")
 	}
 
 	logInfo(
@@ -124,9 +124,9 @@ func (s *Service) processReceiveSubmissionResponse(payload interceptedSubmission
 	}, nil
 }
 
-func (s *Service) processReceiveParticipantSubmissionsResponse(payload interceptedParticipantSubmissionsResponsePayload) (map[string]any, error) {
+func (s *Service) processReceiveParticipantSubmissionsResponse(payload interceptedResponsePayload) (map[string]any, error) {
 	if s.submissionsStore == nil {
-		return nil, serviceUnavailable("submissions store not configured", nil)
+		return nil, serviceUnavailable("submissions store not configured")
 	}
 
 	normalizedURL, err := normalizeURLOrAPIError(
@@ -152,7 +152,7 @@ func (s *Service) processReceiveParticipantSubmissionsResponse(payload intercept
 	)
 	if err != nil {
 		logWarn("participant.submissions.ingest_failed", "source", "extension.intercepted_participant_submissions_response", "url", payload.URL, "error", err)
-		return nil, badRequest("failed to ingest participant submissions response", err)
+		return nil, badRequest("failed to ingest participant submissions response")
 	}
 
 	logInfo(

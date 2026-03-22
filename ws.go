@@ -25,7 +25,6 @@ const (
 	wsTypeParticipantSubs           = "receive-participant-submissions-response"
 	wsTypeDebugState                = "report-debug-state"
 	wsTypeStudiesRefreshEvent       = "studies_refresh_event"
-	wsTypeOpenTab                   = "open-tab"
 	wsWriteTimeout                  = 10 * time.Second
 	wsReadLimitBytes          int64 = 8 << 20
 )
@@ -222,7 +221,7 @@ func (s *Service) dispatchWSRequest(requestType string, payload json.RawMessage)
 	case wsTypeDebugState:
 		return s.processDebugState(payload)
 	default:
-		return nil, badRequest(fmt.Sprintf("unknown message type %q", requestType), nil)
+		return nil, badRequest(fmt.Sprintf("unknown message type %q", requestType))
 	}
 }
 
@@ -242,12 +241,12 @@ func decodeWSPayload(raw json.RawMessage, dst any, required bool) error {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		if required {
-			return badRequest("missing payload", nil)
+			return badRequest("missing payload")
 		}
 		return nil
 	}
 	if err := json.Unmarshal(trimmed, dst); err != nil {
-		return badRequest("invalid payload", err)
+		return badRequest("invalid payload")
 	}
 	return nil
 }
@@ -255,10 +254,10 @@ func decodeWSPayload(raw json.RawMessage, dst any, required bool) error {
 func (s *Service) processDebugState(payload json.RawMessage) (map[string]any, error) {
 	trimmed := bytes.TrimSpace(payload)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return nil, badRequest("missing payload", nil)
+		return nil, badRequest("missing payload")
 	}
 	if !json.Valid(trimmed) {
-		return nil, badRequest("invalid JSON payload", nil)
+		return nil, badRequest("invalid JSON payload")
 	}
 
 	now := time.Now().UTC()
@@ -268,22 +267,6 @@ func (s *Service) processDebugState(payload json.RawMessage) (map[string]any, er
 	s.extensionDebugStateMu.Unlock()
 
 	return map[string]any{"received": true}, nil
-}
-
-func (s *Service) broadcastOpenTab(tabURL string) int {
-	msg := wsServerMessage{
-		Type: wsTypeOpenTab,
-		Data: map[string]any{"url": tabURL},
-		At:   time.Now().UTC().Format(time.RFC3339Nano),
-	}
-
-	clients := s.snapshotWSClients()
-	for _, client := range clients {
-		if err := s.writeWSMessage(context.Background(), client, msg); err != nil {
-			logWarn("ws.broadcast_failed", "type", wsTypeOpenTab, "error", err)
-		}
-	}
-	return len(clients)
 }
 
 func wsErrorMessage(err error) string {

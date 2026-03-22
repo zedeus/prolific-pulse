@@ -53,8 +53,7 @@ const SERVICE_WS_COMMANDS = Object.freeze({
   })
 });
 const SERVICE_WS_SERVER_EVENT_TYPES = Object.freeze({
-  studiesRefreshEvent: "studies_refresh_event",
-  openTab: "open-tab"
+  studiesRefreshEvent: "studies_refresh_event"
 });
 
 const STATE_KEY = "syncState";
@@ -1308,29 +1307,6 @@ function ensureServiceSocketConnected(reason) {
       const observedAt = extractObservedAtFromStudiesRefreshEvent(parsed);
       notifyPopupDashboardUpdated("service.ws.studies_refresh_event", observedAt);
       queuePrioritySnapshotEvent(priorityAdapters.extractPrioritySnapshotEventFromStudiesRefreshMessage(parsed, extractObservedAtFromStudiesRefreshEvent));
-      return;
-    }
-
-    if (messageType === SERVICE_WS_SERVER_EVENT_TYPES.openTab) {
-      const data = parsed.data && typeof parsed.data === "object" ? parsed.data : {};
-      const tabUrl = typeof data.url === "string" ? data.url : "";
-      pushDebugLog("service.ws.open_tab", { url: tabUrl });
-      if (tabUrl) {
-        // Find an about:blank tab (pre-created by the test harness) and navigate it.
-        // This keeps Playwright tracking the page even after moz-extension:// navigation.
-        browser.tabs.query({}).then(tabs => {
-          const blankTab = tabs.find(t => t.url === "about:blank");
-          if (blankTab) {
-            pushDebugLog("service.ws.open_tab.update", { tabId: blankTab.id, url: tabUrl });
-            return browser.tabs.update(blankTab.id, { url: tabUrl });
-          }
-          pushDebugLog("service.ws.open_tab.create", { url: tabUrl, allTabs: tabs.map(t => t.url) });
-          return browser.tabs.create({ url: tabUrl, active: false });
-        }).then(
-          (tab) => pushDebugLog("service.ws.open_tab.ok", { tabId: tab?.id }),
-          (err) => pushDebugLog("service.ws.open_tab.error", { error: String(err) })
-        );
-      }
       return;
     }
 

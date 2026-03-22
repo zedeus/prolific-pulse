@@ -132,21 +132,7 @@ func (s *Service) handleStudiesRefresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type interceptedStudiesResponsePayload struct {
-	URL        string          `json:"url"`
-	StatusCode int             `json:"status_code"`
-	ObservedAt time.Time       `json:"observed_at"`
-	Body       json.RawMessage `json:"body"`
-}
-
-type interceptedSubmissionResponsePayload struct {
-	URL        string          `json:"url"`
-	StatusCode int             `json:"status_code"`
-	ObservedAt time.Time       `json:"observed_at"`
-	Body       json.RawMessage `json:"body"`
-}
-
-type interceptedParticipantSubmissionsResponsePayload struct {
+type interceptedResponsePayload struct {
 	URL        string          `json:"url"`
 	StatusCode int             `json:"status_code"`
 	ObservedAt time.Time       `json:"observed_at"`
@@ -217,26 +203,6 @@ type submissionResponseBody struct {
 	StudyURL      string                 `json:"study_url"`
 }
 
-type participantSubmissionLink struct {
-	Href  *string `json:"href"`
-	Title string  `json:"title"`
-}
-
-type participantSubmissionsLinks struct {
-	Self     participantSubmissionLink `json:"self"`
-	Next     participantSubmissionLink `json:"next"`
-	Previous participantSubmissionLink `json:"previous"`
-	Last     participantSubmissionLink `json:"last"`
-}
-
-type participantSubmissionsMeta struct {
-	Count                 int        `json:"count"`
-	TotalEarned           int        `json:"total_earned"`
-	TotalEarnedByCurrency []apiMoney `json:"total_earned_by_currency"`
-	TotalApproved         int        `json:"total_approved"`
-	TotalScreenedOut      int        `json:"total_screened_out"`
-}
-
 type participantSubmissionInstitution struct {
 	Name *string `json:"name"`
 	Logo *string `json:"logo"`
@@ -283,9 +249,7 @@ type participantSubmissionListItem struct {
 }
 
 type participantSubmissionsListResponse struct {
-	Results []json.RawMessage            `json:"results"`
-	Links   *participantSubmissionsLinks `json:"_links,omitempty"`
-	Meta    *participantSubmissionsMeta  `json:"meta,omitempty"`
+	Results []json.RawMessage `json:"results"`
 }
 
 func parseStudyIDFromSubmissionURL(studyURL string) string {
@@ -571,19 +535,6 @@ func (s *Service) handleDebugExtensionState(w http.ResponseWriter, _ *http.Reque
 		"received_at": receivedAt.Format(time.RFC3339Nano),
 		"state":       json.RawMessage(state),
 	})
-}
-
-func (s *Service) handleDebugOpenPopupTab(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		URL string `json:"url"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.URL) == "" {
-		writeError(w, http.StatusBadRequest, "url is required", nil)
-		return
-	}
-
-	clientCount := s.broadcastOpenTab(body.URL)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "url": body.URL, "clients": clientCount})
 }
 
 func (s *Service) handleStudies(w http.ResponseWriter, r *http.Request) {
