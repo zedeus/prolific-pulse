@@ -1,0 +1,23 @@
+.gitignore
+  392aa6edb7bf4835 3-5,8-9,49-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "7c7236141153f2c26d93467bc0b30f3a52c08367",
+  "prompts": {
+    "392aa6edb7bf4835": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d80a4939-fc57-4bb4-bf55-51b2e2a88b2d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 5,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
