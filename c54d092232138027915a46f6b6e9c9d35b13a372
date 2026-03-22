@@ -1,0 +1,41 @@
+extension/popup.html
+  774ac02181cd8a1f 205,355-357
+  392aa6edb7bf4835 14-15,18-20,22-27,33,39,50-57,59-60,66,70-71,75,77,81-83,86,92,95,97,101-107,109,111-113,117,121-122,126,128,131-133,161,168-169,173-178,180,193,197-199,210,223,227,235-236,242,246-247,251,262,266-268,270,278-279,282-287,290-314,317-323,327-329,332,342-344,351,367,369,372-373,384-385,387,392-393,401-403,407-410,422,425,429-432,452-456,471-474,476,478,500-502,511-515,517,536,538-541,543,545-546,550-552,583-585,615-616,683,685,691-692,698-699,701,753,755-758,760,762,766-768,809,811,814,874-878,880
+build-xpi.sh
+  774ac02181cd8a1f 1-36
+extension/popup.js
+  392aa6edb7bf4835 1098,1104,1106-1109,1170-1173,1245-1248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "c54d092232138027915a46f6b6e9c9d35b13a372",
+  "prompts": {
+    "392aa6edb7bf4835": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d80a4939-fc57-4bb4-bf55-51b2e2a88b2d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 228,
+      "overriden_lines": 0
+    },
+    "774ac02181cd8a1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d36794f5-ed64-417e-99bc-484b9257d6b2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}
