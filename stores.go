@@ -360,19 +360,19 @@ func (s *StudiesStore) StoreNormalizedStudies(studies []normalizedStudy, observe
 	observedAt = utcNowOr(observedAt)
 
 	return withTx(s.db, func(tx *sql.Tx) error {
+		ts := formatTime(observedAt)
 		for _, study := range studies {
 			payloadJSON, err := json.Marshal(study)
 			if err != nil {
 				return fmt.Errorf("marshal study %s: %w", study.ID, err)
 			}
 			payload := string(payloadJSON)
-			at := formatTime(observedAt)
 
 			if _, err := tx.Exec(
 				`INSERT INTO studies_history (study_id, observed_at, payload_json)
 				 VALUES (?, ?, ?)`,
 				study.ID,
-				at,
+				ts,
 				payload,
 			); err != nil {
 				return fmt.Errorf("insert studies history for %s: %w", study.ID, err)
@@ -388,7 +388,7 @@ func (s *StudiesStore) StoreNormalizedStudies(studies []normalizedStudy, observe
 				study.ID,
 				study.Name,
 				payload,
-				at,
+				ts,
 			); err != nil {
 				return fmt.Errorf("upsert studies latest for %s: %w", study.ID, err)
 			}
@@ -436,18 +436,38 @@ func (s *StudiesStore) ReconcileAvailability(studies []normalizedStudy, observed
 			}
 		}
 
-		if _, err := tx.Exec(`DELETE FROM studies_active_snapshot`); err != nil {
-			return fmt.Errorf("clear active snapshot: %w", err)
+		// Remove studies no longer present.
+		if len(current) == 0 {
+			if _, err := tx.Exec(`DELETE FROM studies_active_snapshot`); err != nil {
+				return fmt.Errorf("clear active snapshot: %w", err)
+			}
+		} else {
+			ids := make([]any, 0, len(current))
+			ph := make([]string, 0, len(current))
+			for id := range current {
+				ph = append(ph, "?")
+				ids = append(ids, id)
+			}
+			if _, err := tx.Exec(
+				`DELETE FROM studies_active_snapshot WHERE study_id NOT IN (`+strings.Join(ph, ",")+`)`,
+				ids...,
+			); err != nil {
+				return fmt.Errorf("prune active snapshot: %w", err)
+			}
 		}
+
+		// Upsert current studies, preserving first_seen_at for existing entries.
+		ts := formatTime(observedAt)
 		for id, name := range current {
 			if _, err := tx.Exec(
-				`INSERT INTO studies_active_snapshot (study_id, name, last_seen_at)
-				 VALUES (?, ?, ?)`,
-				id,
-				name,
-				formatTime(observedAt),
+				`INSERT INTO studies_active_snapshot (study_id, name, first_seen_at, last_seen_at)
+				 VALUES (?, ?, ?, ?)
+				 ON CONFLICT(study_id) DO UPDATE SET
+				   name = excluded.name,
+				   last_seen_at = excluded.last_seen_at`,
+				id, name, ts, ts,
 			); err != nil {
-				return fmt.Errorf("insert active snapshot for %s: %w", id, err)
+				return fmt.Errorf("upsert active snapshot for %s: %w", id, err)
 			}
 		}
 
@@ -515,11 +535,11 @@ func (s *StudiesStore) GetCurrentAvailableStudies(limit int) ([]normalizedStudy,
 	limit = clamp(limit, defaultCurrentStudies, maxCurrentStudies)
 
 	rows, err := s.db.Query(
-		`SELECT l.payload_json
+		`SELECT l.payload_json, a.first_seen_at
 		 FROM studies_active_snapshot a
 		 JOIN studies_latest l ON l.study_id = a.study_id
 		 ORDER BY
-		   a.last_seen_at ASC,
+		   a.first_seen_at ASC,
 		   json_extract(l.payload_json, '$.published_at') ASC,
 		   json_extract(l.payload_json, '$.date_created') ASC,
 		   l.study_id ASC
@@ -534,7 +554,8 @@ func (s *StudiesStore) GetCurrentAvailableStudies(limit int) ([]normalizedStudy,
 	studies := make([]normalizedStudy, 0, limit)
 	for rows.Next() {
 		var payloadJSON string
-		if err := rows.Scan(&payloadJSON); err != nil {
+		var firstSeenAt string
+		if err := rows.Scan(&payloadJSON, &firstSeenAt); err != nil {
 			return nil, fmt.Errorf("scan current available study: %w", err)
 		}
 
@@ -542,6 +563,7 @@ func (s *StudiesStore) GetCurrentAvailableStudies(limit int) ([]normalizedStudy,
 		if err := json.Unmarshal([]byte(payloadJSON), &study); err != nil {
 			return nil, fmt.Errorf("parse current available study payload: %w", err)
 		}
+		study.FirstSeenAt = firstSeenAt
 		studies = append(studies, study)
 	}
 	if err := rows.Err(); err != nil {

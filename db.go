@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -92,6 +93,23 @@ func applyMigrations(db *sql.DB) error {
 
 	if err := execStatements(db, statements...); err != nil {
 		return fmt.Errorf("apply migration: %w", err)
+	}
+
+	// Additive column migrations — ignore "duplicate column" errors.
+	addColumnMigrations := []string{
+		`ALTER TABLE studies_active_snapshot ADD COLUMN first_seen_at TEXT NOT NULL DEFAULT ''`,
+	}
+	for _, stmt := range addColumnMigrations {
+		if _, err := db.Exec(stmt); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return fmt.Errorf("additive column migration: %w", err)
+			}
+		}
+	}
+
+	// Backfill first_seen_at from last_seen_at for rows that predate the migration.
+	if _, err := db.Exec(`UPDATE studies_active_snapshot SET first_seen_at = last_seen_at WHERE first_seen_at = ''`); err != nil {
+		return fmt.Errorf("backfill first_seen_at: %w", err)
 	}
 
 	return nil

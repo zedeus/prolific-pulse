@@ -101,6 +101,7 @@ type normalizedStudy struct {
 	StudyLabels                    []string             `json:"study_labels"`
 	AIInferredStudyLabels          []string             `json:"ai_inferred_study_labels"`
 	PreviousSubmissionCount        int                  `json:"previous_submission_count"`
+	FirstSeenAt                    string               `json:"first_seen_at,omitempty"`
 }
 
 type normalizedStudiesResponse struct {
