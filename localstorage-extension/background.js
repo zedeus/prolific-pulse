@@ -1661,12 +1661,22 @@ async function syncTokenOnce(trigger) {
     }
 
     let extracted = null;
+    let anyTabAccessible = false;
     for (const tab of tabs) {
       try {
         const result = await extractTokenFromTab(tab.id);
         if (result && result.access_token) {
           extracted = result;
           break;
+        }
+        // Script ran in the tab but found no token — tab was accessible.
+        // Distinguish from injection failures (page loading, dead context)
+        // where the error contains "Script injection not available".
+        if (result && result.error &&
+            !String(result.error).includes("Script injection not available") &&
+            !String(result.error).includes("No script execution result") &&
+            !String(result.error).includes("Empty script result")) {
+          anyTabAccessible = true;
         }
       } catch (tabError) {
         await setTokenSyncState({
@@ -1679,8 +1689,14 @@ async function syncTokenOnce(trigger) {
     }
 
     if (!extracted) {
-      cancelDelayedRefreshes("token_cleared");
-      pushDebugLog("token.cleared_local", { trigger: normalizedTrigger, reason: "extension.no_oidc_user_token" });
+      // Only cancel delayed refreshes if we confirmed the user is actually
+      // signed out (script ran in a tab but found no OIDC token). Transient
+      // failures (tab loading, script injection unavailable) should not kill
+      // pending refreshes — they'll recover once the tab is ready.
+      if (anyTabAccessible) {
+        cancelDelayedRefreshes("token_cleared");
+      }
+      pushDebugLog("token.cleared_local", { trigger: normalizedTrigger, reason: "extension.no_oidc_user_token", tab_accessible: anyTabAccessible });
 
       await setTokenSyncState({
         ok: false,

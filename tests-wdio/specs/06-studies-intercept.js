@@ -58,7 +58,7 @@ describe('Studies Interception', () => {
     expect(firstAt).not.toBe(initialAt);
 
     // Now wait for the DELAYED refresh (a second, different timestamp).
-    // Default average delay is 30s (exponential distribution), so can be 40-60s+.
+    // With default settings (spread=0), delays are deterministic at 30s, 60s, 90s.
     const deadline = Date.now() + 90_000;
     let newAt = null;
     while (Date.now() < deadline) {
