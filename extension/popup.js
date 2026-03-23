@@ -480,13 +480,35 @@ async function getPriorityAlertSoundBuffer(audioContext, soundType) {
   return priorityAlertSoundBufferPromiseByType.get(normalized);
 }
 
-function setPriorityPreviewButtonState(isPlaying) {
+function setPriorityPreviewButtonState(isPlaying, isMuted = false) {
   if (!priorityAlertSoundPreviewButton) {
     return;
   }
-  priorityAlertSoundPreviewButton.disabled = isPlaying;
+  priorityAlertSoundPreviewButton.disabled = isPlaying || isMuted;
   priorityAlertSoundPreviewButton.textContent = isPlaying ? "■" : "▶";
-  priorityAlertSoundPreviewButton.title = isPlaying ? "Playing" : "Preview sound";
+  priorityAlertSoundPreviewButton.title = isMuted ? "Volume is 0" : isPlaying ? "Playing" : "Preview sound";
+}
+
+let priorityPreviewActiveSource = null;
+
+function cancelPriorityPreview() {
+  if (priorityPreviewActiveSource) {
+    try { priorityPreviewActiveSource.stop(); } catch {}
+    priorityPreviewActiveSource = null;
+  }
+  if (priorityPreviewResetTimer) {
+    clearTimeout(priorityPreviewResetTimer);
+    priorityPreviewResetTimer = null;
+  }
+  priorityPreviewPlaying = false;
+}
+
+function updatePreviewButtonForVolume() {
+  if (!priorityAlertSoundVolumeInput) return;
+  const vol = Number.parseInt(priorityAlertSoundVolumeInput.value, 10) || 0;
+  if (!priorityPreviewPlaying) {
+    setPriorityPreviewButtonState(false, vol <= 0);
+  }
 }
 
 function queuePriorityPreviewButtonReset(durationMS) {
@@ -496,7 +518,7 @@ function queuePriorityPreviewButtonReset(durationMS) {
   priorityPreviewResetTimer = setTimeout(() => {
     priorityPreviewResetTimer = null;
     priorityPreviewPlaying = false;
-    setPriorityPreviewButtonState(false);
+    updatePreviewButtonForVolume();
   }, Math.max(300, durationMS + 180));
 }
 
@@ -544,6 +566,7 @@ async function playPriorityAlertPreviewFromInputs() {
   };
 
   priorityPreviewPlaying = true;
+  priorityPreviewActiveSource = source;
   setPriorityPreviewButtonState(true);
   queuePriorityPreviewButtonReset(Math.ceil((Math.max(0.1, soundBuffer.duration) + 0.12) * 1000));
   source.start(startTime);
@@ -1825,6 +1848,22 @@ if (priorityAlertSoundPreviewButton) {
     await runWithHealthError(async () => {
       await playPriorityAlertPreviewFromInputs();
     });
+  });
+}
+
+// Reset preview when sound type changes (don't wait for old sound to finish).
+if (priorityAlertSoundTypeSelect) {
+  priorityAlertSoundTypeSelect.addEventListener("change", () => {
+    cancelPriorityPreview();
+    updatePreviewButtonForVolume();
+  });
+}
+
+// Reset preview and update muted state when volume changes.
+if (priorityAlertSoundVolumeInput) {
+  priorityAlertSoundVolumeInput.addEventListener("input", () => {
+    cancelPriorityPreview();
+    updatePreviewButtonForVolume();
   });
 }
 

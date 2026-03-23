@@ -13,6 +13,11 @@
   "scripts": {
     "test": "wdio run wdio.conf.js",
     "test:fast": "SKIP_SLOW=1 wdio run wdio.conf.js",
-    "setup-login": "node setup-login.js"
+    "test:chrome": "wdio run wdio.chrome.conf.js",
+    "test:chrome:fast": "SKIP_SLOW=1 wdio run wdio.chrome.conf.js",
+    "test:all": "HEADLESS=1 wdio run wdio.conf.js && HEADLESS=1 wdio run wdio.chrome.conf.js",
+    "test:all:fast": "SKIP_SLOW=1 HEADLESS=1 wdio run wdio.conf.js && SKIP_SLOW=1 HEADLESS=1 wdio run wdio.chrome.conf.js",
+    "setup-login": "node setup-login.js",
+    "setup-login:chrome": ".venv/bin/python setup-login-chrome.py"
   }
 }

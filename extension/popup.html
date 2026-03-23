@@ -503,7 +503,6 @@
     }
 
     .priority-field input[type="number"],
-    .priority-field input[type="range"],
     .priority-field input[type="text"],
     .priority-field select {
       width: 100%;
@@ -515,6 +514,14 @@
       color: var(--text);
       background: #fff;
       font-family: inherit;
+    }
+
+    .priority-field input[type="range"],
+    .refresh-field input[type="range"] {
+      width: 100%;
+      height: 24px;
+      margin: 0;
+      accent-color: #4f46e5;
     }
 
     .priority-field input[type="text"] {
@@ -592,13 +599,6 @@
       font-family: "IBM Plex Mono", "Consolas", monospace;
       text-align: right;
       min-width: 34px;
-    }
-
-    .refresh-field input[type="range"] {
-      width: 100%;
-      height: 24px;
-      margin: 0;
-      accent-color: #4f46e5;
     }
 
     .refresh-plan-summary {

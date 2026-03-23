@@ -21,6 +21,7 @@
     let snapshotQueue = Promise.resolve();
     let alertSeenStudyIDs = new Map();
     let autoOpenSeenStudyIDs = new Map();
+    let attemptedStudyIDs = new Map(); // studyID → attemptedAtMS
 
     function normalizeSnapshotFromStorage(rawSnapshot) {
       const nowMS = Date.now();
@@ -163,6 +164,24 @@
       });
     }
 
+    function markAttempted(studyID) {
+      if (studyID) attemptedStudyIDs.set(studyID, Date.now());
+      pruneSeenMap(attemptedStudyIDs, Date.now());
+    }
+
+    function clearSeenForAttemptedStudies(removedStudyIDs) {
+      pruneSeenMap(attemptedStudyIDs, Date.now());
+      for (const studyID of removedStudyIDs) {
+        if (attemptedStudyIDs.has(studyID)) {
+          // User attempted this study (clicked "Take part") and it disappeared
+          // (likely full). Clear from seen maps so it re-alerts when it reappears.
+          alertSeenStudyIDs.delete(studyID);
+          autoOpenSeenStudyIDs.delete(studyID);
+          attemptedStudyIDs.delete(studyID);
+        }
+      }
+    }
+
     return Object.freeze({
       ensureHydrated,
       persistSnapshot,
@@ -175,9 +194,12 @@
       markAlertSeen: (studies, seenAtMS) => markActionStudiesSeen(studies, alertSeenStudyIDs, seenAtMS),
       selectAutoOpenCandidates: (studies, nowMS) => selectActionStudies(studies, autoOpenSeenStudyIDs, nowMS),
       markAutoOpenSeen: (studies, seenAtMS) => markActionStudiesSeen(studies, autoOpenSeenStudyIDs, seenAtMS),
+      markAttempted,
+      clearSeenForAttemptedStudies,
       resetActionSeen: () => {
         alertSeenStudyIDs = new Map();
         autoOpenSeenStudyIDs = new Map();
+        attemptedStudyIDs = new Map();
       },
       getQueuePromise: () => snapshotQueue
     });

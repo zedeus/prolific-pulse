@@ -1,3 +1,19 @@
+// Chrome MV3 service worker: load modules via importScripts.
+// Firefox MV3 event pages load these via the manifest "background.scripts" array.
+if (typeof importScripts === "function") {
+  importScripts(
+    "background/domain.js",
+    "background/settings.js",
+    "background/state.js",
+    "background/actions.js",
+    "background/adapters.js"
+  );
+}
+
+// True when running as a Chrome service worker (no DOM / AudioContext available).
+const IS_SERVICE_WORKER = typeof ServiceWorkerGlobalScope !== "undefined" &&
+  self instanceof ServiceWorkerGlobalScope;
+
 const PROLIFIC_PATTERNS = ["*://app.prolific.com/*", "*://auth.prolific.com/*"];
 const STUDIES_REQUEST_PATTERN = "*://internal-api.prolific.com/api/v1/participant/studies/*";
 const PARTICIPANT_SUBMISSIONS_PATTERN = "*://internal-api.prolific.com/api/v1/participant/submissions/*";
@@ -141,15 +157,12 @@ const STUDIES_COLLECTION_PATH = "/api/v1/participant/studies/";
 
 // TODO: Consider switching to api.prolific.com/?is_assistant=1 (used by Prolific Assistant extension).
 const FETCH_STUDIES_API_URL = "https://internal-api.prolific.com/api/v1/participant/studies/";
-const FETCH_STUDIES_EXT_MARKER = "_pwext";
 
-function isExtensionOriginatedStudiesRequest(url) {
-  try {
-    return new URL(url).searchParams.has(FETCH_STUDIES_EXT_MARKER);
-  } catch {
-    return false;
-  }
-}
+// Tracks whether the extension is currently performing its own studies fetch.
+// Used to prevent double-processing: the content script and webRequest.onCompleted
+// skip interception while this is true, since the delayed refresh handler
+// already processes the response directly.
+let extensionFetchInProgress = false;
 
 let delayedRefreshTimers = [];
 let delayedRefreshGeneration = 0;
@@ -780,39 +793,44 @@ async function fetchStudiesInTab(tabId) {
   // so it carries normal cookies/origin and is indistinguishable from the web
   // app's own API calls. Fall back to background fetch only if scripting fails
   // (tab navigating, dead context, etc.).
-  const scriptResult = await fetchStudiesInTabViaScripting(tabId);
-  if (scriptResult.ok) return scriptResult;
-
-  // Scripting failed — try background fetch with stored token
-  const existing = await chrome.storage.local.get(STATE_KEY);
-  const state = existing[STATE_KEY] || {};
-  let accessToken = state.access_token;
-  let tokenType = state.token_type || "Bearer";
-
-  if (!accessToken) {
-    // No token and scripting failed — return the scripting error
-    return scriptResult;
-  }
-
-  pushDebugLog("refresh.fetch_fallback_to_background", {
-    scripting_error: scriptResult.error,
-    tab_id: tabId
-  });
-
-  const fetchURL = FETCH_STUDIES_API_URL + "?" + FETCH_STUDIES_EXT_MARKER + "=1";
+  extensionFetchInProgress = true;
   try {
-    const resp = await fetch(fetchURL, {
-      method: "GET",
-      credentials: "omit",
-      headers: {
-        "Authorization": tokenType + " " + accessToken,
-        "Accept": "application/json, text/plain, */*"
-      }
+    const scriptResult = await fetchStudiesInTabViaScripting(tabId);
+    if (scriptResult.ok) return scriptResult;
+
+    // Scripting failed — try background fetch with stored token
+    const existing = await chrome.storage.local.get(STATE_KEY);
+    const state = existing[STATE_KEY] || {};
+    let accessToken = state.access_token;
+    let tokenType = state.token_type || "Bearer";
+
+    if (!accessToken) {
+      return scriptResult;
+    }
+
+    pushDebugLog("refresh.fetch_fallback_to_background", {
+      scripting_error: scriptResult.error,
+      tab_id: tabId
     });
-    const body = await resp.text();
-    return { ok: true, status_code: resp.status, body };
-  } catch (err) {
-    return { ok: false, error: "fetch_failed: " + String(err) };
+
+    try {
+      const resp = await fetch(FETCH_STUDIES_API_URL, {
+        method: "GET",
+        credentials: "omit",
+        headers: {
+          "Authorization": tokenType + " " + accessToken,
+          "Accept": "application/json, text/plain, */*"
+        }
+      });
+      const body = await resp.text();
+      return { ok: true, status_code: resp.status, body };
+    } catch (err) {
+      return { ok: false, error: "fetch_failed: " + String(err) };
+    }
+  } finally {
+    // Small delay before clearing — ensures webRequest.onCompleted (which fires
+    // asynchronously) still sees the flag for this request.
+    setTimeout(() => { extensionFetchInProgress = false; }, 1000);
   }
 }
 
@@ -849,8 +867,9 @@ async function fetchStudiesInTabViaScripting(tabId) {
           }
 
           const tokenType = parsed.token_type || "Bearer";
-          const fetchURL = apiURL + (apiURL.includes("?") ? "&" : "?") + "_pwext=1";
-          return fetch(fetchURL, {
+          // Flag prevents the content script from also intercepting this request.
+          window.__pp_ext_fetch = true;
+          return fetch(apiURL, {
             method: "GET",
             credentials: "omit",
             headers: {
@@ -868,7 +887,8 @@ async function fetchStudiesInTabViaScripting(tabId) {
             .catch((fetchErr) => ({
               ok: false,
               error: "fetch_failed: " + String(fetchErr)
-            }));
+            }))
+            .finally(() => { window.__pp_ext_fetch = false; });
         } catch (err) {
           return { ok: false, error: String(err) };
         }
@@ -1224,6 +1244,113 @@ function sleep(ms) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Offscreen document for audio playback (Chrome service worker)
+// ---------------------------------------------------------------------------
+
+let offscreenDocumentCreating = null;
+
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen) return false;
+
+  try {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"]
+    });
+    if (contexts && contexts.length > 0) return true;
+  } catch {
+    // getContexts unavailable — try creating anyway.
+  }
+
+  if (offscreenDocumentCreating) {
+    await offscreenDocumentCreating;
+    return true;
+  }
+
+  try {
+    offscreenDocumentCreating = chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["AUDIO_PLAYBACK"],
+      justification: "Play priority study alert sound"
+    });
+    await offscreenDocumentCreating;
+    return true;
+  } catch (err) {
+    // "Only a single offscreen document may be created" — already exists.
+    if (String(err).includes("single offscreen")) return true;
+    pushDebugLog("offscreen.create.error", { error: String(err) });
+    return false;
+  } finally {
+    offscreenDocumentCreating = null;
+  }
+}
+
+async function playAudioViaOffscreen(soundType, normalizedVolume) {
+  const soundPath = PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH[soundType];
+  if (!soundPath) return;
+
+  const created = await ensureOffscreenDocument();
+  if (!created) throw new Error("Could not create offscreen document for audio");
+
+  await chrome.runtime.sendMessage({
+    action: "offscreenPlaySound",
+    soundPath,
+    normalizedVolume
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Content script intercepted response handling (Chrome)
+//
+// The content script path receives pre-parsed JSON from the MAIN-world
+// fetch() monkeypatch. It feeds into the same CAPTURED_JSON_RESPONSE_OPTIONS
+// handlers that the filterResponseData path uses on Firefox, so counters,
+// state updates, and service commands are identical across browsers.
+//
+// The studiesRefresh notification and delayed refresh scheduling are NOT
+// duplicated here — chrome.webRequest.onCompleted fires on both browsers
+// and already handles that via handleStudiesRequestCompleted().
+// ---------------------------------------------------------------------------
+
+function handleInterceptedResponse(message) {
+  const { subtype, url, status, body, observed_at } = message;
+  if (subtype === "studies") {
+    processInterceptedJSON(url, status, body, observed_at, CAPTURED_JSON_RESPONSE_OPTIONS.studies);
+  } else if (subtype === "submission") {
+    processInterceptedJSON(url, status, body, observed_at, CAPTURED_JSON_RESPONSE_OPTIONS.submission);
+  } else if (subtype === "participant_submissions") {
+    processInterceptedJSON(url, status, body, observed_at, CAPTURED_JSON_RESPONSE_OPTIONS.participantSubmissions);
+  } else if (subtype === "oauth_token") {
+    handleOAuthTokenPayload(body, "content_script_intercept", url);
+  }
+}
+
+function processInterceptedJSON(url, status, body, observedAt, options) {
+  const normalizedURL = options.normalizeURL(url);
+  if (!normalizedURL) return;
+
+  const context = { normalizedURL, observedAt };
+
+  if (typeof options.onParsed === "function") {
+    Promise.resolve(options.onParsed(body, context)).catch(() => {});
+  }
+
+  options.postToService({
+    url: normalizedURL,
+    status_code: status,
+    observed_at: observedAt,
+    body: body
+  }).then(() => {
+    bumpCounter(options.ingestSuccessCounter, 1);
+    pushDebugLog(options.ingestSuccessEvent, { url: normalizedURL });
+    options.onIngestSuccess?.(context);
+  }).catch((error) => {
+    bumpCounter(options.ingestErrorCounter, 1);
+    pushDebugLog(options.ingestErrorEvent, { url: normalizedURL, error: stringifyError(error) });
+    options.onIngestError?.(error, context);
+  });
+}
+
 async function waitForServiceSocketReady(messageType) {
   if (isServiceSocketReady()) {
     return true;
@@ -1444,6 +1571,7 @@ const priorityActionsRuntime = priorityModules.actions.createPriorityActions({
   pushDebugLog,
   bumpCounter,
   setState,
+  playAudioFn: IS_SERVICE_WORKER ? playAudioViaOffscreen : undefined,
   limits: {
     minAlertSoundVolume: MIN_PRIORITY_ALERT_SOUND_VOLUME,
     maxAlertSoundVolume: MAX_PRIORITY_ALERT_SOUND_VOLUME,
@@ -1488,6 +1616,13 @@ function queuePrioritySnapshotEvent(rawEvent) {
 
 async function processPrioritySnapshotEvent(event) {
   await priorityStateRuntime.ensureHydrated();
+
+  // When studies disappear, clear alert suppression for any the user attempted
+  // (clicked "Take part"). This way if the study reappears with new places,
+  // the user gets a fresh alert and auto-open.
+  if (event.mode === "delta" && event.removedStudyIDs.length) {
+    priorityStateRuntime.clearSeenForAttemptedStudies(event.removedStudyIDs);
+  }
 
   const filter = await getPriorityStudyFilterSettings();
   const evaluation = evaluatePrioritySnapshotEvent(priorityStateRuntime.getSnapshot(), event, filter);
@@ -1944,7 +2079,20 @@ const CAPTURED_JSON_RESPONSE_OPTIONS = Object.freeze({
     statusCode: 0,
     commandName: "submissionResponse",
     counterPrefix: "submission_response",
-    eventPrefix: "submission.response"
+    eventPrefix: "submission.response",
+    extraHooks: {
+      onParsed: (parsed) => {
+        // Mark the study as attempted so it re-alerts if it disappears and
+        // reappears (e.g., place freed up after "no places available" error).
+        const studyID = parsed && typeof parsed === "object"
+          ? (parsed.study_id || (parsed.study && parsed.study.id) || "")
+          : "";
+        if (studyID) {
+          priorityStateRuntime.markAttempted(String(studyID).trim());
+          pushDebugLog("submission.reserve.study_attempted", { study_id: studyID });
+        }
+      }
+    }
   }),
   participantSubmissions: buildCapturedJSONResponseOptions({
     normalizeURL: normalizeParticipantSubmissionsURL,
@@ -1983,39 +2131,8 @@ function tapCapturedJSONResponse(details, options, normalizedURLOverride = "") {
       });
     },
     onParsed: (parsed, observedAt) => {
-      const context = {
-        details,
-        normalizedURL,
-        observedAt,
-        parsed
-      };
-
-      if (typeof options.onParsed === "function") {
-        Promise.resolve(options.onParsed(parsed, context)).catch((error) => {
-          pushDebugLog("studies.response.capture.on_parsed_error", {
-            url: normalizedURL,
-            error: stringifyError(error)
-          });
-        });
-      }
-
-      options.postToService({
-        url: normalizedURL,
-        status_code: options.statusCode,
-        observed_at: observedAt,
-        body: parsed
-      }).then(() => {
-        bumpCounter(options.ingestSuccessCounter, 1);
-        pushDebugLog(options.ingestSuccessEvent, { url: normalizedURL });
-        options.onIngestSuccess?.(context);
-      }).catch((error) => {
-        bumpCounter(options.ingestErrorCounter, 1);
-        pushDebugLog(options.ingestErrorEvent, {
-          url: normalizedURL,
-          error: stringifyError(error)
-        });
-        options.onIngestError?.(error, context);
-      });
+      // Same processing as the content script intercept path.
+      processInterceptedJSON(details.url, options.statusCode, parsed, observedAt, options);
     },
     onFilterError: () => {
       const observedAt = nowIso();
@@ -2031,7 +2148,7 @@ function tapCapturedJSONResponse(details, options, normalizedURLOverride = "") {
 }
 
 async function handleStudiesRequestCompleted(details) {
-  if (isExtensionOriginatedStudiesRequest(details.url)) {
+  if (extensionFetchInProgress) {
     pushDebugLog("studies.request.completed.skip_extension_originated", { url: details.url });
     return;
   }
@@ -2200,7 +2317,7 @@ function registerStudiesResponseCaptureIfSupported() {
       });
     },
     onBeforeRequest: (details) => {
-      if (isExtensionOriginatedStudiesRequest(details.url)) {
+      if (extensionFetchInProgress) {
         return;
       }
       const normalizedURL = normalizeStudiesCollectionURL(details.url);
@@ -2368,6 +2485,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "oidc_sync") {
     pushDebugLog("alarm.fired", { name: alarm.name });
     requestTokenSync("alarm");
+    // Ensure WebSocket stays connected — critical for service worker wakeup
+    // after Chrome terminates and restarts the worker.
+    ensureServiceSocketConnected("alarm_wakeup");
   }
 });
 
@@ -2437,6 +2557,12 @@ function runMessageTask(sendResponse, task) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Content script intercepted API response (Chrome path).
+  if (message && message.action === "interceptedResponse") {
+    handleInterceptedResponse(message);
+    return false;
+  }
+
   if (message && message.action === "getState") {
     chrome.storage.local.get(STATE_KEY, (data) => {
       sendResponse({ ok: true, state: data[STATE_KEY] || null });

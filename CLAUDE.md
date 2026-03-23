@@ -1,12 +1,17 @@
 # Prolific Pulse
 
-Go server + Firefox extension that monitors Prolific study availability in real-time.
+Go server + browser extension (Firefox & Chrome) that monitors Prolific study availability in real-time.
 
 ## Architecture
 
 - **Go server** (`*.go`): HTTP/WS server on `:8080`. Stores studies, submissions, refresh state in SQLite.
-- **Browser extension** (`extension/`): Firefox MV3 extension that intercepts Prolific API responses and forwards them to the Go server via WebSocket.
+- **Browser extension** (`extension/`): MV3 extension (Firefox & Chrome) that intercepts Prolific API responses and forwards them to the Go server via WebSocket.
 - **Popup** (`popup.html/popup.js`): Extension popup with live studies, feed, submissions, settings tabs and debug diagnostics.
+
+### Browser-specific paths
+- **Firefox**: Uses `webRequest.filterResponseData()` for passive API response interception. Background runs as an event page. Audio via direct `AudioContext`.
+- **Chrome**: Uses MAIN-world content scripts (`content-intercept.js` + `content-bridge.js`) to monkeypatch `fetch()` for API response interception. Background runs as a service worker (modules loaded via `importScripts`). Audio via `chrome.offscreen` API (`offscreen.html/offscreen.js`).
+- **Shared**: WebSocket protocol, priority filter engine, popup UI, all background modules (`background/*.js`), and the main `background.js` (with browser detection at runtime).
 
 ## Key Patterns
 
@@ -33,9 +38,10 @@ Go server + Firefox extension that monitors Prolific study availability in real-
 
 ```bash
 # Go server
-go build -o prolific_watcher .
+go build -o prolific-pulse .
 
-# Extension XPI (outputs to dist/)
+# Extension packages (outputs to dist/)
+# Produces both Firefox XPI and Chrome ZIP
 ./build-xpi.sh
 ```
 
@@ -78,8 +84,25 @@ Response: `{"has_state": true, "received_at": "...", "state": {"extension_url": 
 Returns `{"has_state": false}` when no state has been reported yet.
 Note: `debug_logs` are excluded from the WS payload to keep message size small; only `debug_log_count` is sent.
 
+### Chrome Test Prerequisites
+1. Chrome for Testing: `npx @puppeteer/browsers install chrome@stable --path ~/tmp/prolific-pulse/cft`
+2. Python venv: `cd tests-wdio && uv venv .venv && .venv/bin/pip install nodriver`
+3. Login session: `cd tests-wdio && .venv/bin/python setup-login-chrome.py`
+
+### Running Tests
+```bash
+cd tests-wdio
+npm run test:all:fast   # Both browsers, skip slow (headless)
+npm run test:fast       # Firefox only
+npm run test:chrome:fast # Chrome only
+```
+
 ### Test Ordering
 Spec files are numbered (01-07) to enforce execution order:
 - `06-studies-intercept` must run before `07-debug-state` (populates server state)
 - `04-server-reconnect` stops/restarts the Go server (combined into single test)
-- SQLite database accumulates state across the test session; tests are not isolated by default
+- SQLite database is cleaned in the `before` hook of each test run
+
+## Commit Rules
+
+- **Never** add `Co-Authored-By` trailers to commits.

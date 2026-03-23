@@ -15,22 +15,41 @@ NAME="prolific-pulse-${VERSION}"
 
 mkdir -p "$DIST_DIR"
 
-XPI_PATH="$DIST_DIR/${NAME}.xpi"
+COMMON_EXCLUDES=(
+  -x "*.git*"
+  -x "*.xpi"
+  -x "*.zip"
+  -x "*.svg"
+  -x ".DS_Store"
+  -x "Thumbs.db"
+  -x "README.md"
+)
 
-# Remove old build if present
+# --- Firefox XPI ---
+XPI_PATH="$DIST_DIR/${NAME}.xpi"
 rm -f "$XPI_PATH"
 
-# Package extension (XPI is just a ZIP with .xpi extension)
 cd "$EXT_DIR"
 zip -r -FS "$XPI_PATH" . \
-  -x "*.git*" \
-  -x "*.xpi" \
-  -x "*.zip" \
-  -x "*.svg" \
-  -x ".DS_Store" \
-  -x "Thumbs.db" \
-  -x "README.md"
+  "${COMMON_EXCLUDES[@]}" \
+  -x "manifest.chrome.json"
 
 echo ""
-echo "Built: $XPI_PATH"
-echo "Size:  $(du -h "$XPI_PATH" | cut -f1)"
+echo "Firefox: $XPI_PATH ($(du -h "$XPI_PATH" | cut -f1))"
+
+# --- Chrome ZIP ---
+CHROME_PATH="$DIST_DIR/${NAME}-chrome.zip"
+rm -f "$CHROME_PATH"
+
+CHROME_TMP=$(mktemp -d)
+trap 'rm -rf "$CHROME_TMP"' EXIT
+
+cp -r "$EXT_DIR"/* "$CHROME_TMP/"
+rm -f "$CHROME_TMP/manifest.json"
+mv "$CHROME_TMP/manifest.chrome.json" "$CHROME_TMP/manifest.json"
+
+cd "$CHROME_TMP"
+zip -r -FS "$CHROME_PATH" . \
+  "${COMMON_EXCLUDES[@]}"
+
+echo "Chrome:  $CHROME_PATH ($(du -h "$CHROME_PATH" | cut -f1))"

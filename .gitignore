@@ -46,6 +46,9 @@ tests/profiles/
 
 # WebdriverIO / Node.js test artifacts
 tests-wdio/node_modules/
+tests-wdio/.chrome-extension/
+tests-wdio/.chrome-cookies.json
+tests-wdio/.venv/
 
 # Third-party extensions
 prolific-assistant/

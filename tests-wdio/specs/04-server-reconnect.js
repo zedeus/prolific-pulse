@@ -1,4 +1,5 @@
 import { navigateToPopup, getPopupStatus } from '../helpers/popup-dom.js';
+import { PROLIFIC_STUDIES_URL } from '../helpers/constants.js';
 
 describe('Server Reconnection', () => {
   it('should detect offline and recover after server restart', async () => {
@@ -22,11 +23,17 @@ describe('Server Reconnection', () => {
     goServer.start();
     await goServer.waitHealthy();
 
+    // Visit Prolific so the extension can resync its token.
+    // On Chrome, the service worker may have been terminated during downtime
+    // and needs a live Prolific tab to extract the OIDC token on restart.
+    await browser.url(PROLIFIC_STUDIES_URL);
+    await browser.pause(5000);
+
     const deadline = Date.now() + 30_000;
     let recovered = false;
     let lastStatus = null;
     while (Date.now() < deadline) {
-      await browser.refresh();
+      await navigateToPopup();
       await browser.pause(2000);
       lastStatus = await getPopupStatus();
       if (lastStatus.refresh_text !== 'Offline' && lastStatus.dot_bad === false) {

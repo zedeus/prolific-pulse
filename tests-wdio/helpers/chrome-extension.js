@@ -1,0 +1,104 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
+import { EXTENSION_DIR, PROFILE_DIR } from './constants.js';
+
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+export const CHROME_EXTENSION_DIR = path.join(__dirname, '..', '.chrome-extension');
+
+/**
+ * Prepare a Chrome-compatible extension directory by copying all extension
+ * files and swapping manifest.chrome.json → manifest.json.
+ */
+export function prepareChromeExtensionDir() {
+  if (fs.existsSync(CHROME_EXTENSION_DIR)) {
+    fs.rmSync(CHROME_EXTENSION_DIR, { recursive: true });
+  }
+  fs.cpSync(EXTENSION_DIR, CHROME_EXTENSION_DIR, { recursive: true });
+  const chromeManifest = path.join(CHROME_EXTENSION_DIR, 'manifest.chrome.json');
+  const manifest = path.join(CHROME_EXTENSION_DIR, 'manifest.json');
+  if (fs.existsSync(chromeManifest)) {
+    fs.rmSync(manifest);
+    fs.renameSync(chromeManifest, manifest);
+  }
+}
+
+
+/**
+ * Load Prolific session cookies into a Chrome WebDriver session.
+ *
+ * Prefers .chrome-cookies.json (saved by setup-login-chrome.py via nodriver)
+ * which contains Chrome-native cookies that pass Cloudflare validation.
+ * Falls back to extracting cookies from the Firefox profile's cookies.sqlite.
+ *
+ * Returns the number of cookies injected.
+ */
+export async function loadCookiesForChrome(br) {
+  const chromeCookies = path.join(__dirname, '..', '.chrome-cookies.json');
+  if (fs.existsSync(chromeCookies)) {
+    return injectCookiesFromJSON(br, chromeCookies);
+  }
+  return injectCookiesFromFirefox(br);
+}
+
+async function injectCookiesFromJSON(br, cookiesPath) {
+  let cookies;
+  try {
+    cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
+  } catch {
+    return 0;
+  }
+
+  const domains = new Set(cookies.map((c) => {
+    const d = (c.domain || '').replace(/^\./, '');
+    return d.includes('prolific') ? `https://${d}` : null;
+  }).filter(Boolean));
+
+  let injected = 0;
+  for (const origin of domains) {
+    await br.url(origin);
+    await br.pause(1000);
+    const matching = cookies.filter((c) => origin.includes((c.domain || '').replace(/^\./, '')));
+    for (const c of matching) {
+      try {
+        await br.setCookies([c]);
+        injected++;
+      } catch { /* rejected */ }
+    }
+  }
+  return injected;
+}
+
+async function injectCookiesFromFirefox(br) {
+  const cookiesDb = path.join(PROFILE_DIR, 'cookies.sqlite');
+  if (!fs.existsSync(cookiesDb)) return 0;
+
+  let rows;
+  try {
+    const raw = execSync(
+      `sqlite3 -json "${cookiesDb}" "SELECT name,value,host,path,isSecure,isHttpOnly,expiry FROM moz_cookies WHERE host LIKE '%prolific%'"`,
+    ).toString();
+    rows = JSON.parse(raw);
+  } catch {
+    return 0;
+  }
+
+  let injected = 0;
+  for (const origin of ['https://app.prolific.com', 'https://auth.prolific.com']) {
+    await br.url(origin);
+    await br.pause(1000);
+    for (const c of rows.filter((r) => origin.includes(r.host.replace(/^\./, '')))) {
+      try {
+        const cookie = {
+          name: c.name, value: c.value, domain: c.host,
+          path: c.path, secure: !!c.isSecure, httpOnly: !!c.isHttpOnly,
+        };
+        if (c.expiry > 0 && c.expiry < 2000000000) cookie.expiry = c.expiry;
+        await br.setCookies([cookie]);
+        injected++;
+      } catch { /* rejected */ }
+    }
+  }
+  return injected;
+}
+

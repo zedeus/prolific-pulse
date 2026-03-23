@@ -1,6 +1,5 @@
 import { navigateToPopup } from '../helpers/popup-dom.js';
 import { togglePriorityFilter, setPriorityFilter } from '../helpers/popup-settings.js';
-import { POPUP_URL } from '../helpers/constants.js';
 
 describe('Settings', () => {
   it('should change priority filter', async () => {
@@ -22,8 +21,7 @@ describe('Settings', () => {
     // Navigate away and back (simulates close/reopen)
     await browser.url('about:blank');
     await browser.pause(500);
-    await browser.url(POPUP_URL);
-    await (await $('#syncDot')).waitForDisplayed({ timeout: 10_000 });
+    await navigateToPopup();
     await browser.pause(1000);
 
     await (await $('button[data-tab="settings"]')).click();

@@ -2,9 +2,11 @@ import { POPUP_URL } from './constants.js';
 
 /**
  * Navigate to the popup and wait for it to load.
+ * Uses browser.popupUrl if set (Chrome), falls back to POPUP_URL (Firefox).
  */
 export async function navigateToPopup() {
-  await browser.url(POPUP_URL);
+  const url = browser.popupUrl || POPUP_URL;
+  await browser.url(url);
   await (await $('#syncDot')).waitForDisplayed({ timeout: 10_000 });
 }
 

@@ -2,7 +2,7 @@ import { spawn, execSync } from 'node:child_process';
 import path from 'node:path';
 import { PROJECT_ROOT, GO_SERVER_URL } from './constants.js';
 
-const BINARY_PATH = path.join(PROJECT_ROOT, 'prolific_watcher');
+const BINARY_PATH = path.join(PROJECT_ROOT, 'prolific-pulse');
 
 export class GoServerManager {
   constructor() {
@@ -11,7 +11,7 @@ export class GoServerManager {
   }
 
   build() {
-    execSync('go build -o prolific_watcher .', {
+    execSync('go build -o prolific-pulse .', {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
     });

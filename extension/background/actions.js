@@ -13,7 +13,8 @@
       bumpCounter,
       setState,
       limits,
-      sounds
+      sounds,
+      playAudioFn
     } = options;
 
     let priorityAlertAudioContext = null;
@@ -82,27 +83,13 @@
             bytes[i] = binary.charCodeAt(i);
           }
           const arrayBuffer = bytes.buffer.slice(0);
-          const decoded = await new Promise((resolve, reject) => {
-            const maybePromise = audioContext.decodeAudioData(arrayBuffer, resolve, reject);
-            if (maybePromise && typeof maybePromise.then === "function") {
-              maybePromise.then(resolve).catch(reject);
-            }
-          });
-          return decoded;
+          return audioContext.decodeAudioData(arrayBuffer);
         })());
       }
       return priorityAlertSoundBufferPromiseByType.get(normalized);
     }
 
     async function playDefaultPriorityAlertTone(soundType, soundVolume) {
-      const audioContext = getPriorityAlertAudioContext();
-      if (!audioContext) {
-        throw new Error("audio context unavailable");
-      }
-      if (audioContext.state === "suspended" && typeof audioContext.resume === "function") {
-        await audioContext.resume();
-      }
-
       const normalizedType = canonicalPriorityAlertSoundType(soundType);
       const normalizedVolume = Math.min(
         limits.maxAlertSoundVolume,
@@ -113,6 +100,21 @@
       ) / 100;
       if (normalizedVolume <= 0) {
         return normalizedType;
+      }
+
+      // Chrome service worker path: delegate to offscreen document.
+      if (typeof playAudioFn === "function") {
+        await playAudioFn(normalizedType, normalizedVolume);
+        return normalizedType;
+      }
+
+      // Firefox path: use AudioContext directly.
+      const audioContext = getPriorityAlertAudioContext();
+      if (!audioContext) {
+        throw new Error("audio context unavailable");
+      }
+      if (audioContext.state === "suspended" && typeof audioContext.resume === "function") {
+        await audioContext.resume();
       }
       const startTime = audioContext.currentTime + 0.03;
       const soundBuffer = await getPriorityAlertSoundBuffer(audioContext, normalizedType);

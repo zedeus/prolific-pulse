@@ -26,7 +26,11 @@ describe('Studies Interception', () => {
 
   it('should show extension as refresh source', async () => {
     const status = await getServerStatus();
-    expect(status.last_studies_refresh_source).toContain('extension');
+    // Firefox: "extension.intercepted_response", Chrome: "content_script.intercepted_response"
+    const source = status.last_studies_refresh_source || '';
+    expect(
+      source.includes('extension') || source.includes('content_script'),
+    ).toBe(true);
   });
 
   it('should populate studies results', async () => {
