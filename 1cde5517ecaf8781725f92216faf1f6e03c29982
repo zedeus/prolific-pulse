@@ -1,0 +1,89 @@
+tests-wdio/wdio.chrome.conf.js
+  b98a22018e006622 1-60
+extension/content-bridge.js
+  b98a22018e006622 1-26
+tests-wdio/helpers/popup-dom.js
+  b98a22018e006622 5,8-9
+tests-wdio/specs/06-studies-intercept.js
+  b98a22018e006622 29-33
+tests-wdio/specs/05-settings.js
+  b98a22018e006622 24
+tests-wdio/specs/04-server-reconnect.js
+  b98a22018e006622 2,26-31,36
+tests-wdio/helpers/go-server.js
+  b98a22018e006622 5,14
+tests-wdio/package.json
+  b98a22018e006622 16-21
+tests-wdio/helpers/shared-setup.js
+  b98a22018e006622 1-179
+extension/offscreen.js
+  b98a22018e006622 1-92
+build-xpi.sh
+  b98a22018e006622 18-26,28-29,34-35,38-55
+tests-wdio/helpers/chrome-extension.js
+  b98a22018e006622 1-104
+extension/background.js
+  b98a22018e006622 1-16,161-165,796-799,801-805,807-809,811-813,815-833,870-872,890-891,1247-1353,1574,1620-1626,2082-2095,2134-2135,2151,2320,2488-2490,2560-2565
+tests-wdio/wdio.conf.js
+  b98a22018e006622 2,4,10-11,25-33,36
+extension/popup.html
+  b98a22018e006622 519-524
+extension/background/state.js
+  b98a22018e006622 24,167-184,197-198,202
+extension/README.md
+  b98a22018e006622 3,8,10-11,13,15,21-24,26,28-31,36
+CLAUDE.md
+  ef05f596053f6d04 105-108
+  b98a22018e006622 3,8,11-14,41,43-44,87-99,104
+tests-wdio/specs/07-debug-state.js
+  b98a22018e006622 21,23,37-58
+.gitignore
+  b98a22018e006622 49-51
+README.md
+  b98a22018e006622 3,8,13-14,24,26,31,36-40,48,50-51,56-57
+extension/manifest.chrome.json
+  b98a22018e006622 1-56
+extension/offscreen.html
+  b98a22018e006622 1-5
+tests-wdio/setup-login-chrome.py
+  b98a22018e006622 1-134
+extension/background/actions.js
+  b98a22018e006622 16-17,86,104-111
+extension/popup.js
+  b98a22018e006622 483,487,489-511,521,569,1854-1869
+extension/content-intercept.js
+  b98a22018e006622 1-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "1cde5517ecaf8781725f92216faf1f6e03c29982",
+  "prompts": {
+    "b98a22018e006622": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6a850fd-4517-404c-9dfc-e1e47282ba50",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 2168,
+      "total_deletions": 1007,
+      "accepted_lines": 1426,
+      "overriden_lines": 0
+    },
+    "ef05f596053f6d04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b38ee791-5750-4f21-a7f6-054ba141eea0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
