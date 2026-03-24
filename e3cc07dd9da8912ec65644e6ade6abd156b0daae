@@ -1,0 +1,33 @@
+src/assets/app.css
+  01389a80935d2ec9 5-8
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  01389a80935d2ec9 55-57,59-61,106,115-116,121,130-131,141-143,146,149
+src/entrypoints/popup/components/LivePanel.svelte
+  01389a80935d2ec9 72,83-84,86,92,103-104,106,117-119,122,125,129
+src/entrypoints/popup/components/FeedPanel.svelte
+  01389a80935d2ec9 62,71-72,77,86-87,97-99,102,105
+src/entrypoints/popup/components/SettingsPanel.svelte
+  01389a80935d2ec9 577,593,750,893-895
+src/entrypoints/popup/components/TabBar.svelte
+  01389a80935d2ec9 14,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "e3cc07dd9da8912ec65644e6ade6abd156b0daae",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 37,
+      "accepted_lines": 54,
+      "overriden_lines": 0
+    }
+  }
+}
