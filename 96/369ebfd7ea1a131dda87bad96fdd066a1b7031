@@ -1,0 +1,29 @@
+src/entrypoints/background/index.ts
+  01389a80935d2ec9 2709-2710,2714-2715
+tests-wdio/specs/05-settings.js
+  01389a80935d2ec9 236-239,242-258,261,266-269,272-294,296-306,308,310-315,317-331,333-335,337,340-341,343-344,346-353,355-356,358-366,368-377
+src/entrypoints/popup/App.svelte
+  01389a80935d2ec9 67,392,635,649-651
+src/entrypoints/popup/components/SettingsPanel.svelte
+  01389a80935d2ec9 76,78,80,85-87,197-206,213-215,699-712
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "96369ebfd7ea1a131dda87bad96fdd066a1b7031",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 253,
+      "total_deletions": 162,
+      "accepted_lines": 168,
+      "overriden_lines": 0
+    }
+  }
+}
