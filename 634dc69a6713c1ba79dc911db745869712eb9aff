@@ -1,0 +1,33 @@
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  01389a80935d2ec9 64-71,79,86,123
+src/entrypoints/popup/components/StatusBar.svelte
+  01389a80935d2ec9 14,16
+src/lib/format.ts
+  01389a80935d2ec9 206-207
+src/entrypoints/popup/components/SettingsPanel.svelte
+  01389a80935d2ec9 75-77,110,227-238,341,343-348,625,768,839
+src/entrypoints/popup/components/LivePanel.svelte
+  01389a80935d2ec9 41,48,84,86,104,106,126
+src/entrypoints/popup/components/FeedPanel.svelte
+  01389a80935d2ec9 27,34,72,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "634dc69a6713c1ba79dc911db745869712eb9aff",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 21,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
