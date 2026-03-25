@@ -8,16 +8,32 @@ describe('Server Reconnection', () => {
     // Open popup while server is up
     await navigateToPopup();
 
-    // Phase 1: Stop server and verify offline detection
+    // Phase 1: Stop server and verify offline detection.
     await goServer.stop();
     await browser.pause(2000);
-    await browser.refresh();
-    await browser.pause(2000);
 
-    let status = await getPopupStatus();
-    expect(
-      status.refresh_text === 'Offline' || status.dot_bad === true,
-    ).toBe(true);
+    // Poll for offline detection (may take up to 15s for WebSocket heartbeat timeout)
+    const offlineDeadline = Date.now() + 20_000;
+    let detectedOffline = false;
+    let lastOfflineStatus = null;
+    while (Date.now() < offlineDeadline) {
+      try {
+        await navigateToPopup();
+        await browser.pause(3000);
+        lastOfflineStatus = await getPopupStatus();
+        if (lastOfflineStatus.refresh_text === 'Offline' || lastOfflineStatus.dot_bad === true) {
+          detectedOffline = true;
+          break;
+        }
+      } catch {
+        // navigateToPopup may fail if syncDot isn't rendered — retry
+      }
+      await browser.pause(2000);
+    }
+
+    if (!detectedOffline) {
+      throw new Error(`Popup did not detect offline. Last status: ${JSON.stringify(lastOfflineStatus)}`);
+    }
 
     // Phase 2: Restart server and verify recovery
     goServer.start();
