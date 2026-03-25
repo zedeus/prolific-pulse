@@ -1,0 +1,25 @@
+tests-wdio/specs/08-popup-panels.js
+  01389a80935d2ec9 1-235
+tests-wdio/helpers/shared-setup.js
+  01389a80935d2ec9 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "92353ad365feef3a1d73596eb7cc79fdea055f88",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 236,
+      "total_deletions": 0,
+      "accepted_lines": 236,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,27 @@
+src/assets/app.css
+  01389a80935d2ec9 8,12-24
+src/entrypoints/popup/components/StatusBar.svelte
+  01389a80935d2ec9 24,41
+src/entrypoints/popup/components/SettingsPanel.svelte
+  01389a80935d2ec9 801,807-808,814,856-858
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "44de2b6026bcc2de87d132ca7a87007f315c41b1",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 9,
+      "accepted_lines": 23,
+      "overriden_lines": 0
+    }
+  }
+}
