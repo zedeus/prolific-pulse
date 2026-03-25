@@ -1,7 +1,13 @@
 import { browser } from 'wxt/browser';
-import { nowIso, isNetworkFailureMessage, isServiceConnectingMessage } from '../../lib/format';
+import { nowIso } from '../../lib/format';
 import type { PriorityFilter, Study } from '../../lib/types';
 import type { SoundType } from '../../lib/constants';
+import {
+  ingestStudiesResponse,
+  ingestSubmissionResponse,
+  ingestParticipantSubmissionsResponse,
+} from './ingest';
+import * as store from '../../lib/store';
 import {
   PROLIFIC_PATTERNS,
   STUDIES_REQUEST_PATTERN,
@@ -11,30 +17,10 @@ import {
   PROLIFIC_STUDIES_URL,
   STUDIES_COLLECTION_PATH,
   FETCH_STUDIES_API_URL,
-  SERVICE_BASE_URL,
-  SERVICE_OFFLINE_MESSAGE,
-  SERVICE_CONNECTING_MESSAGE,
-  SERVICE_WS_URL,
-  SERVICE_WS_HEARTBEAT_INTERVAL_MS,
-  SERVICE_WS_HEARTBEAT_TIMEOUT_MS,
-  SERVICE_WS_RECONNECT_BASE_DELAY_MS,
-  SERVICE_WS_RECONNECT_MAX_DELAY_MS,
-  SERVICE_WS_RECONNECT_JITTER_MS,
-  SERVICE_WS_CONNECT_WAIT_MS,
-  SERVICE_WS_CONNECT_POLL_MS,
-  TOKEN_SYNC_RETRY_DELAY_MS,
-  SERVICE_WS_MESSAGE_TYPES,
-  SERVICE_WS_COMMANDS,
-  SERVICE_WS_SERVER_EVENT_TYPES,
-  DASHBOARD_DEFAULT_STUDIES_LIMIT,
-  DASHBOARD_DEFAULT_EVENTS_LIMIT,
-  DASHBOARD_DEFAULT_SUBMISSIONS_LIMIT,
-  DASHBOARD_MIN_LIMIT,
-  DASHBOARD_MAX_LIMIT,
   STATE_KEY,
   PRIORITY_KNOWN_STUDIES_STATE_KEY,
   AUTO_OPEN_PROLIFIC_TAB_KEY,
-  AUTO_OPEN_PRIORITY_STUDIES_KEY,
+  PRIORITY_FILTER_ENABLED_KEY,
   PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
   PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
   PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
@@ -83,20 +69,15 @@ import {
   PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH,
   DEBUG_LOG_LIMIT,
   DEBUG_LOG_SUPPRESSED_EVENTS,
-  DEBUG_STATE_REPORT_DEBOUNCE_MS,
 } from '../../lib/constants';
 import {
   evaluatePrioritySnapshotEvent,
+  toFullSnapshotEvent,
 } from './domain';
 import type { NormalizedSnapshotEvent } from './domain';
 import { createPriorityState } from './state';
 import { createPriorityActions } from './actions';
 import { createPrioritySettings } from './settings';
-import {
-  extractPrioritySnapshotEventFromStudiesRefreshMessage,
-  toFullSnapshotEvent,
-} from './adapters';
-import type { StudiesRefreshMessage } from './adapters';
 
 export default defineBackground({
   main() {
@@ -122,13 +103,6 @@ export default defineBackground({
     let oauthCompletedListenerRegistered = false;
     let oauthResponseCaptureRegistered = false;
     let stateWriteQueue: Promise<void | Record<string, unknown>> = Promise.resolve();
-    let serviceSocket: WebSocket | null = null;
-    let serviceSocketConnectInFlight = false;
-    let serviceSocketReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let serviceSocketHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
-    let serviceSocketReconnectAttempts = 0;
-    let serviceSocketLastHeartbeatAckAt = 0;
-    let tokenSyncRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let autoOpenInFlight = false;
     let lastAutoOpenedTabId: number | null = null;
 
@@ -138,7 +112,7 @@ export default defineBackground({
 
     const prioritySettings = createPrioritySettings({
       keys: {
-        enabled: AUTO_OPEN_PRIORITY_STUDIES_KEY,
+        enabled: PRIORITY_FILTER_ENABLED_KEY,
         autoOpenInNewTab: PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
         alertSoundEnabled: PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
         alertSoundType: PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
@@ -222,7 +196,6 @@ export default defineBackground({
         ...previous,
         ...patch,
       }));
-      scheduleDebugStateReport();
     }
 
     async function setTokenSyncState({ ok, trigger, reason, authRequired = false, extra = {} }: {
@@ -337,11 +310,7 @@ export default defineBackground({
     // ─────────────────────────────────────────────────────────────
 
     function stringifyError(error: unknown): string {
-      const message = rawErrorMessage(error);
-      if (isNetworkFailureMessage(message)) {
-        return SERVICE_OFFLINE_MESSAGE;
-      }
-      return message;
+      return rawErrorMessage(error);
     }
 
     function rawErrorMessage(error: unknown): string {
@@ -352,33 +321,6 @@ export default defineBackground({
         return '';
       }
       return String(error);
-    }
-
-    async function clearTransientServiceConnectingState(): Promise<void> {
-      await updateState((previous) => {
-        const patch: Record<string, unknown> = {};
-
-        if (previous.token_ok === false && isServiceConnectingMessage(previous.token_reason as string)) {
-          patch.token_ok = null;
-          patch.token_reason = '';
-        }
-        if (previous.studies_refresh_ok === false && isServiceConnectingMessage(previous.studies_refresh_reason as string)) {
-          patch.studies_refresh_ok = null;
-          patch.studies_refresh_reason = '';
-        }
-        if (
-          previous.studies_response_capture_ok === false &&
-          isServiceConnectingMessage(previous.studies_response_capture_reason as string)
-        ) {
-          patch.studies_response_capture_ok = null;
-          patch.studies_response_capture_reason = '';
-        }
-
-        if (!Object.keys(patch).length) {
-          return null;
-        }
-        return patch;
-      });
     }
 
     function parseInternalAPIURL(raw: string | null | undefined): URL | null {
@@ -427,82 +369,7 @@ export default defineBackground({
       }
     }
 
-    function extractObservedAtFromStudiesRefreshEvent(parsed: StudiesRefreshMessage | null | undefined): string {
-      if (!parsed || typeof parsed !== 'object') {
-        return '';
-      }
 
-      const direct = typeof (parsed as Record<string, unknown>).at === 'string' ? ((parsed as Record<string, unknown>).at as string).trim() : '';
-      const dataObservedAt = parsed.data && typeof parsed.data === 'object' && typeof (parsed.data as Record<string, unknown>).observed_at === 'string'
-        ? ((parsed.data as Record<string, unknown>).observed_at as string).trim()
-        : '';
-
-      return dataObservedAt || direct || nowIso();
-    }
-
-    function clampDashboardLimit(value: unknown, fallback: number): number {
-      const parsed = Number.parseInt(String(value), 10);
-      if (!Number.isFinite(parsed)) {
-        return fallback;
-      }
-      return Math.min(DASHBOARD_MAX_LIMIT, Math.max(DASHBOARD_MIN_LIMIT, parsed));
-    }
-
-    async function fetchServiceJSON(path: string, contextLabel: string): Promise<unknown> {
-      let response: Response;
-      try {
-        response = await fetch(`${SERVICE_BASE_URL}${path}`);
-      } catch (error) {
-        const message = stringifyError(error);
-        if (message === SERVICE_OFFLINE_MESSAGE) {
-          throw new Error(SERVICE_OFFLINE_MESSAGE);
-        }
-        throw new Error(`${contextLabel}: ${rawErrorMessage(error) || 'network error'}`);
-      }
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`${contextLabel}: HTTP ${response.status}${text ? ` ${text}` : ''}`);
-      }
-
-      return response.json();
-    }
-
-    function extractArrayField(payload: unknown, key: string): unknown[] {
-      if (!payload || !Array.isArray((payload as Record<string, unknown>)[key])) {
-        return [];
-      }
-      return (payload as Record<string, unknown>)[key] as unknown[];
-    }
-
-    async function loadDashboardData(liveLimit: number, eventsLimit: number, submissionsLimit: number): Promise<Record<string, unknown>> {
-      const [refreshResult, studiesResult, eventsResult, submissionsResult] = await Promise.allSettled([
-        fetchServiceJSON('/studies-refresh', 'Failed to fetch refresh state'),
-        fetchServiceJSON(`/studies?limit=${liveLimit}`, 'Failed to fetch live studies'),
-        fetchServiceJSON(`/study-events?limit=${eventsLimit}`, 'Failed to fetch study events'),
-        fetchServiceJSON(`/submissions?phase=all&limit=${submissionsLimit}`, 'Failed to fetch submissions'),
-      ]);
-
-      const parseResult = (result: PromiseSettledResult<unknown>, extractor: (value: unknown) => unknown): Record<string, unknown> => {
-        if (result.status === 'fulfilled') {
-          return {
-            ok: true,
-            data: extractor(result.value),
-          };
-        }
-        return {
-          ok: false,
-          error: stringifyError(result.reason),
-        };
-      };
-
-      return {
-        refresh_state: parseResult(refreshResult, (payload) => payload || null),
-        studies: parseResult(studiesResult, (payload) => extractArrayField(payload, 'results')),
-        events: parseResult(eventsResult, (payload) => extractArrayField(payload, 'events')),
-        submissions: parseResult(submissionsResult, (payload) => extractArrayField(payload, 'results')),
-      };
-    }
 
     function normalizeStudiesRefreshPolicy(rawMinimumDelaySeconds: unknown, rawAverageDelaySeconds: unknown, rawSpreadSeconds: unknown): Record<string, number> {
       const parseSeconds = (value: unknown, fallback: number): number => {
@@ -961,14 +828,16 @@ export default defineBackground({
 
         if (parsedBody) {
           try {
-            await sendServiceCommandByName('studiesResponse', {
-              url: normalizedURL,
-              status_code: result.status_code,
-              observed_at: observedAt,
-              body: parsedBody,
-            });
+            await ingestStudiesResponse(
+              parsedBody,
+              observedAt,
+              'extension.delayed_refresh',
+              normalizedURL,
+              result.status_code,
+            );
+            notifyPopupDashboardUpdated('delayed_refresh', observedAt);
           } catch (err) {
-            pushDebugLog('refresh.delayed.send_response_error', {
+            pushDebugLog('refresh.delayed.ingest_error', {
               trigger_source: triggerSource,
               run_index: runIndex,
               error: stringifyError(err),
@@ -983,21 +852,22 @@ export default defineBackground({
             queuePrioritySnapshotEvent(snapshotEvent);
           }
         }
-      }
-
-      try {
-        await sendServiceCommandByName('studiesRefresh', {
-          observed_at: observedAt,
-          source: 'extension.delayed_refresh',
-          url: normalizedURL,
-          status_code: result.status_code,
-        });
-      } catch (err) {
-        pushDebugLog('refresh.delayed.send_refresh_error', {
-          trigger_source: triggerSource,
-          run_index: runIndex,
-          error: stringifyError(err),
-        });
+      } else {
+        // Non-200: still record the refresh attempt
+        try {
+          await store.setStudiesRefresh({
+            observed_at: observedAt,
+            source: 'extension.delayed_refresh',
+            url: normalizedURL,
+            status_code: result.status_code as number,
+          });
+        } catch (err) {
+          pushDebugLog('refresh.delayed.set_refresh_error', {
+            trigger_source: triggerSource,
+            run_index: runIndex,
+            error: stringifyError(err),
+          });
+        }
       }
 
       pushDebugLog('refresh.delayed.completed', {
@@ -1031,126 +901,6 @@ export default defineBackground({
         count: delays.length,
         policy,
         fire_at: fireTimes,
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // WebSocket management
-    // ─────────────────────────────────────────────────────────────
-
-    function isServiceSocketReady(): boolean {
-      return serviceSocket !== null && serviceSocket.readyState === WebSocket.OPEN;
-    }
-
-    function updateServiceSocketState(connected: boolean, reason: string): void {
-      setState({
-        service_ws_connected: connected,
-        service_ws_reason: reason,
-        service_ws_last_at: nowIso(),
-      });
-    }
-
-    let debugStateReportTimer: ReturnType<typeof setTimeout> | null = null;
-
-    function sendDebugStateReport(): void {
-      if (!isServiceSocketReady()) {
-        return;
-      }
-      browser.storage.local.get(STATE_KEY).then((data) => {
-        if (!isServiceSocketReady()) {
-          return;
-        }
-        const syncState = (data[STATE_KEY] as Record<string, unknown>) || {};
-        const { debug_logs, ...stateWithoutLogs } = syncState;
-        const payload = {
-          extension_url: browser.runtime.getURL(''),
-          sync_state: stateWithoutLogs,
-          debug_log_count: Array.isArray(debug_logs) ? debug_logs.length : 0,
-        };
-        try {
-          queueServiceSocketMessage(SERVICE_WS_MESSAGE_TYPES.reportDebugState, payload);
-        } catch {
-          // Best effort — server may not be ready.
-        }
-      });
-    }
-
-    function scheduleDebugStateReport(): void {
-      if (debugStateReportTimer) {
-        clearTimeout(debugStateReportTimer);
-      }
-      debugStateReportTimer = setTimeout(() => {
-        debugStateReportTimer = null;
-        sendDebugStateReport();
-      }, DEBUG_STATE_REPORT_DEBOUNCE_MS);
-    }
-
-    function startServiceSocketHeartbeatLoop(): void {
-      if (serviceSocketHeartbeatTimer) {
-        clearInterval(serviceSocketHeartbeatTimer);
-      }
-
-      serviceSocketHeartbeatTimer = setInterval(() => {
-        if (!isServiceSocketReady()) {
-          return;
-        }
-
-        const now = Date.now();
-        if (serviceSocketLastHeartbeatAckAt > 0 && now - serviceSocketLastHeartbeatAckAt > SERVICE_WS_HEARTBEAT_TIMEOUT_MS) {
-          pushDebugLog('service.ws.heartbeat_timeout', { timeout_ms: SERVICE_WS_HEARTBEAT_TIMEOUT_MS });
-          try {
-            serviceSocket!.close();
-          } catch {
-            // Best effort.
-          }
-          return;
-        }
-
-        try {
-          serviceSocket!.send(JSON.stringify({
-            type: 'heartbeat',
-            sent_at: nowIso(),
-          }));
-        } catch {
-          // Close handler will trigger reconnect.
-          try {
-            serviceSocket!.close();
-          } catch {
-            // Best effort.
-          }
-        }
-      }, SERVICE_WS_HEARTBEAT_INTERVAL_MS);
-    }
-
-    function stopServiceSocketHeartbeatLoop(): void {
-      if (serviceSocketHeartbeatTimer) {
-        clearInterval(serviceSocketHeartbeatTimer);
-        serviceSocketHeartbeatTimer = null;
-      }
-    }
-
-    function scheduleServiceSocketReconnect(reason: string): void {
-      if (serviceSocketReconnectTimer) {
-        return;
-      }
-
-      const baseDelay = Math.min(
-        SERVICE_WS_RECONNECT_MAX_DELAY_MS,
-        SERVICE_WS_RECONNECT_BASE_DELAY_MS * (2 ** serviceSocketReconnectAttempts),
-      );
-      const jitter = Math.floor(Math.random() * SERVICE_WS_RECONNECT_JITTER_MS);
-      const delay = baseDelay + jitter;
-
-      serviceSocketReconnectAttempts += 1;
-      serviceSocketReconnectTimer = setTimeout(() => {
-        serviceSocketReconnectTimer = null;
-        ensureServiceSocketConnected(reason || 'reconnect_timer');
-      }, delay);
-    }
-
-    function sleep(ms: number): Promise<void> {
-      return new Promise((resolve) => {
-        setTimeout(resolve, ms);
       });
     }
 
@@ -1252,220 +1002,11 @@ export default defineBackground({
       });
     }
 
-    async function waitForServiceSocketReady(messageType: string): Promise<boolean> {
-      if (isServiceSocketReady()) {
-        return true;
-      }
 
-      ensureServiceSocketConnected(`command:${messageType}`);
-      const startedAt = Date.now();
-      while (Date.now() - startedAt < SERVICE_WS_CONNECT_WAIT_MS) {
-        await sleep(SERVICE_WS_CONNECT_POLL_MS);
-        if (isServiceSocketReady()) {
-          return true;
-        }
-        ensureServiceSocketConnected(`command_wait:${messageType}`);
-      }
-      return isServiceSocketReady();
-    }
-
-    function scheduleTokenSyncRetry(trigger: string, delayMs: number = TOKEN_SYNC_RETRY_DELAY_MS): void {
-      if (tokenSyncRetryTimer) {
-        return;
-      }
-
-      tokenSyncRetryTimer = setTimeout(() => {
-        tokenSyncRetryTimer = null;
-        requestTokenSync(trigger).catch(() => {
-          // Keep extension resilient.
-        });
-      }, Math.max(0, Number(delayMs) || 0));
-    }
-
-    function ensureServiceSocketConnected(reason: string): void {
-      if (typeof WebSocket === 'undefined') {
-        return;
-      }
-
-      if (isServiceSocketReady() || serviceSocketConnectInFlight) {
-        return;
-      }
-
-      if (serviceSocket && serviceSocket.readyState === WebSocket.CONNECTING) {
-        return;
-      }
-
-      if (serviceSocketReconnectTimer) {
-        clearTimeout(serviceSocketReconnectTimer);
-        serviceSocketReconnectTimer = null;
-      }
-
-      let socket: WebSocket;
-      try {
-        socket = new WebSocket(SERVICE_WS_URL);
-      } catch {
-        scheduleServiceSocketReconnect('connect_constructor_failed');
-        return;
-      }
-
-      serviceSocket = socket;
-      serviceSocketConnectInFlight = true;
-
-      socket.onopen = () => {
-        if (serviceSocket !== socket) {
-          return;
-        }
-        serviceSocketConnectInFlight = false;
-        serviceSocketReconnectAttempts = 0;
-        serviceSocketLastHeartbeatAckAt = Date.now();
-        updateServiceSocketState(true, `connected:${reason}`);
-        pushDebugLog('service.ws.connected', { reason });
-        clearTransientServiceConnectingState();
-        startServiceSocketHeartbeatLoop();
-        scheduleTokenSyncRetry('service.ws.connected', 0);
-        scheduleDebugStateReport();
-      };
-
-      socket.onmessage = (event: MessageEvent) => {
-        let parsed: Record<string, unknown>;
-        try {
-          parsed = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-
-        if (!parsed || typeof parsed !== 'object') {
-          return;
-        }
-
-        const messageType = typeof parsed.type === 'string' ? parsed.type : '';
-        if (messageType === 'heartbeat_ack') {
-          serviceSocketLastHeartbeatAckAt = Date.now();
-          return;
-        }
-
-        if (messageType === SERVICE_WS_SERVER_EVENT_TYPES.studiesRefreshEvent) {
-          const observedAt = extractObservedAtFromStudiesRefreshEvent(parsed as unknown as StudiesRefreshMessage);
-          notifyPopupDashboardUpdated('service.ws.studies_refresh_event', observedAt);
-          queuePrioritySnapshotEvent(
-            extractPrioritySnapshotEventFromStudiesRefreshMessage(
-              parsed as unknown as StudiesRefreshMessage,
-              nowIso,
-              extractObservedAtFromStudiesRefreshEvent,
-            ),
-          );
-          return;
-        }
-
-        if (messageType === 'ack') {
-          if (parsed.ok === false) {
-            const errorMessage = typeof parsed.error === 'string' && parsed.error
-              ? parsed.error
-              : 'request failed';
-            pushDebugLog('service.ws.command_error', { error: errorMessage });
-          }
-          return;
-        }
-
-        if (messageType) {
-          pushDebugLog('service.ws.unknown_message_type', {
-            type: messageType,
-          });
-        }
-      };
-
-      socket.onerror = () => {
-        if (serviceSocket !== socket) {
-          return;
-        }
-        pushDebugLog('service.ws.error', { reason });
-      };
-
-      socket.onclose = () => {
-        if (serviceSocket !== socket) {
-          return;
-        }
-
-        serviceSocket = null;
-        serviceSocketConnectInFlight = false;
-        stopServiceSocketHeartbeatLoop();
-        updateServiceSocketState(false, 'disconnected');
-        pushDebugLog('service.ws.disconnected', { reason });
-        scheduleServiceSocketReconnect('background_keepalive');
-      };
-    }
-
-    function queueServiceSocketMessage(messageType: string, payload: unknown): void {
-      if (!messageType) {
-        throw new Error('missing websocket message type');
-      }
-
-      const encoded = JSON.stringify({
-        type: messageType,
-        sent_at: nowIso(),
-        payload,
-      });
-
-      if (!isServiceSocketReady()) {
-        throw new Error(SERVICE_CONNECTING_MESSAGE);
-      }
-
-      try {
-        serviceSocket!.send(encoded);
-        return;
-      } catch {
-        try {
-          serviceSocket!.close();
-        } catch {
-          // Best effort.
-        }
-        pushDebugLog('service.ws.send_failed', { type: messageType });
-        ensureServiceSocketConnected(`send_failed:${messageType}`);
-        throw new Error(SERVICE_OFFLINE_MESSAGE);
-      }
-    }
-
-    async function sendServiceCommand(messageType: string, payload: unknown, errorPrefix: string): Promise<void> {
-      const ready = await waitForServiceSocketReady(messageType);
-      if (!ready) {
-        pushDebugLog('service.ws.command_dropped_not_connected', {
-          type: messageType,
-          wait_ms: SERVICE_WS_CONNECT_WAIT_MS,
-        });
-        throw new Error(SERVICE_CONNECTING_MESSAGE);
-      }
-
-      try {
-        queueServiceSocketMessage(messageType, payload);
-      } catch (error) {
-        const message = stringifyError(error);
-        if (message === SERVICE_OFFLINE_MESSAGE || message === SERVICE_CONNECTING_MESSAGE) {
-          throw new Error(message);
-        }
-        const prefix = errorPrefix || 'WebSocket command';
-        throw new Error(`${prefix} failed: ${rawErrorMessage(error)}`);
-      }
-    }
-
-    function sendServiceCommandByName(commandName: string, payload: unknown): Promise<void> {
-      const command = (SERVICE_WS_COMMANDS as Record<string, { messageType: string; errorPrefix: string }>)[commandName];
-      if (!command) {
-        return Promise.reject(new Error(`unknown service command: ${commandName}`));
-      }
-      return sendServiceCommand(command.messageType, payload, command.errorPrefix);
-    }
 
     // ─────────────────────────────────────────────────────────────
     // Token sync
     // ─────────────────────────────────────────────────────────────
-
-    async function setStudiesRefreshState(ok: boolean, reason: string): Promise<void> {
-      await setState({
-        studies_refresh_ok: ok,
-        studies_refresh_reason: ok ? '' : reason,
-        studies_refresh_last_at: nowIso(),
-      });
-    }
 
     async function queryProlificTabs(): Promise<Array<{ id?: number; url?: string }>> {
       const tabs = await browser.tabs.query({ url: PROLIFIC_PATTERNS });
@@ -1785,21 +1326,14 @@ export default defineBackground({
         bumpCounter('token_sync_success_count', 1);
         pushDebugLog('token.sync.ok', { trigger: normalizedTrigger, tab_origin: extracted.origin as string });
       } catch (error) {
-        const message = stringifyError(error);
-        if (message === SERVICE_CONNECTING_MESSAGE) {
-          pushDebugLog('token.sync.deferred_service_connecting', { trigger: normalizedTrigger });
-          scheduleTokenSyncRetry(`${normalizedTrigger}.service_connecting_retry`);
-          return;
-        }
-
         await setTokenSyncState({
           ok: false,
           authRequired: false,
           trigger: normalizedTrigger,
-          reason: message,
+          reason: stringifyError(error),
         });
         bumpCounter('token_sync_error_count', 1);
-        pushDebugLog('token.sync.error', { trigger: normalizedTrigger, error: message });
+        pushDebugLog('token.sync.error', { trigger: normalizedTrigger, error: stringifyError(error) });
       } finally {
         syncInProgress = false;
         drainPendingTokenSync();
@@ -1967,7 +1501,7 @@ export default defineBackground({
     function buildCapturedJSONResponseOptions(config: {
       normalizeURL: (raw: string) => string;
       statusCode: number;
-      commandName: string;
+      ingestFn: (payload: Record<string, unknown>) => Promise<void>;
       counterPrefix: string;
       eventPrefix: string;
       extraHooks?: Record<string, unknown>;
@@ -1975,7 +1509,7 @@ export default defineBackground({
       return Object.freeze({
         normalizeURL: config.normalizeURL,
         statusCode: config.statusCode,
-        postToService: (payload: Record<string, unknown>) => sendServiceCommandByName(config.commandName, payload),
+        postToService: config.ingestFn,
         parseErrorCounter: `${config.counterPrefix}_parse_error_count`,
         parseErrorEvent: `${config.eventPrefix}.parse.error`,
         ingestSuccessCounter: `${config.counterPrefix}_ingest_success_count`,
@@ -1992,7 +1526,16 @@ export default defineBackground({
       studies: buildCapturedJSONResponseOptions({
         normalizeURL: normalizeStudiesCollectionURL,
         statusCode: 200,
-        commandName: 'studiesResponse',
+        ingestFn: async (payload) => {
+          await ingestStudiesResponse(
+            payload.body,
+            payload.observed_at as string,
+            'extension.intercepted_response',
+            payload.url as string,
+            payload.status_code as number,
+          );
+          notifyPopupDashboardUpdated('studies.response.capture', payload.observed_at as string);
+        },
         counterPrefix: 'studies_response',
         eventPrefix: 'studies.response',
         extraHooks: {
@@ -2022,24 +1565,18 @@ export default defineBackground({
           },
           onIngestSuccess: (context: { observedAt: string }) => {
             setState({
+              studies_refresh_ok: true,
+              studies_refresh_reason: '',
+              studies_refresh_last_at: context.observedAt,
               studies_response_capture_ok: true,
               studies_response_capture_reason: '',
               studies_response_capture_last_at: context.observedAt,
             });
           },
           onIngestError: (error: unknown, context: { observedAt: string }) => {
-            const message = stringifyError(error);
-            if (isServiceConnectingMessage(message)) {
-              setState({
-                studies_response_capture_ok: null,
-                studies_response_capture_reason: '',
-                studies_response_capture_last_at: context.observedAt,
-              });
-              return;
-            }
             setState({
               studies_response_capture_ok: false,
-              studies_response_capture_reason: message,
+              studies_response_capture_reason: stringifyError(error),
               studies_response_capture_last_at: context.observedAt,
             });
           },
@@ -2055,7 +1592,9 @@ export default defineBackground({
       submission: buildCapturedJSONResponseOptions({
         normalizeURL: normalizeSubmissionURL,
         statusCode: 0,
-        commandName: 'submissionResponse',
+        ingestFn: async (payload) => {
+          await ingestSubmissionResponse(payload.body, payload.observed_at as string);
+        },
         counterPrefix: 'submission_response',
         eventPrefix: 'submission.response',
         extraHooks: {
@@ -2076,7 +1615,9 @@ export default defineBackground({
       participantSubmissions: buildCapturedJSONResponseOptions({
         normalizeURL: normalizeParticipantSubmissionsURL,
         statusCode: 200,
-        commandName: 'participantSubmissionsResponse',
+        ingestFn: async (payload) => {
+          await ingestParticipantSubmissionsResponse(payload.body, payload.observed_at as string);
+        },
         counterPrefix: 'participant_submissions_response',
         eventPrefix: 'participant.submissions.response',
       }),
@@ -2146,7 +1687,6 @@ export default defineBackground({
         return;
       }
 
-      const observedAt = nowIso();
       const refreshPolicy = await getStudiesRefreshPolicySettings();
       await bumpCounter('studies_request_completed_count', 1);
       await pushDebugLog('studies.request.completed', {
@@ -2154,33 +1694,10 @@ export default defineBackground({
         status_code: details.statusCode || 0,
       });
 
-      try {
-        await sendServiceCommandByName('studiesRefresh', {
-          observed_at: observedAt,
-          source: 'extension.intercepted_response',
-          url: normalizedURL,
-          status_code: details.statusCode || 0,
-        });
-
-        await setStudiesRefreshState(true, '');
-
-        if (details.statusCode === 200) {
-          await bumpCounter('studies_refresh_post_success_count', 1);
-          await pushDebugLog('studies.refresh.post.ok', {
-            url: normalizedURL,
-            status_code: 200,
-          });
-
-          scheduleDelayedRefreshes('extension.intercepted_response', refreshPolicy);
-        }
-      } catch (error) {
-        await setStudiesRefreshState(false, stringifyError(error));
-        await bumpCounter('studies_refresh_post_error_count', 1);
-        await pushDebugLog('studies.refresh.post.error', {
-          url: normalizedURL,
-          status_code: details.statusCode || 0,
-          error: stringifyError(error),
-        });
+      // Only schedule delayed refreshes here. The actual refresh state
+      // is written by ingestStudiesResponse when the body is captured and stored.
+      if (details.statusCode === 200) {
+        scheduleDelayedRefreshes('extension.intercepted_response', refreshPolicy);
       }
     }
 
@@ -2492,7 +2009,6 @@ export default defineBackground({
         settings.auto_open_prolific_tab = autoOpenEnabled;
       }
       if (priorityFilter && typeof priorityFilter === 'object') {
-        settings.auto_open_priority_studies = priorityFilter.enabled;
         settings.priority_filter_enabled = priorityFilter.enabled;
         settings.priority_filter_auto_open_in_new_tab = priorityFilter.auto_open_in_new_tab !== false;
         settings.priority_filter_alert_sound_enabled = priorityFilter.alert_sound_enabled !== false;
@@ -2540,81 +2056,6 @@ export default defineBackground({
         return false;
       }
 
-      if (msg && msg.action === 'getState') {
-        browser.storage.local.get(STATE_KEY).then((data) => {
-          sendResponse({ ok: true, state: data[STATE_KEY] || null });
-        });
-        return true;
-      }
-
-      if (msg && msg.action === 'getSettings') {
-        browser.storage.local.get([
-          AUTO_OPEN_PROLIFIC_TAB_KEY,
-          AUTO_OPEN_PRIORITY_STUDIES_KEY,
-          PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
-          PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
-          PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
-          PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-          PRIORITY_FILTER_MIN_REWARD_KEY,
-          PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
-          PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
-          PRIORITY_FILTER_MIN_PLACES_KEY,
-          PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
-          PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
-          STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY,
-          STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY,
-          STUDIES_REFRESH_SPREAD_SECONDS_KEY,
-        ]).then((data) => {
-          const refreshPolicy = normalizeStudiesRefreshPolicy(
-            data[STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY],
-            data[STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY],
-            data[STUDIES_REFRESH_SPREAD_SECONDS_KEY],
-          );
-          const priorityFilter = normalizePriorityStudyFilter(
-            data[AUTO_OPEN_PRIORITY_STUDIES_KEY] === true,
-            data[PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY] !== false,
-            data[PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY] !== false,
-            data[PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY],
-            data[PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY],
-            data[PRIORITY_FILTER_MIN_REWARD_KEY],
-            data[PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY],
-            data[PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY],
-            data[PRIORITY_FILTER_MIN_PLACES_KEY],
-            data[PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY],
-            data[PRIORITY_FILTER_IGNORE_KEYWORDS_KEY],
-          );
-          sendResponse({
-            ok: true,
-            settings: buildRefreshSettingsResponse(
-              refreshPolicy,
-              data[AUTO_OPEN_PROLIFIC_TAB_KEY] !== false,
-              priorityFilter,
-            ),
-          });
-        });
-        return true;
-      }
-
-      if (msg && msg.action === 'getDashboardData') {
-        return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
-          const liveLimit = clampDashboardLimit(
-            msg.live_limit,
-            DASHBOARD_DEFAULT_STUDIES_LIMIT,
-          );
-          const eventsLimit = clampDashboardLimit(
-            msg.events_limit,
-            DASHBOARD_DEFAULT_EVENTS_LIMIT,
-          );
-          const submissionsLimit = clampDashboardLimit(
-            msg.submissions_limit,
-            DASHBOARD_DEFAULT_SUBMISSIONS_LIMIT,
-          );
-
-          const dashboard = await loadDashboardData(liveLimit, eventsLimit, submissionsLimit);
-          sendResponse({ ok: true, dashboard });
-        });
-      }
-
       if (msg && msg.action === 'setAutoOpen') {
         return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
           const enabled = Boolean(msg.enabled);
@@ -2656,7 +2097,7 @@ export default defineBackground({
           );
 
           await storageSetLocal({
-            [AUTO_OPEN_PRIORITY_STUDIES_KEY]: priorityFilter.enabled,
+            [PRIORITY_FILTER_ENABLED_KEY]: priorityFilter.enabled,
             [PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY]: priorityFilter.auto_open_in_new_tab,
             [PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY]: priorityFilter.alert_sound_enabled,
             [PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY]: priorityFilter.alert_sound_type,
@@ -2670,7 +2111,6 @@ export default defineBackground({
           });
 
           await setState({
-            auto_open_priority_studies: priorityFilter.enabled,
             priority_filter_enabled: priorityFilter.enabled,
             priority_filter_auto_open_in_new_tab: priorityFilter.auto_open_in_new_tab,
             priority_filter_alert_sound_enabled: priorityFilter.alert_sound_enabled,
@@ -2764,9 +2204,6 @@ export default defineBackground({
       if (alarm.name === 'oidc_sync') {
         pushDebugLog('alarm.fired', { name: alarm.name });
         requestTokenSync('alarm');
-        // Ensure WebSocket stays connected — critical for service worker wakeup
-        // after Chrome terminates and restarts the worker.
-        ensureServiceSocketConnected('alarm_wakeup');
       }
     });
 
@@ -2796,7 +2233,6 @@ export default defineBackground({
       if (logEvent) {
         await pushDebugLog(logEvent, {});
       }
-      ensureServiceSocketConnected(`boot:${trigger}`);
       await priorityStateRuntime.ensureHydrated();
       schedule();
       registerCaptureListeners();

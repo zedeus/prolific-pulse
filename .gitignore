@@ -1,26 +1,5 @@
 # Credentials
 .prolific-auth
-prolific_pulse.db
-prolific_pulse.db-shm
-prolific_pulse.db-wal
-
-# Go build artifacts
-prolific-pulse
-prolific_pulse
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary
-*.test
-
-# Output of the go coverage tool
-*.out
-
-# Go workspace file
-go.work
 
 # IDE files
 .vscode/
@@ -32,14 +11,6 @@ go.work
 # OS files
 .DS_Store
 Thumbs.db
-
-# Extension (keep source, ignore packaged artifacts)
-extension/*.xpi
-extension/*.zip
-
-# Build artifacts
-dist/
-build/
 
 # WXT build output and dependencies
 src/.output/
@@ -55,6 +26,9 @@ tests-wdio/.chrome-extension/
 tests-wdio/.chrome-cookies.json
 tests-wdio/screenshots/
 tests-wdio/.venv/
+
+# Build artifacts
+dist/
 
 # Third-party extensions
 prolific-assistant/

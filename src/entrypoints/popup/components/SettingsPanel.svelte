@@ -5,8 +5,6 @@
     formatRelative,
     compactText,
     isAuthRequiredState,
-    isServiceConnectingMessage,
-    shouldShowServiceConnectingMessage,
     clampInt,
     normalizeRefreshPolicy,
     canonicalSoundType,
@@ -144,8 +142,6 @@
     'priority.alert.error': 'Priority alert failed',
     'settings.studies_refresh_policy.updated': 'Cadence saved',
     'settings.studies_refresh_policy.schedule_ok': 'Cadence schedule applied',
-    'service.ws.command_error': 'WS command error',
-    'service.ws.unknown_message_type': 'WS message ignored',
   };
 
   function normalizePriorityKeywords(value: string): string[] {
@@ -289,7 +285,6 @@
     if (state.token_ok === false) return compactText(String(state.token_reason || 'token sync failed'));
     if (state.studies_refresh_ok === false) return compactText(String(state.studies_refresh_reason || 'refresh sync failed'));
     if (state.studies_response_capture_ok === false) {
-      if (isServiceConnectingMessage(state.studies_response_capture_reason) && !shouldShowServiceConnectingMessage(state)) return 'none';
       return compactText(String(state.studies_response_capture_reason || 'response capture failed'));
     }
     return 'none';

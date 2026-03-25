@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "comctx": "^1",
+    "dexie": "^4.3.0",
     "svelte": "^5"
   },
   "devDependencies": {
@@ -14,6 +14,7 @@
     "daisyui": "^5",
     "eslint": "^10.1.0",
     "eslint-plugin-svelte": "^3.16.0",
+    "fake-indexeddb": "^6.2.5",
     "prettier": "^3.8.1",
     "prettier-plugin-svelte": "^3.5.1",
     "svelte-check": "^4.4.5",

@@ -28,18 +28,10 @@ export default defineConfig({
     ],
     host_permissions: [
       '*://*.prolific.com/*',
-      'http://localhost:8080/*',
-      'ws://localhost:8080/*',
-      'http://127.0.0.1:8080/*',
-      'ws://127.0.0.1:8080/*',
-      'https://localhost:8080/*',
-      'wss://localhost:8080/*',
-      'https://127.0.0.1:8080/*',
-      'wss://127.0.0.1:8080/*',
     ],
     content_security_policy: {
       extension_pages:
-        "script-src 'self'; object-src 'self'; connect-src 'self' https://*.prolific.com http://localhost:8080 ws://localhost:8080 http://127.0.0.1:8080 ws://127.0.0.1:8080 https://localhost:8080 wss://localhost:8080 https://127.0.0.1:8080 wss://127.0.0.1:8080;",
+        "script-src 'self'; object-src 'self'; connect-src 'self' https://*.prolific.com;",
     },
     browser_specific_settings:
       browser === 'firefox'

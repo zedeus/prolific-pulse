@@ -1,73 +1,22 @@
 export const PROLIFIC_PATTERNS = ['*://app.prolific.com/*', '*://auth.prolific.com/*'];
 export const STUDIES_REQUEST_PATTERN = '*://internal-api.prolific.com/api/v1/participant/studies/*';
 export const PARTICIPANT_SUBMISSIONS_PATTERN = '*://internal-api.prolific.com/api/v1/participant/submissions/*';
-export const SUBMISSIONS_RESERVE_PATTERN = '*://internal-api.prolific.com/api/v1/submissions/reserve/*';
-export const SUBMISSIONS_TRANSITION_PATTERN = '*://internal-api.prolific.com/api/v1/submissions/*/transition/*';
+const SUBMISSIONS_RESERVE_PATTERN = '*://internal-api.prolific.com/api/v1/submissions/reserve/*';
+const SUBMISSIONS_TRANSITION_PATTERN = '*://internal-api.prolific.com/api/v1/submissions/*/transition/*';
 export const SUBMISSION_PATTERNS = [SUBMISSIONS_RESERVE_PATTERN, SUBMISSIONS_TRANSITION_PATTERN];
 export const OAUTH_TOKEN_PATTERN = '*://auth.prolific.com/oauth/token*';
 export const PROLIFIC_STUDIES_URL = 'https://app.prolific.com/studies';
 export const STUDIES_COLLECTION_PATH = '/api/v1/participant/studies/';
 export const FETCH_STUDIES_API_URL = 'https://internal-api.prolific.com/api/v1/participant/studies/';
 
-export const SERVICE_BASE_URL = 'http://localhost:8080';
-export const SERVICE_OFFLINE_MESSAGE = 'Local service offline, start the Go server to continue.';
-export const SERVICE_CONNECTING_MESSAGE = 'Local service connecting; retrying shortly.';
-export const SERVICE_WS_URL = SERVICE_BASE_URL.replace(/^http/i, 'ws') + '/ws';
-
-export const SERVICE_WS_HEARTBEAT_INTERVAL_MS = 10_000;
-export const SERVICE_WS_HEARTBEAT_TIMEOUT_MS = 15_000;
-export const SERVICE_WS_RECONNECT_BASE_DELAY_MS = 500;
-export const SERVICE_WS_RECONNECT_MAX_DELAY_MS = 15_000;
-export const SERVICE_WS_RECONNECT_JITTER_MS = 250;
-export const SERVICE_WS_CONNECT_WAIT_MS = 1_500;
-export const SERVICE_WS_CONNECT_POLL_MS = 50;
-export const TOKEN_SYNC_RETRY_DELAY_MS = 1_000;
-
-export const SERVICE_WS_MESSAGE_TYPES = Object.freeze({
-  studiesRefresh: 'receive-studies-refresh',
-  studiesResponse: 'receive-studies-response',
-  submissionResponse: 'receive-submission-response',
-  participantSubmissionsResponse: 'receive-participant-submissions-response',
-  reportDebugState: 'report-debug-state',
-} as const);
-
-export const SERVICE_WS_COMMANDS = Object.freeze({
-  studiesRefresh: Object.freeze({
-    messageType: SERVICE_WS_MESSAGE_TYPES.studiesRefresh,
-    errorPrefix: 'Studies refresh endpoint',
-  }),
-  studiesResponse: Object.freeze({
-    messageType: SERVICE_WS_MESSAGE_TYPES.studiesResponse,
-    errorPrefix: 'Studies response endpoint',
-  }),
-  submissionResponse: Object.freeze({
-    messageType: SERVICE_WS_MESSAGE_TYPES.submissionResponse,
-    errorPrefix: 'Submission response endpoint',
-  }),
-  participantSubmissionsResponse: Object.freeze({
-    messageType: SERVICE_WS_MESSAGE_TYPES.participantSubmissionsResponse,
-    errorPrefix: 'Participant submissions response endpoint',
-  }),
-  reportDebugState: Object.freeze({
-    messageType: SERVICE_WS_MESSAGE_TYPES.reportDebugState,
-    errorPrefix: 'Debug state report',
-  }),
-} as const);
-
-export const SERVICE_WS_SERVER_EVENT_TYPES = Object.freeze({
-  studiesRefreshEvent: 'studies_refresh_event',
-} as const);
-
 export const DASHBOARD_DEFAULT_STUDIES_LIMIT = 50;
 export const DASHBOARD_DEFAULT_EVENTS_LIMIT = 25;
 export const DASHBOARD_DEFAULT_SUBMISSIONS_LIMIT = 100;
-export const DASHBOARD_MIN_LIMIT = 1;
-export const DASHBOARD_MAX_LIMIT = 500;
 
 export const STATE_KEY = 'syncState';
 export const PRIORITY_KNOWN_STUDIES_STATE_KEY = 'priorityKnownStudiesState';
 export const AUTO_OPEN_PROLIFIC_TAB_KEY = 'autoOpenProlificTab';
-export const AUTO_OPEN_PRIORITY_STUDIES_KEY = 'autoOpenPriorityStudies';
+export const PRIORITY_FILTER_ENABLED_KEY = 'priorityFilterEnabled';
 export const PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY = 'priorityFilterAutoOpenInNewTab';
 export const PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY = 'priorityFilterAlertSoundEnabled';
 export const PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY = 'priorityFilterAlertSoundType';
@@ -149,11 +98,10 @@ export const DEBUG_LOG_SUPPRESSED_EVENTS = new Set([
   'studies.response.capture.stop',
   'studies.response.capture.skip_non_collection',
 ]);
-export const DEBUG_STATE_REPORT_DEBOUNCE_MS = 2000;
 
 export const AUTH_REQUIRED_MESSAGE = 'Signed out of Prolific. Log in at app.prolific.com to resume syncing.';
 export const AUTH_REQUIRED_PANEL_MESSAGE = 'Waiting for login.';
-export const RETRY_INTERVAL_MS = 5000;
+
 export const DEFAULT_REFRESH_INTERVAL_MS = 60_000;
 export const REACTIVE_REFRESH_DEBOUNCE_MS = 150;
 export const PRIORITY_FILTER_PERSIST_DEBOUNCE_MS = 250;

@@ -10,7 +10,6 @@ export const CHROME_EXTENSION_OUTPUT_DIR = path.join(WXT_SRC_DIR, '.output', 'ch
 export const PROFILE_DIR = path.join(PROJECT_ROOT, 'tests', 'profiles', 'prolific');
 const ADDON_ID = 'prolific-pulse@prolific-pulse';
 const ADDON_UUID = 'a1b2c3d4-0000-4000-8000-000000000001';
-export const GO_SERVER_URL = 'http://localhost:8080';
 export const PROLIFIC_APP_URL = 'https://app.prolific.com';
 export const PROLIFIC_STUDIES_URL = `${PROLIFIC_APP_URL}/studies`;
 export const PROLIFIC_AUTH_HOST = 'auth.prolific.com';

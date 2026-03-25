@@ -1,8 +1,6 @@
 import type { Money, NormalizedRefreshPolicy } from './types';
 import type { SoundType } from './constants';
 import {
-  SERVICE_OFFLINE_MESSAGE,
-  SERVICE_CONNECTING_MESSAGE,
   PRIORITY_ALERT_SOUND_TYPES,
   DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
   STUDIES_REFRESH_CYCLE_SECONDS,
@@ -136,42 +134,14 @@ export function formatRelative(value: unknown, includeClock = false): string {
   return text;
 }
 
-export function errorMessageFromUnknown(error: unknown): string {
+function errorMessageFromUnknown(error: unknown): string {
   if (error instanceof Error) return typeof error.message === 'string' ? error.message.trim() : '';
   if (typeof error === 'string') return error.trim();
   if (error == null) return '';
   return String(error);
 }
 
-export function isNetworkFailureMessage(message: string): boolean {
-  const lowered = message.toLowerCase();
-  return (
-    lowered.includes('failed to fetch') ||
-    lowered.includes('networkerror') ||
-    lowered.includes('network request failed') ||
-    lowered.includes('load failed') ||
-    lowered.includes('fetch resource')
-  );
-}
-
-export function isServiceUnavailableError(error: unknown): boolean {
-  if (!error) return false;
-  if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'SERVICE_UNAVAILABLE') return true;
-  const message = errorMessageFromUnknown(error);
-  return isNetworkFailureMessage(message) || message.includes(SERVICE_OFFLINE_MESSAGE);
-}
-
-export function isServiceConnectingMessage(message: string): boolean {
-  return String(message || '').trim() === SERVICE_CONNECTING_MESSAGE;
-}
-
-export function shouldShowServiceConnectingMessage(state: { service_ws_connected?: boolean } | null): boolean {
-  if (!state) return true;
-  return state.service_ws_connected !== true;
-}
-
 export function toUserErrorMessage(error: unknown): string {
-  if (isServiceUnavailableError(error)) return SERVICE_OFFLINE_MESSAGE;
   const msg = errorMessageFromUnknown(error);
   return String(msg || '').trim() || 'Unexpected error.';
 }
@@ -227,7 +197,7 @@ export function studyUrlFromId(studyID: string): string {
   return `https://app.prolific.com/studies/${encodeURIComponent(studyID)}`;
 }
 
-export function calculatedCycleSecondsFromAverage(averageDelaySeconds: number): number {
+function calculatedCycleSecondsFromAverage(averageDelaySeconds: number): number {
   const average = clampInt(averageDelaySeconds, MIN_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS, MAX_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS, DEFAULT_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS);
   const countByAverage = Math.max(0, Math.floor(STUDIES_REFRESH_CYCLE_SECONDS / average) - 1);
   const segments = countByAverage + 1;

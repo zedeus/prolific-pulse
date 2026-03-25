@@ -1,34 +1,34 @@
 # Prolific Pulse
 
-Go server + browser extension (Firefox & Chrome) that monitors Prolific study availability in real-time.
+Browser extension (Firefox & Chrome) that monitors Prolific study availability in real-time. All data storage and processing happens locally in the extension using IndexedDB (via Dexie.js).
 
 ## Architecture
 
-- **Go server** (`*.go`): HTTP/WS server on `:8080`. Stores studies, submissions, refresh state in SQLite.
 - **Browser extension** (`src/`): WXT + Svelte 5 + TypeScript + Tailwind v4 + DaisyUI 5. MV3 for Chrome, MV2 for Firefox (auto-converted by WXT).
 - **Popup**: Svelte 5 components with DaisyUI styling. Tabs: live studies, feed, submissions, settings, diagnostics.
-- **Old extension** (`extension/`): Legacy vanilla JS version. Kept for reference during migration. Will be removed.
+- **Data storage**: IndexedDB via Dexie.js. Stores studies, submissions, availability events, and refresh state locally in the browser.
 
 ### Browser-specific paths
 - **Firefox**: Uses `webRequest.filterResponseData()` for passive API response interception. Background runs as an event page. Audio via direct `AudioContext`. Guarded by `import.meta.env.FIREFOX`.
 - **Chrome**: Uses MAIN-world content scripts (`intercept-main.ts` injected via `injectScript()`) to monkeypatch `fetch()`. Background runs as a service worker. Audio via `chrome.offscreen` API (`offscreen/`). Guarded by `import.meta.env.CHROME`.
-- **Shared**: WebSocket protocol, priority filter engine, popup UI, all background modules, TypeScript types.
+- **Shared**: Priority filter engine, popup UI, all background modules, TypeScript types.
 
 ### Extension source structure (`src/`)
 ```
 src/
   entrypoints/
-    background/          # Background script + modules (domain, state, actions, settings, adapters)
+    background/          # Background script + modules (domain, state, actions, settings, ingest)
     popup/               # Svelte 5 popup (App.svelte + components/)
     offscreen/           # Chrome audio offscreen document
     intercept.content.ts # Chrome content script (ISOLATED world, injects intercept-main)
     intercept-main.ts    # Chrome unlisted script (MAIN world, patches fetch/XHR)
   lib/
+    db.ts                # Dexie.js database schema (6 IndexedDB stores)
+    store.ts             # Data access layer (queries, reconciliation, upserts)
+    normalize.ts         # Study and submission normalization from Prolific API
     types.ts             # Shared TypeScript interfaces
     constants.ts         # All constants (URLs, timings, defaults, storage keys)
     format.ts            # Shared formatting utilities
-    services.ts          # comctx RPC service definitions (planned integration)
-    adapters.ts          # comctx transport adapters (planned integration)
     firefox.d.ts         # Firefox-only API type declarations
   assets/
     app.css              # Tailwind v4 + DaisyUI 5 entry
@@ -40,22 +40,33 @@ src/
   tsconfig.json
 ```
 
+### Data Flow
+1. Content script / webRequest intercepts Prolific API responses
+2. Background script receives intercepted data
+3. Background normalizes and stores in IndexedDB via `ingest.ts` → `store.ts`
+4. Background reconciles study availability (detects new/departed studies)
+5. Background runs priority filter, triggers alerts/auto-open for matching studies
+6. Popup reads dashboard data directly from IndexedDB (settings writes go through background via runtime messages)
+
+### IndexedDB Schema (Dexie.js)
+Defined in `src/lib/db.ts`:
+- `studiesLatest` — Current normalized study data (PK: `study_id`)
+- `studiesHistory` — Complete observation history for analytics (auto-increment PK, indexed on `study_id`, `observed_at`)
+- `studiesActiveSnapshot` — Currently available studies for reconciliation (PK: `study_id`)
+- `studyAvailabilityEvents` — Feed of availability changes (auto-increment PK)
+- `serviceState` — Singleton refresh metadata (PK: `id`)
+- `submissions` — Submission lifecycle tracking with smart merge (PK: `submission_id`)
+
 ## Key Patterns
 
-### WebSocket Protocol
-- Extension sends typed messages (`receive-studies-refresh`, `receive-studies-response`, `report-debug-state`, etc.)
-- Server responds with `ack` messages (`{type: "ack", ok: true/false}`)
-- Server broadcasts `studies_refresh_event` to all connected clients
-- Extension sends heartbeat every 10s, times out at 15s (heartbeat is client-side, not server-side)
-
 ### Extension Storage Keys
-- `syncState`: Main state object (WS status, token status, debug logs)
+- `syncState`: Main state object (token status, debug logs)
 - `priorityKnownStudiesState`: Known study IDs with TTL
 - Priority filter settings: `priorityFilterMinimumReward`, `priorityFilterMinimumHourlyReward`, etc.
 - Refresh timing: `studiesRefreshMinDelaySeconds`, `studiesRefreshAverageDelaySeconds`
 
 ### Popup DOM Selectors (used by E2E tests)
-- Status: `#syncDot` (`.bad` class = offline), `#latestRefresh`, `#errorMessage`
+- Status: `#syncDot` (`.bad` class = error), `#latestRefresh`, `#errorMessage`
 - Tabs: `button[data-tab="live|feed|submissions|settings"]`
 - Panels: `#panelLive`, `#panelFeed`, `#panelSubmissions`, `#panelSettings` (`.active` = visible)
 - Priority: `#priorityFilterEnabledToggle`, `#priorityMinRewardInput`, `#priorityMinHourlyInput`
@@ -64,9 +75,6 @@ src/
 ## Building
 
 ```bash
-# Go server
-go build -o prolific-pulse .
-
 # Extension (WXT builds for both browsers)
 cd src && npm run build          # Both browsers
 cd src && npx wxt build -b chrome   # Chrome only
@@ -93,7 +101,7 @@ Located in `tests-wdio/`. The WXT extension is built automatically before each t
 ```bash
 cd tests-wdio
 
-# All tests (Go server is managed automatically, WXT builds automatically)
+# All tests (WXT builds automatically, no external server needed)
 npx wdio run wdio.conf.js
 
 # Skip slow tests (delayed refresh ~45s)
@@ -110,14 +118,9 @@ The extension is zipped at runtime from WXT output and installed via `browser.in
 The extension UUID is pre-seeded via `extensions.webextensions.uuids` Firefox preference for deterministic popup URLs.
 
 ### Popup Navigation
-Popup URL is discovered dynamically from `GET /debug/extension-state` (works for both browsers).
-Tests navigate directly to the discovered URL.
-
-### Debug State Endpoint
-`GET /debug/extension-state` returns the latest state reported by the extension over WS.
-Response: `{"has_state": true, "received_at": "...", "state": {"extension_url": "...", "sync_state": {...}, "debug_log_count": N}}`
-Returns `{"has_state": false}` when no state has been reported yet.
-Note: `debug_logs` are excluded from the WS payload to keep message size small; only `debug_log_count` is sent.
+Firefox: popup URL is deterministic from the pre-seeded UUID.
+Chrome: popup URL is discovered via `chrome.runtime.getURL()`.
+Tests navigate directly to the popup URL.
 
 ### Chrome Test Prerequisites
 1. Chrome for Testing: `npx @puppeteer/browsers install chrome@stable --path ~/tmp/prolific-pulse/cft`
@@ -133,10 +136,9 @@ npm run test:chrome:fast # Chrome only
 ```
 
 ### Test Ordering
-Spec files are numbered (01-07) to enforce execution order:
-- `06-studies-intercept` must run before `07-debug-state` (populates server state)
-- `04-server-reconnect` stops/restarts the Go server (combined into single test)
-- SQLite database is cleaned in the `before` hook of each test run
+Spec files are numbered (01-09) to enforce execution order:
+- `06-studies-intercept` must run before `07-debug-state` (populates extension state)
+- `04-extension-resilience` tests navigation away/back and popup reopen
 
 ### Svelte 5 Rules
 - Use `$state()`, `$derived()`, `$effect()`, `$props()` (runes only)

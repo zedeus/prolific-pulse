@@ -63,19 +63,6 @@ export interface Submission {
   payload?: unknown;
 }
 
-export interface DashboardData {
-  refresh_state: StudiesRefreshState | null;
-  studies: Study[];
-  events: StudyEvent[];
-  submissions: Submission[];
-}
-
-export interface DashboardLimits {
-  live?: number;
-  events?: number;
-  submissions?: number;
-}
-
 export interface StudiesRefreshState {
   last_studies_refresh_at?: string;
   last_studies_refresh_source?: string;
@@ -111,7 +98,6 @@ export interface NormalizedRefreshPolicy extends RefreshPolicy {
 
 export interface Settings {
   auto_open_prolific_tab: boolean;
-  auto_open_priority_studies: boolean;
   priority_filter_enabled: boolean;
   priority_filter_auto_open_in_new_tab: boolean;
   priority_filter_alert_sound_enabled: boolean;
@@ -140,11 +126,6 @@ export interface SyncState {
   access_token: string;
   token_type: string;
 
-  // WebSocket
-  service_ws_connected: boolean;
-  service_ws_reason: string;
-  service_ws_last_at: string;
-
   // Studies refresh
   studies_refresh_ok: boolean;
   studies_refresh_reason: string;
@@ -168,8 +149,6 @@ export interface SyncState {
   token_sync_error_count: number;
   oauth_token_capture_success_count: number;
   studies_request_completed_count: number;
-  studies_refresh_post_success_count: number;
-  studies_refresh_post_error_count: number;
   studies_response_before_request_count: number;
   studies_response_ingest_success_count: number;
   studies_response_ingest_error_count: number;
@@ -209,7 +188,6 @@ export interface SyncState {
   studies_refresh_cycle_seconds: number;
 
   // Priority filter settings
-  auto_open_priority_studies: boolean;
   priority_filter_enabled: boolean;
   priority_filter_auto_open_in_new_tab: boolean;
   priority_filter_alert_sound_enabled: boolean;
@@ -237,17 +215,7 @@ export interface DebugLogEntry {
   repeat_count?: number;
 }
 
-export interface KnownStudiesState {
-  initialized: boolean;
-  updated_at: string;
-  entries: Record<string, number>; // studyID → seenAtMS
-}
 
-export interface InterceptedResponse {
-  subtype: 'studies' | 'participant_submissions' | 'submission' | 'oauth_token';
-  url: string;
-  status: number;
-  body: unknown;
-  observed_at: string;
-}
+
+
 

@@ -2,20 +2,17 @@
  * Shared test setup used by both Firefox and Chrome WDIO configs.
  *
  * Each browser config provides capabilities and an optional
- * `installExtension` callback. Everything else — Go server lifecycle,
- * popup URL discovery, login, token sync — is identical.
+ * `installExtension` callback. Everything else — popup URL discovery,
+ * login, token sync — is identical.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { PROLIFIC_STUDIES_URL, GO_SERVER_URL, WXT_SRC_DIR } from './constants.js';
-import { GoServerManager } from './go-server.js';
+import { PROLIFIC_STUDIES_URL, POPUP_URL, WXT_SRC_DIR } from './constants.js';
 import { isLoggedIn, automatedLogin } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 const headless = process.env.HEADLESS === '1';
 const skipSlow = process.env.SKIP_SLOW === '1';
@@ -23,10 +20,10 @@ const loginTimeout = 300_000;
 const loginPollInterval = 3_000;
 
 export const SHARED_SPECS = [[
-  './specs/01-server-health.js',
+  './specs/01-extension-health.js',
   './specs/02-popup-display.js',
   './specs/03-popup-tabs.js',
-  './specs/04-server-reconnect.js',
+  './specs/04-extension-resilience.js',
   './specs/05-settings.js',
   './specs/06-studies-intercept.js',
   './specs/07-debug-state.js',
@@ -52,26 +49,37 @@ export const SHARED_CONFIG = {
 };
 
 /**
- * Discover the extension popup URL by polling the Go server's debug state.
- * Works for both Firefox (moz-extension://) and Chrome (chrome-extension://).
+ * Discover the extension popup URL.
+ * For Firefox, the UUID is pre-seeded so we use the deterministic URL.
+ * For Chrome, we derive it from the extension ID in capabilities or
+ * fall back to polling the popup URL until it responds.
  */
 async function discoverPopupUrl(timeout = 30_000) {
+  const browserName = browser.capabilities?.browserName || 'firefox';
+
+  if (browserName !== 'chrome') {
+    // Firefox: deterministic URL from pre-seeded UUID
+    return POPUP_URL;
+  }
+
+  // Chrome: need to discover the extension ID.
+  // Poll until the popup URL is reachable.
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     try {
-      const resp = await fetch(`${GO_SERVER_URL}/debug/extension-state`, {
-        signal: AbortSignal.timeout(2000),
+      // Try to get extension URL from Chrome's management API
+      const extUrl = await browser.execute(() => {
+        return typeof chrome !== 'undefined' && chrome.runtime
+          ? chrome.runtime.getURL('popup.html')
+          : null;
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.has_state && data.state?.extension_url) {
-          return `${data.state.extension_url.replace(/\/$/, '')}/popup.html`;
-        }
-      }
-    } catch { /* not ready */ }
+      if (extUrl) return extUrl;
+    } catch { /* retry */ }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error(`Extension did not report state within ${timeout}ms.`);
+
+  // Fallback: use the popup URL from constants (Firefox-style)
+  return POPUP_URL;
 }
 
 /**
@@ -86,11 +94,6 @@ async function discoverPopupUrl(timeout = 30_000) {
  *   Used by Chrome to inject session cookies from the Firefox profile.
  */
 export async function sharedBefore(opts = {}) {
-  // Clean stale database so timestamps are fresh for this run.
-  for (const f of ['prolific_pulse.db', 'prolific_pulse.db-shm', 'prolific_pulse.db-wal']) {
-    try { fs.rmSync(path.join(PROJECT_ROOT, f)); } catch { /* ok */ }
-  }
-
   // Build extension with WXT for both browsers.
   const browserName = browser.capabilities?.browserName || 'firefox';
   const wxtTarget = browserName === 'chrome' ? 'chrome' : 'firefox';
@@ -98,27 +101,16 @@ export async function sharedBefore(opts = {}) {
   execSync(`npx wxt build -b ${wxtTarget}`, { cwd: WXT_SRC_DIR, stdio: 'inherit' });
   console.log('Extension built.');
 
-  // Build and start Go server.
-  const goServer = new GoServerManager();
-  console.log('Building Go server...');
-  goServer.build();
-  console.log('Starting Go server...');
-  goServer.start();
-  await goServer.waitHealthy();
-  console.log('Go server is healthy.');
-  browser.goServer = goServer;
-
   // Browser-specific extension installation (Firefox).
   if (opts.installExtension) {
     await opts.installExtension();
   }
 
-  // Discover popup URL from the Go server's debug state endpoint.
-  // Works identically for both browsers.
-  console.log('Waiting for extension to connect...');
+  // Discover popup URL.
+  console.log('Discovering popup URL...');
   const popupUrl = await discoverPopupUrl();
   browser.popupUrl = popupUrl;
-  console.log(`Extension connected. Popup: ${popupUrl}`);
+  console.log(`Popup URL: ${popupUrl}`);
 
   // Browser-specific pre-login hook (Chrome cookie injection).
   if (opts.beforeLogin) {
@@ -182,8 +174,5 @@ export async function sharedBefore(opts = {}) {
 }
 
 export async function sharedAfter() {
-  if (browser.goServer) {
-    await browser.goServer.stop();
-    console.log('Go server stopped.');
-  }
+  // No server to stop — all data is in the extension's IndexedDB.
 }

@@ -12,10 +12,8 @@
     Settings,
   } from '../../lib/types';
   import {
-    SERVICE_OFFLINE_MESSAGE,
     AUTH_REQUIRED_MESSAGE,
     AUTH_REQUIRED_PANEL_MESSAGE,
-    RETRY_INTERVAL_MS,
     DEFAULT_REFRESH_INTERVAL_MS,
     REACTIVE_REFRESH_DEBOUNCE_MS,
     PRIORITY_FILTER_PERSIST_DEBOUNCE_MS,
@@ -30,17 +28,34 @@
     DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
     MIN_PRIORITY_ALERT_SOUND_VOLUME,
     MAX_PRIORITY_ALERT_SOUND_VOLUME,
+    STATE_KEY,
+    AUTO_OPEN_PROLIFIC_TAB_KEY,
+    PRIORITY_FILTER_ENABLED_KEY,
+    PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
+    PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
+    PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
+    PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
+    PRIORITY_FILTER_MIN_REWARD_KEY,
+    PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
+    PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
+    PRIORITY_FILTER_MIN_PLACES_KEY,
+    PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
+    PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
+    STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY,
+    STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY,
+    STUDIES_REFRESH_SPREAD_SECONDS_KEY,
+    DASHBOARD_DEFAULT_STUDIES_LIMIT,
+    DASHBOARD_DEFAULT_EVENTS_LIMIT,
+    DASHBOARD_DEFAULT_SUBMISSIONS_LIMIT,
   } from '../../lib/constants';
+  import * as store from '../../lib/store';
   import {
     parseDate,
     formatRelative,
     toUserErrorMessage,
-    isServiceUnavailableError,
-    isServiceConnectingMessage,
     isAuthRequiredState,
     normalizeRefreshPolicy,
     canonicalSoundType,
-    shouldShowServiceConnectingMessage,
     clampInt,
     clampNumber,
   } from '../../lib/format';
@@ -60,10 +75,8 @@
   let extensionState: SyncState | null = $state(null);
   let refreshStateData: StudiesRefreshState | null = $state(null);
   let errorMessage = $state('');
-  let isOffline = $state(false);
   let isAuthRequired = $state(false);
   let autoOpenEnabled = $state(true);
-  let panelStatusMessage = $state('');
   let settingsLoaded = $state(false);
 
   let priorityFilter: PriorityFilter = $state({
@@ -89,8 +102,6 @@
   let latestRefreshDate: Date | null = $state(null);
   let latestRefreshOffline = $state(false);
   let isRefreshingView = $state(false);
-  let retryDeadlineAt = $state(0);
-  let retryCountdownTimer: ReturnType<typeof setInterval> | null = null;
   let retryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let reactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let reactiveRefreshPending = false;
@@ -121,9 +132,9 @@
     return latestRefreshDate.toLocaleString();
   });
 
-  const showPanelOverride = $derived(isOffline || isAuthRequired);
+  const showPanelOverride = $derived(isAuthRequired);
   const panelOverrideText = $derived(
-    isOffline ? panelStatusMessage : isAuthRequired ? AUTH_REQUIRED_PANEL_MESSAGE : '',
+    isAuthRequired ? AUTH_REQUIRED_PANEL_MESSAGE : '',
   );
 
   function applyTheme(dark: boolean) {
@@ -218,14 +229,45 @@
   }
 
   async function getSyncState(): Promise<SyncState | null> {
-    const response = await browser.runtime.sendMessage({ action: 'getState' });
-    if (!response || !(response as any).ok) throw new Error('Failed to fetch extension state.');
-    return (response as any).state;
+    const data = await browser.storage.local.get(STATE_KEY);
+    return (data[STATE_KEY] as SyncState) || null;
   }
 
   async function getSettings(): Promise<Settings> {
-    const response = await sendRuntimeMessage('getSettings');
-    return response.settings || {};
+    const data = await browser.storage.local.get([
+      AUTO_OPEN_PROLIFIC_TAB_KEY,
+      PRIORITY_FILTER_ENABLED_KEY,
+      PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
+      PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
+      PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
+      PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
+      PRIORITY_FILTER_MIN_REWARD_KEY,
+      PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
+      PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
+      PRIORITY_FILTER_MIN_PLACES_KEY,
+      PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
+      PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
+      STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY,
+      STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY,
+      STUDIES_REFRESH_SPREAD_SECONDS_KEY,
+    ]);
+    return {
+      auto_open_prolific_tab: data[AUTO_OPEN_PROLIFIC_TAB_KEY] !== false,
+      priority_filter_enabled: data[PRIORITY_FILTER_ENABLED_KEY] === true,
+      priority_filter_auto_open_in_new_tab: data[PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY] !== false,
+      priority_filter_alert_sound_enabled: data[PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY] !== false,
+      priority_filter_alert_sound_type: String(data[PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY] ?? DEFAULT_PRIORITY_ALERT_SOUND_TYPE),
+      priority_filter_alert_sound_volume: Number(data[PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY] ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME),
+      priority_filter_minimum_reward: Number(data[PRIORITY_FILTER_MIN_REWARD_KEY] ?? DEFAULT_PRIORITY_FILTER_MIN_REWARD),
+      priority_filter_minimum_hourly_reward: Number(data[PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY] ?? DEFAULT_PRIORITY_FILTER_MIN_HOURLY_REWARD),
+      priority_filter_maximum_estimated_minutes: Number(data[PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY] ?? DEFAULT_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES),
+      priority_filter_minimum_places: Number(data[PRIORITY_FILTER_MIN_PLACES_KEY] ?? DEFAULT_PRIORITY_FILTER_MIN_PLACES),
+      priority_filter_always_open_keywords: Array.isArray(data[PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY]) ? data[PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY] as string[] : [],
+      priority_filter_ignore_keywords: Array.isArray(data[PRIORITY_FILTER_IGNORE_KEYWORDS_KEY]) ? data[PRIORITY_FILTER_IGNORE_KEYWORDS_KEY] as string[] : [],
+      studies_refresh_min_delay_seconds: Number(data[STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY] ?? DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS),
+      studies_refresh_average_delay_seconds: Number(data[STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY] ?? DEFAULT_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS),
+      studies_refresh_spread_seconds: Number(data[STUDIES_REFRESH_SPREAD_SECONDS_KEY] ?? DEFAULT_STUDIES_REFRESH_SPREAD_SECONDS),
+    } as Settings;
   }
 
   async function setAutoOpen(enabled: boolean) {
@@ -250,18 +292,19 @@
     await sendRuntimeMessage('clearDebugLogs');
   }
 
-  async function getDashboardData(liveLimit = 50, eventsLimit = 25, submissionsLimit = 100): Promise<any> {
-    const response = await sendRuntimeMessage('getDashboardData', {
-      live_limit: liveLimit,
-      events_limit: eventsLimit,
-      submissions_limit: submissionsLimit,
-    });
-    return response.dashboard || {};
+  async function getDashboardData(liveLimit = 50, eventsLimit = 25, submissionsLimit = 100) {
+    const [refreshState, studiesList, eventsList, submissionsList] = await Promise.all([
+      store.getStudiesRefresh(),
+      store.getCurrentAvailableStudies(liveLimit),
+      store.getRecentAvailabilityEvents(eventsLimit),
+      store.getCurrentSubmissions(submissionsLimit, 'all'),
+    ]);
+    return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList };
   }
 
   function normalizePriorityFilterFromSettings(s: Settings): PriorityFilter {
     return {
-      enabled: s.auto_open_priority_studies === true || s.priority_filter_enabled === true,
+      enabled: s.priority_filter_enabled === true,
       auto_open_in_new_tab: s.priority_filter_auto_open_in_new_tab !== false,
       alert_sound_enabled: s.priority_filter_alert_sound_enabled !== false,
       alert_sound_type: canonicalSoundType(s.priority_filter_alert_sound_type),
@@ -290,18 +333,6 @@
     };
   }
 
-  function stopRetryCountdown() {
-    retryDeadlineAt = 0;
-    if (retryCountdownTimer) {
-      clearInterval(retryCountdownTimer);
-      retryCountdownTimer = null;
-    }
-    if (retryRefreshTimer) {
-      clearTimeout(retryRefreshTimer);
-      retryRefreshTimer = null;
-    }
-  }
-
   function scheduleViewRefreshAfter(delayMs: number) {
     if (retryRefreshTimer) clearTimeout(retryRefreshTimer);
     retryRefreshTimer = setTimeout(() => {
@@ -325,27 +356,6 @@
     }, REACTIVE_REFRESH_DEBOUNCE_MS);
   }
 
-  function formatRetryCountdownMessage(): string {
-    if (!retryDeadlineAt) return 'Connection failed. Retrying in 5 seconds.';
-    const remainingMs = Math.max(0, retryDeadlineAt - Date.now());
-    const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
-    const label = remainingSeconds === 1 ? 'second' : 'seconds';
-    return `Connection failed. Retrying in ${remainingSeconds} ${label}.`;
-  }
-
-  function startOfflineRetryLoop() {
-    retryDeadlineAt = Date.now() + RETRY_INTERVAL_MS;
-    panelStatusMessage = formatRetryCountdownMessage();
-
-    if (!retryCountdownTimer) {
-      retryCountdownTimer = setInterval(() => {
-        panelStatusMessage = formatRetryCountdownMessage();
-      }, 250);
-    }
-
-    scheduleViewRefreshAfter(RETRY_INTERVAL_MS);
-  }
-
   function applyObservedAtUpdate(observedAt: string) {
     const date = parseDate(observedAt);
     if (!date) return;
@@ -363,18 +373,9 @@
       state.studies_response_capture_ok === false &&
       state.studies_response_capture_reason
     ) {
-      if (isServiceConnectingMessage(state.studies_response_capture_reason) && !shouldShowServiceConnectingMessage(state)) {
-        return '';
-      }
       return state.studies_response_capture_reason.trim();
     }
     return '';
-  }
-
-  function dashboardSectionOrError(section: any, fallbackError: string): { ok: boolean; data?: any; error?: string } {
-    if (section && section.ok === true) return { ok: true, data: section.data };
-    if (section && section.ok === false) return { ok: false, error: section.error || fallbackError };
-    return { ok: false, error: fallbackError };
   }
 
   async function refreshSettings() {
@@ -406,7 +407,7 @@
     try {
       const [stateResult, dashboardResult] = await Promise.allSettled([
         getSyncState(),
-        getDashboardData(50, 25, 100),
+        getDashboardData(DASHBOARD_DEFAULT_STUDIES_LIMIT, DASHBOARD_DEFAULT_EVENTS_LIMIT, DASHBOARD_DEFAULT_SUBMISSIONS_LIMIT),
       ]);
 
       const extState = stateResult.status === 'fulfilled' ? stateResult.value : null;
@@ -415,74 +416,36 @@
       isAuthRequired = authRequired;
 
       const dashboard = dashboardResult.status === 'fulfilled' ? dashboardResult.value : null;
-      const dashboardError = dashboardResult.status === 'rejected'
-        ? toUserErrorMessage((dashboardResult as PromiseRejectedResult).reason)
-        : 'Failed to fetch dashboard data.';
-
-      const refreshSection = dashboardSectionOrError(dashboard?.refresh_state, dashboardError);
-      const studiesSection = dashboardSectionOrError(dashboard?.studies, dashboardError);
-      const eventsSection = dashboardSectionOrError(dashboard?.events, dashboardError);
-      const submissionsSection = dashboardSectionOrError(dashboard?.submissions, dashboardError);
-      const refreshSt = refreshSection.ok ? refreshSection.data : null;
+      const refreshSt = dashboard?.refreshState ?? null;
       refreshStateData = refreshSt;
 
-      const serviceSections = [refreshSection, studiesSection, eventsSection, submissionsSection];
-      const serviceSuccessCount = serviceSections.filter((s) => s.ok).length;
-      const serviceUnavailableCount = serviceSections.filter(
-        (s) => !s.ok && isServiceUnavailableError(s.error),
-      ).length;
-      const serviceOffline = serviceSuccessCount === 0 && serviceUnavailableCount === serviceSections.length;
+      scheduleRegularRefresh();
 
-      if (serviceOffline) {
-        isOffline = true;
-        startOfflineRetryLoop();
-      } else {
-        isOffline = false;
-        panelStatusMessage = '';
-        stopRetryCountdown();
-        scheduleRegularRefresh();
-
-        if (authRequired) {
-          panelStatusMessage = AUTH_REQUIRED_PANEL_MESSAGE;
-          if (studies.length) studies = [];
-          if (events.length) events = [];
-          if (submissions.length) submissions = [];
-        } else {
-          const newStudies = studiesSection.ok && Array.isArray(studiesSection.data) ? studiesSection.data : [];
-          const newEvents = eventsSection.ok && Array.isArray(eventsSection.data) ? eventsSection.data : [];
-          const newSubmissions = submissionsSection.ok && Array.isArray(submissionsSection.data) ? submissionsSection.data : [];
-          if (!jsonEqual(studies, newStudies)) studies = newStudies;
-          if (!jsonEqual(events, newEvents)) events = newEvents;
-          if (!jsonEqual(submissions, newSubmissions)) submissions = newSubmissions;
-        }
+      if (authRequired) {
+        if (studies.length) studies = [];
+        if (events.length) events = [];
+        if (submissions.length) submissions = [];
+      } else if (dashboard) {
+        const newStudies = dashboard.studies ?? [];
+        const newEvents = dashboard.events ?? [];
+        const newSubmissions = dashboard.submissions ?? [];
+        if (!jsonEqual(studies, newStudies)) studies = newStudies;
+        if (!jsonEqual(events, newEvents)) events = newEvents;
+        if (!jsonEqual(submissions, newSubmissions)) submissions = newSubmissions;
       }
 
-      // Compute health message
       let firstErrorMessage = '';
-      if (serviceOffline) {
-        firstErrorMessage = SERVICE_OFFLINE_MESSAGE;
-      } else if (stateResult.status === 'rejected') {
+      if (stateResult.status === 'rejected') {
         firstErrorMessage = toUserErrorMessage((stateResult as PromiseRejectedResult).reason);
-      } else {
-        const firstServiceError = serviceSections.find(
-          (s) => !s.ok && !isServiceUnavailableError(s.error),
-        );
-        if (firstServiceError) {
-          firstErrorMessage = toUserErrorMessage(firstServiceError.error);
-        }
+      } else if (dashboardResult.status === 'rejected') {
+        firstErrorMessage = toUserErrorMessage((dashboardResult as PromiseRejectedResult).reason);
       }
 
       let healthMessage = deriveErrorMessage(extState, firstErrorMessage);
       if (authRequired) healthMessage = AUTH_REQUIRED_MESSAGE;
-      if (!serviceOffline && serviceSuccessCount > 0 && isServiceUnavailableError(healthMessage)) {
-        healthMessage = '';
-      }
 
       // Update refresh time display
-      if (serviceOffline || isServiceConnectingMessage(healthMessage)) {
-        latestRefreshOffline = true;
-        latestRefreshDate = null;
-      } else if (authRequired) {
+      if (authRequired) {
         latestRefreshOffline = false;
         latestRefreshDate = null;
       } else {
@@ -600,7 +563,7 @@
 
 <main class="w-[620px] p-3 bg-base-200 text-base-content">
   <StatusBar
-    offline={isOffline || !!errorMessage}
+    offline={!!errorMessage}
     {errorMessage}
     {latestRefreshText}
     {latestRefreshTitle}

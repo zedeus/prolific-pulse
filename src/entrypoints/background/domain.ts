@@ -1,7 +1,7 @@
 import type { Study, PriorityFilter, Money } from '../../lib/types';
 import { moneyMajorValue, studyUrlFromId } from '../../lib/format';
 
-export function extractStudiesResults(payload: unknown): Study[] | null {
+function extractStudiesResults(payload: unknown): Study[] | null {
   if (!payload || typeof payload !== 'object' || !Array.isArray((payload as Record<string, unknown>).results)) {
     return null;
   }
@@ -12,7 +12,7 @@ export function extractStudyID(study: Study | null | undefined): string {
   return study?.id?.trim() ?? '';
 }
 
-export function studyHourlyRewardMajor(study: Study | null | undefined): number {
+function studyHourlyRewardMajor(study: Study | null | undefined): number {
   const s = study as any;
   const hourly = s && typeof s === 'object'
     ? (s.study_average_reward_per_hour || s.average_reward_per_hour)
@@ -20,7 +20,7 @@ export function studyHourlyRewardMajor(study: Study | null | undefined): number 
   return moneyMajorValue(hourly as Money | null | undefined);
 }
 
-export function studyRewardMajor(study: Study | null | undefined): number {
+function studyRewardMajor(study: Study | null | undefined): number {
   const s = study as any;
   const reward = s && typeof s === 'object'
     ? (s.study_reward || s.reward)
@@ -28,7 +28,7 @@ export function studyRewardMajor(study: Study | null | undefined): number {
   return moneyMajorValue(reward as Money | null | undefined);
 }
 
-export function studyEstimatedMinutes(study: Study | null | undefined): number {
+function studyEstimatedMinutes(study: Study | null | undefined): number {
   const s = study as any;
   const minutes = Number(s && (s.estimated_completion_time || s.average_completion_time));
   if (!Number.isFinite(minutes)) {
@@ -37,7 +37,7 @@ export function studyEstimatedMinutes(study: Study | null | undefined): number {
   return minutes;
 }
 
-export function studyPlacesAvailable(study: Study | null | undefined): number {
+function studyPlacesAvailable(study: Study | null | undefined): number {
   const explicit = Number(study && study.places_available);
   if (Number.isFinite(explicit)) {
     return explicit;
@@ -53,7 +53,7 @@ export function studyPlacesAvailable(study: Study | null | undefined): number {
   return Math.max(0, total - taken);
 }
 
-export function studyKeywordBlob(study: Study | null | undefined): string {
+function studyKeywordBlob(study: Study | null | undefined): string {
   const labels = Array.isArray(study?.study_labels) ? study!.study_labels : [];
   const inferred = Array.isArray(study?.ai_inferred_study_labels) ? study!.ai_inferred_study_labels : [];
   return [
@@ -64,7 +64,7 @@ export function studyKeywordBlob(study: Study | null | undefined): string {
   ].join(' ').toLowerCase();
 }
 
-export function hasAnyPriorityKeywordMatch(keywordBlob: string, keywords: string[]): boolean {
+function hasAnyPriorityKeywordMatch(keywordBlob: string, keywords: string[]): boolean {
   if (!Array.isArray(keywords) || !keywords.length) {
     return false;
   }
@@ -135,7 +135,7 @@ export function parseTimestampMS(value: unknown, fallbackMS: number = Date.now()
   return fallbackMS;
 }
 
-export function normalizeStudyIDList(rawStudyIDs: unknown): string[] {
+function normalizeStudyIDList(rawStudyIDs: unknown): string[] {
   if (!Array.isArray(rawStudyIDs) || !rawStudyIDs.length) {
     return [];
   }
@@ -152,12 +152,12 @@ export function normalizeStudyIDList(rawStudyIDs: unknown): string[] {
   return unique;
 }
 
-export interface StudiesSnapshot {
+interface StudiesSnapshot {
   studyIDs: Set<string>;
   studiesByID: Map<string, Study>;
 }
 
-export function buildPriorityStudiesSnapshotFromStudies(studies: Study[] | unknown): StudiesSnapshot {
+function buildPriorityStudiesSnapshotFromStudies(studies: Study[] | unknown): StudiesSnapshot {
   const studiesByID = new Map<string, Study>();
   if (Array.isArray(studies)) {
     for (const study of studies) {
@@ -174,7 +174,7 @@ export function buildPriorityStudiesSnapshotFromStudies(studies: Study[] | unkno
   };
 }
 
-export function sortPriorityStudies(studies: Study[]): Study[] {
+function sortPriorityStudies(studies: Study[]): Study[] {
   return studies.slice().sort((a, b) => {
     const hourlyDiff = studyHourlyRewardMajor(b) - studyHourlyRewardMajor(a);
     if (Number.isFinite(hourlyDiff) && hourlyDiff !== 0) {
@@ -203,7 +203,7 @@ export interface SnapshotState {
   knownStudyIDs: Set<string>;
 }
 
-export interface SnapshotEvaluationResult {
+interface SnapshotEvaluationResult {
   event: NormalizedSnapshotEvent;
   nextSnapshot: SnapshotState;
   newlySeenStudies: Study[];
@@ -273,5 +273,38 @@ export function evaluatePrioritySnapshotEvent(
     newlySeenStudies,
     newPriorityStudies,
     isBaseline,
+  };
+}
+
+interface RawSnapshotEvent {
+  mode: 'full' | 'delta';
+  trigger: string;
+  observedAt?: string;
+  studies: Study[];
+  removedStudyIDs: string[];
+}
+
+interface FullSnapshotContext {
+  normalizedURL?: string;
+  observedAt?: string;
+}
+
+export function toFullSnapshotEvent(
+  parsed: unknown,
+  context: FullSnapshotContext | null | undefined,
+  nowIso: () => string,
+): RawSnapshotEvent | null {
+  const studies = extractStudiesResults(parsed);
+  if (!studies) {
+    return null;
+  }
+  return {
+    mode: 'full',
+    trigger: context && context.normalizedURL
+      ? String(context.normalizedURL)
+      : 'studies.response.capture',
+    observedAt: context && context.observedAt ? context.observedAt : nowIso(),
+    studies,
+    removedStudyIDs: [],
   };
 }
