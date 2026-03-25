@@ -1,0 +1,11 @@
+src/lib/__tests__/domain.test.ts
+  7e6c62504e9a7a13 1-374
+src/lib/__tests__/settings.test.ts
+  7e6c62504e9a7a13 1-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "879e8d6bfcf99c4eae1f6f4e9d8a43d1b6bd7e9c",
+  "prompts": {}
+}
