@@ -1,0 +1,23 @@
+src/entrypoints/popup/components/SettingsPanel.svelte
+  7e6c62504e9a7a13 218-220,222-229,241-255,524,526,528-540,543,546,554-578,580,582-584,587,589-592,595,598-599,602-608,611-666,668,670-697,699,701-750,752,893-901
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "1b2825b93c38ecb3fa11d995d6abf482fa8043de",
+  "prompts": {
+    "7e6c62504e9a7a13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b17ac52-5b7d-415d-b179-f364b44c0feb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 360,
+      "total_deletions": 306,
+      "accepted_lines": 246,
+      "overriden_lines": 0
+    }
+  }
+}
