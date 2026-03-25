@@ -1,4 +1,5 @@
 import type { Study, PriorityFilter, Money } from '../../lib/types';
+import { SOUND_TYPE_NONE } from '../../lib/constants';
 import { moneyMajorValue, studyUrlFromId } from '../../lib/format';
 
 function extractStudiesResults(payload: unknown): Study[] | null {
@@ -30,7 +31,8 @@ function studyRewardMajor(study: Study | null | undefined): number {
 
 function studyEstimatedMinutes(study: Study | null | undefined): number {
   const s = study as any;
-  const minutes = Number(s && (s.estimated_completion_time || s.average_completion_time));
+  const raw = s && (s.estimated_completion_time ?? (Number(s.average_completion_time_in_seconds) / 60));
+  const minutes = Number(raw);
   if (!Number.isFinite(minutes)) {
     return NaN;
   }
@@ -53,7 +55,7 @@ function studyPlacesAvailable(study: Study | null | undefined): number {
   return Math.max(0, total - taken);
 }
 
-function studyKeywordBlob(study: Study | null | undefined): string {
+export function studyKeywordBlob(study: Study | null | undefined): string {
   const labels = Array.isArray(study?.study_labels) ? study!.study_labels : [];
   const inferred = Array.isArray(study?.ai_inferred_study_labels) ? study!.ai_inferred_study_labels : [];
   return [
@@ -71,8 +73,8 @@ function hasAnyPriorityKeywordMatch(keywordBlob: string, keywords: string[]): bo
   return keywords.some((keyword) => keywordBlob.includes(keyword));
 }
 
-export function studyMatchesPriorityFilter(study: Study, filter: PriorityFilter): boolean {
-  const keywordBlob = studyKeywordBlob(study);
+export function studyMatchesPriorityFilter(study: Study, filter: PriorityFilter, precomputedBlob?: string): boolean {
+  const keywordBlob = precomputedBlob ?? studyKeywordBlob(study);
   if (hasAnyPriorityKeywordMatch(keywordBlob, filter.ignore_keywords)) {
     return false;
   }
@@ -100,6 +102,28 @@ export function studyMatchesPriorityFilter(study: Study, filter: PriorityFilter)
     return false;
   }
   return true;
+}
+
+/** When multiple filters match the same study, the highest-scoring filter wins. */
+function filterImportanceScore(keywordBlob: string, filter: PriorityFilter, filterIndex: number): number {
+  let score = 0;
+
+  if (hasAnyPriorityKeywordMatch(keywordBlob, filter.always_open_keywords)) {
+    score += 1000;
+  }
+
+  if (filter.auto_open_in_new_tab) score += 100;
+  if (filter.alert_sound_enabled && filter.alert_sound_type !== SOUND_TYPE_NONE) score += 100;
+
+  score += filter.alert_sound_volume;
+
+  score += Math.min(20, filter.minimum_reward_major * 0.2);
+  score += Math.min(20, filter.minimum_hourly_reward_major * 0.2);
+  score += Math.max(0, (240 - filter.maximum_estimated_minutes) / 240) * 20;
+
+  score += Math.max(0, 10 - filterIndex * 0.1);
+
+  return score;
 }
 
 export function parseStudyIDFromProlificURL(rawURL: string | null | undefined): string {
@@ -207,7 +231,8 @@ interface SnapshotEvaluationResult {
   event: NormalizedSnapshotEvent;
   nextSnapshot: SnapshotState;
   newlySeenStudies: Study[];
-  newPriorityStudies: Study[];
+  matchesByFilterId: Map<string, Study[]>;
+  enabledFilters: { filter: PriorityFilter; index: number }[];
   isBaseline: boolean;
 }
 
@@ -226,7 +251,7 @@ export function normalizePrioritySnapshotEvent(event: unknown): NormalizedSnapsh
 export function evaluatePrioritySnapshotEvent(
   previousSnapshot: SnapshotState | null | undefined,
   rawEvent: unknown,
-  filter: PriorityFilter | null | undefined,
+  filters: PriorityFilter[],
 ): SnapshotEvaluationResult {
   const event = normalizePrioritySnapshotEvent(rawEvent);
   const priorStudyIDs = previousSnapshot && previousSnapshot.knownStudyIDs instanceof Set
@@ -260,9 +285,40 @@ export function evaluatePrioritySnapshotEvent(
   }
 
   const isBaseline = event.mode === 'full' && !wasInitialized;
-  const newPriorityStudies = !isBaseline && filter && filter.enabled
-    ? sortPriorityStudies(newlySeenStudies.filter((study) => studyMatchesPriorityFilter(study, filter)))
-    : [];
+  const matchesByFilterId = new Map<string, Study[]>();
+  const enabledFilters = filters
+    .map((f, i) => ({ filter: f, index: i }))
+    .filter(({ filter }) => filter.enabled);
+
+  if (!isBaseline && newlySeenStudies.length && enabledFilters.length) {
+    for (const study of newlySeenStudies) {
+      const blob = studyKeywordBlob(study);
+      let bestFilterId = '';
+      let bestScore = -1;
+
+      for (const { filter, index } of enabledFilters) {
+        if (!studyMatchesPriorityFilter(study, filter, blob)) continue;
+        const score = filterImportanceScore(blob, filter, index);
+        if (score > bestScore) {
+          bestScore = score;
+          bestFilterId = filter.id;
+        }
+      }
+
+      if (bestFilterId) {
+        const list = matchesByFilterId.get(bestFilterId);
+        if (list) {
+          list.push(study);
+        } else {
+          matchesByFilterId.set(bestFilterId, [study]);
+        }
+      }
+    }
+
+    for (const [filterId, studies] of matchesByFilterId) {
+      matchesByFilterId.set(filterId, sortPriorityStudies(studies));
+    }
+  }
 
   return {
     event,
@@ -271,7 +327,8 @@ export function evaluatePrioritySnapshotEvent(
       knownStudyIDs: nextStudyIDs,
     },
     newlySeenStudies,
-    newPriorityStudies,
+    matchesByFilterId,
+    enabledFilters,
     isBaseline,
   };
 }

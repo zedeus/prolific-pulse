@@ -10,15 +10,17 @@
     studyUrlFromId,
     rateColorClass,
   } from '../../../lib/format';
-  import { studyMatchesPriorityFilter } from '../../background/domain';
+  import { studyMatchesPriorityFilter, studyKeywordBlob } from '../../background/domain';
 
-  let { active, studies, priorityFilter, overrideMessage, onStudyClick } = $props<{
+  let { active, studies, priorityFilters, overrideMessage, onStudyClick } = $props<{
     active: boolean;
     studies: Study[];
-    priorityFilter: PriorityFilter;
+    priorityFilters: PriorityFilter[];
     overrideMessage: string;
     onStudyClick: (url: string) => void;
   }>();
+
+  const enabledFilters = $derived(priorityFilters.filter((f) => f.enabled));
 
   const sortedStudies = $derived(
     [...studies].sort((a, b) => {
@@ -49,7 +51,8 @@
       </div>
     {:else}
       {#each sortedStudies as study (study.id)}
-        {@const isPriority = priorityFilter?.enabled && studyMatchesPriorityFilter(study, priorityFilter)}
+        {@const blob = enabledFilters.length > 0 ? studyKeywordBlob(study) : ''}
+        {@const isPriority = enabledFilters.length > 0 && enabledFilters.some((f) => studyMatchesPriorityFilter(study, f, blob))}
         {@const url = studyUrlFromId(study.id)}
         {@const reward = formatMoneyFromMinorUnits(study.reward)}
         {@const perHourAmount = moneyMajorValue(study.average_reward_per_hour)}

@@ -1,23 +1,23 @@
 import { browser } from 'wxt/browser';
 import type { PriorityFilter } from '../../lib/types';
 import type { SoundType } from '../../lib/constants';
+import { clampNumber, clampInt } from '../../lib/format';
 import {
   PRIORITY_ALERT_SOUND_TYPES,
+  PRIORITY_FILTERS_KEY,
+  MAX_PRIORITY_FILTERS,
+  LEGACY_PRIORITY_FILTER_ENABLED_KEY,
+  LEGACY_PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
+  LEGACY_PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
+  LEGACY_PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
+  LEGACY_PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
+  LEGACY_PRIORITY_FILTER_MIN_REWARD_KEY,
+  LEGACY_PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
+  LEGACY_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
+  LEGACY_PRIORITY_FILTER_MIN_PLACES_KEY,
+  LEGACY_PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
+  LEGACY_PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
 } from '../../lib/constants';
-
-export interface PrioritySettingsKeys {
-  enabled: string;
-  autoOpenInNewTab: string;
-  alertSoundEnabled: string;
-  alertSoundType: string;
-  alertSoundVolume: string;
-  minimumReward: string;
-  minimumHourlyReward: string;
-  maximumEstimatedMinutes: string;
-  minimumPlaces: string;
-  alwaysOpenKeywords: string;
-  ignoreKeywords: string;
-}
 
 export interface PrioritySettingsLimits {
   maxKeywords: number;
@@ -43,31 +43,19 @@ export interface PrioritySettingsDefaults {
 }
 
 export interface CreatePrioritySettingsOptions {
-  keys: PrioritySettingsKeys;
   limits: PrioritySettingsLimits;
   defaults: PrioritySettingsDefaults;
 }
 
 export interface PrioritySettings {
-  normalizePriorityStudyFilter: (
-    rawEnabled: unknown,
-    rawAutoOpenInNewTab: unknown,
-    rawAlertSoundEnabled: unknown,
-    rawAlertSoundType: unknown,
-    rawAlertSoundVolume: unknown,
-    rawMinimumRewardMajor: unknown,
-    rawMinimumHourlyRewardMajor: unknown,
-    rawMaximumEstimatedMinutes: unknown,
-    rawMinimumPlacesAvailable: unknown,
-    rawAlwaysOpenKeywords: unknown,
-    rawIgnoreKeywords: unknown,
-  ) => PriorityFilter;
-  getPriorityStudyFilterSettings: () => Promise<PriorityFilter>;
+  normalizePriorityFilter: (raw: unknown) => PriorityFilter;
+  normalizePriorityFilters: (raw: unknown) => PriorityFilter[];
+  getPriorityFilters: () => Promise<PriorityFilter[]>;
+  migrateLegacyPriorityFilter: () => Promise<void>;
 }
 
 export function createPrioritySettings(options: CreatePrioritySettingsOptions): PrioritySettings {
   const {
-    keys,
     limits,
     defaults,
   } = options;
@@ -101,118 +89,93 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
     return defaults.alertSoundType;
   }
 
-  function normalizePriorityStudyFilter(
-    rawEnabled: unknown,
-    rawAutoOpenInNewTab: unknown,
-    rawAlertSoundEnabled: unknown,
-    rawAlertSoundType: unknown,
-    rawAlertSoundVolume: unknown,
-    rawMinimumRewardMajor: unknown,
-    rawMinimumHourlyRewardMajor: unknown,
-    rawMaximumEstimatedMinutes: unknown,
-    rawMinimumPlacesAvailable: unknown,
-    rawAlwaysOpenKeywords: unknown,
-    rawIgnoreKeywords: unknown,
-  ): PriorityFilter {
-    const parseNumber = (value: unknown, fallback: number): number => {
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed)) {
-        return fallback;
-      }
-      return parsed;
-    };
-    const parseInteger = (value: unknown, fallback: number): number => {
-      const parsed = Number.parseInt(String(value), 10);
-      if (!Number.isFinite(parsed)) {
-        return fallback;
-      }
-      return parsed;
-    };
+  function normalizePriorityFilter(raw: unknown): PriorityFilter {
+    const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
 
-    const minimumRewardMajor = Math.min(
-      limits.maxMinReward,
-      Math.max(
-        limits.minMinReward,
-        parseNumber(rawMinimumRewardMajor, defaults.minimumRewardMajor),
-      ),
-    );
-    const minimumHourlyRewardMajor = Math.min(
-      limits.maxMinHourlyReward,
-      Math.max(
-        limits.minMinHourlyReward,
-        parseNumber(rawMinimumHourlyRewardMajor, defaults.minimumHourlyRewardMajor),
-      ),
-    );
-    const maximumEstimatedMinutes = Math.min(
-      limits.maxEstimatedMinutes,
-      Math.max(
-        limits.minEstimatedMinutes,
-        parseInteger(rawMaximumEstimatedMinutes, defaults.maximumEstimatedMinutes),
-      ),
-    );
-    const minimumPlacesAvailable = Math.min(
-      limits.maxMinimumPlaces,
-      Math.max(
-        limits.minMinimumPlaces,
-        parseInteger(rawMinimumPlacesAvailable, defaults.minimumPlacesAvailable),
-      ),
-    );
-    const alwaysOpenKeywords = normalizePriorityKeywordList(rawAlwaysOpenKeywords);
-    const ignoreKeywords = normalizePriorityKeywordList(rawIgnoreKeywords);
-    const normalizedAlertSoundType = canonicalPriorityAlertSoundType(rawAlertSoundType);
-    const alertSoundVolume = Math.min(
-      limits.maxAlertSoundVolume,
-      Math.max(
-        limits.minAlertSoundVolume,
-        parseInteger(rawAlertSoundVolume, defaults.alertSoundVolume),
-      ),
-    );
+    const id = typeof r.id === 'string' && r.id.trim() ? r.id.trim() : crypto.randomUUID();
+    const name = typeof r.name === 'string' && r.name.trim() ? r.name.trim() : 'Filter';
+
+    const minimumRewardMajor = clampNumber(r.minimum_reward_major, limits.minMinReward, limits.maxMinReward, defaults.minimumRewardMajor);
+    const minimumHourlyRewardMajor = clampNumber(r.minimum_hourly_reward_major, limits.minMinHourlyReward, limits.maxMinHourlyReward, defaults.minimumHourlyRewardMajor);
+    const maximumEstimatedMinutes = clampInt(r.maximum_estimated_minutes, limits.minEstimatedMinutes, limits.maxEstimatedMinutes, defaults.maximumEstimatedMinutes);
+    const minimumPlacesAvailable = clampInt(r.minimum_places_available, limits.minMinimumPlaces, limits.maxMinimumPlaces, defaults.minimumPlacesAvailable);
+    const normalizedAlertSoundType = canonicalPriorityAlertSoundType(r.alert_sound_type);
+    const alertSoundVolume = clampInt(r.alert_sound_volume, limits.minAlertSoundVolume, limits.maxAlertSoundVolume, defaults.alertSoundVolume);
+
     return {
-      enabled: rawEnabled === true,
-      auto_open_in_new_tab: rawAutoOpenInNewTab !== false,
-      alert_sound_enabled: rawAlertSoundEnabled !== false,
+      id,
+      name,
+      enabled: r.enabled === true,
+      auto_open_in_new_tab: r.auto_open_in_new_tab !== false,
+      alert_sound_enabled: r.alert_sound_enabled !== false,
       alert_sound_type: normalizedAlertSoundType,
       alert_sound_volume: alertSoundVolume,
       minimum_reward_major: Math.round(minimumRewardMajor * 100) / 100,
       minimum_hourly_reward_major: Math.round(minimumHourlyRewardMajor * 100) / 100,
       maximum_estimated_minutes: maximumEstimatedMinutes,
       minimum_places_available: minimumPlacesAvailable,
-      always_open_keywords: alwaysOpenKeywords,
-      ignore_keywords: ignoreKeywords,
+      always_open_keywords: normalizePriorityKeywordList(r.always_open_keywords),
+      ignore_keywords: normalizePriorityKeywordList(r.ignore_keywords),
     };
   }
 
-  async function getPriorityStudyFilterSettings(): Promise<PriorityFilter> {
-    const data = await browser.storage.local.get([
-      keys.enabled,
-      keys.autoOpenInNewTab,
-      keys.alertSoundEnabled,
-      keys.alertSoundType,
-      keys.alertSoundVolume,
-      keys.minimumReward,
-      keys.minimumHourlyReward,
-      keys.maximumEstimatedMinutes,
-      keys.minimumPlaces,
-      keys.alwaysOpenKeywords,
-      keys.ignoreKeywords,
-    ]);
-    return normalizePriorityStudyFilter(
-      data[keys.enabled] === true,
-      data[keys.autoOpenInNewTab] !== false,
-      data[keys.alertSoundEnabled] !== false,
-      data[keys.alertSoundType],
-      data[keys.alertSoundVolume],
-      data[keys.minimumReward],
-      data[keys.minimumHourlyReward],
-      data[keys.maximumEstimatedMinutes],
-      data[keys.minimumPlaces],
-      data[keys.alwaysOpenKeywords],
-      data[keys.ignoreKeywords],
-    );
+  function normalizePriorityFilters(raw: unknown): PriorityFilter[] {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    return raw.slice(0, MAX_PRIORITY_FILTERS).map((item) => normalizePriorityFilter(item));
+  }
+
+  async function getPriorityFilters(): Promise<PriorityFilter[]> {
+    const data = await browser.storage.local.get(PRIORITY_FILTERS_KEY);
+    return normalizePriorityFilters(data[PRIORITY_FILTERS_KEY]);
+  }
+
+  const LEGACY_KEYS = [
+    LEGACY_PRIORITY_FILTER_ENABLED_KEY,
+    LEGACY_PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
+    LEGACY_PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
+    LEGACY_PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
+    LEGACY_PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
+    LEGACY_PRIORITY_FILTER_MIN_REWARD_KEY,
+    LEGACY_PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
+    LEGACY_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
+    LEGACY_PRIORITY_FILTER_MIN_PLACES_KEY,
+    LEGACY_PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
+    LEGACY_PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
+  ];
+
+  async function migrateLegacyPriorityFilter(): Promise<void> {
+    const data = await browser.storage.local.get([PRIORITY_FILTERS_KEY, ...LEGACY_KEYS]);
+
+    if (data[PRIORITY_FILTERS_KEY] !== undefined) return;
+    if (data[LEGACY_PRIORITY_FILTER_ENABLED_KEY] === undefined) return;
+
+    const migratedFilter = normalizePriorityFilter({
+      id: crypto.randomUUID(),
+      name: 'Filter 1',
+      enabled: data[LEGACY_PRIORITY_FILTER_ENABLED_KEY] === true,
+      auto_open_in_new_tab: data[LEGACY_PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY],
+      alert_sound_enabled: data[LEGACY_PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY],
+      alert_sound_type: data[LEGACY_PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY],
+      alert_sound_volume: data[LEGACY_PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY],
+      minimum_reward_major: data[LEGACY_PRIORITY_FILTER_MIN_REWARD_KEY],
+      minimum_hourly_reward_major: data[LEGACY_PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY],
+      maximum_estimated_minutes: data[LEGACY_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY],
+      minimum_places_available: data[LEGACY_PRIORITY_FILTER_MIN_PLACES_KEY],
+      always_open_keywords: data[LEGACY_PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY],
+      ignore_keywords: data[LEGACY_PRIORITY_FILTER_IGNORE_KEYWORDS_KEY],
+    });
+
+    await browser.storage.local.set({ [PRIORITY_FILTERS_KEY]: [migratedFilter] });
+
+    await browser.storage.local.remove(LEGACY_KEYS);
   }
 
   return Object.freeze({
-    normalizePriorityStudyFilter,
-    getPriorityStudyFilterSettings,
+    normalizePriorityFilter,
+    normalizePriorityFilters,
+    getPriorityFilters,
+    migrateLegacyPriorityFilter,
   });
 }

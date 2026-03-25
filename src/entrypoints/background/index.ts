@@ -20,17 +20,7 @@ import {
   STATE_KEY,
   PRIORITY_KNOWN_STUDIES_STATE_KEY,
   AUTO_OPEN_PROLIFIC_TAB_KEY,
-  PRIORITY_FILTER_ENABLED_KEY,
-  PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
-  PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
-  PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
-  PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-  PRIORITY_FILTER_MIN_REWARD_KEY,
-  PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
-  PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
-  PRIORITY_FILTER_MIN_PLACES_KEY,
-  PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
-  PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
+  PRIORITY_FILTERS_KEY,
   STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY,
   STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY,
   STUDIES_REFRESH_SPREAD_SECONDS_KEY,
@@ -94,6 +84,14 @@ export default defineBackground({
     let delayedRefreshTimers: ReturnType<typeof setTimeout>[] = [];
     let delayedRefreshGeneration = 0;
 
+    // Rate-limit cooldown: suppresses extension-initiated fetches until cooldown expires
+    let rateLimitCooldownUntilMS = 0;
+    let rateLimitReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Dedup guard: skip delayed refreshes that fire near an intercepted tab response
+    const DEDUP_WINDOW_MS = 10_000;
+    let lastInterceptedResponseAtMS = 0;
+
     let syncInProgress = false;
     let pendingSyncTrigger = '';
     let studiesCompletedListenerRegistered = false;
@@ -111,19 +109,6 @@ export default defineBackground({
     // ─────────────────────────────────────────────────────────────
 
     const prioritySettings = createPrioritySettings({
-      keys: {
-        enabled: PRIORITY_FILTER_ENABLED_KEY,
-        autoOpenInNewTab: PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
-        alertSoundEnabled: PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
-        alertSoundType: PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
-        alertSoundVolume: PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-        minimumReward: PRIORITY_FILTER_MIN_REWARD_KEY,
-        minimumHourlyReward: PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
-        maximumEstimatedMinutes: PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
-        minimumPlaces: PRIORITY_FILTER_MIN_PLACES_KEY,
-        alwaysOpenKeywords: PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
-        ignoreKeywords: PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
-      },
       limits: {
         maxKeywords: MAX_PRIORITY_FILTER_KEYWORDS,
         minMinReward: MIN_PRIORITY_FILTER_MIN_REWARD,
@@ -148,8 +133,9 @@ export default defineBackground({
     });
 
     const {
-      normalizePriorityStudyFilter,
-      getPriorityStudyFilterSettings,
+      normalizePriorityFilters,
+      getPriorityFilters,
+      migrateLegacyPriorityFilter,
     } = prioritySettings;
 
     const priorityStateRuntime = createPriorityState({
@@ -639,30 +625,26 @@ export default defineBackground({
               }
 
               const tokenType = (parsed.token_type as string) || 'Bearer';
-              // Flag prevents the content script from also intercepting this request.
+              // Use XHR to match Prolific's own request pattern
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (window as any).__pp_ext_fetch = true;
-              return fetch(apiURL, {
-                method: 'GET',
-                credentials: 'omit',
-                headers: {
-                  'Authorization': tokenType + ' ' + (parsed.access_token as string),
-                  'Accept': 'application/json, text/plain, */*',
-                },
-              })
-                .then((resp: Response) =>
-                  resp.text().then((body: string) => ({
-                    ok: true,
-                    status_code: resp.status,
-                    body,
-                  })),
-                )
-                .catch((fetchErr: unknown) => ({
-                  ok: false,
-                  error: 'fetch_failed: ' + String(fetchErr),
-                }))
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                .finally(() => { (window as any).__pp_ext_fetch = false; });
+              return new Promise<Record<string, unknown>>((resolve) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', apiURL, true);
+                xhr.setRequestHeader('Authorization', tokenType + ' ' + (parsed.access_token as string));
+                xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
+                xhr.onload = () => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (window as any).__pp_ext_fetch = false;
+                  resolve({ ok: true, status_code: xhr.status, body: xhr.responseText });
+                };
+                xhr.onerror = () => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  (window as any).__pp_ext_fetch = false;
+                  resolve({ ok: false, error: 'xhr_failed' });
+                };
+                xhr.send();
+              });
             } catch (err) {
               return { ok: false, error: String(err) };
             }
@@ -784,8 +766,75 @@ export default defineBackground({
       pushDebugLog('refresh.delayed.cleared', { reason, generation: delayedRefreshGeneration });
     }
 
+    function isRateLimited(): boolean {
+      return rateLimitCooldownUntilMS > 0 && Date.now() < rateLimitCooldownUntilMS;
+    }
+
+    function parseRetryAfterSeconds(body: unknown): number {
+      // Try to extract retry-after from Prolific's 429 JSON body:
+      // {"error":{"detail":"...Expected available in 263 seconds."}}
+      try {
+        const detail = (body as any)?.error?.detail;
+        if (typeof detail === 'string') {
+          const match = detail.match(/available in (\d+) seconds/i);
+          if (match) return Math.max(1, Number(match[1]));
+        }
+      } catch {}
+      return 300; // default 5 minutes
+    }
+
+    async function handleRateLimit(statusCode: number, body: unknown, trigger: string): Promise<void> {
+      if (statusCode !== 429) return;
+
+      const retrySeconds = parseRetryAfterSeconds(body);
+      const cooldownMS = retrySeconds * 1000 + 5000; // add 5s buffer
+      rateLimitCooldownUntilMS = Date.now() + cooldownMS;
+
+      cancelDelayedRefreshes('rate_limit:429');
+
+      await setState({
+        studies_refresh_ok: false,
+        studies_refresh_reason: `Rate limited. Resuming in ~${retrySeconds}s.`,
+      });
+      pushDebugLog('refresh.rate_limited', {
+        trigger,
+        retry_after_seconds: retrySeconds,
+        cooldown_until: new Date(rateLimitCooldownUntilMS).toISOString(),
+      });
+
+      // Schedule a Prolific tab reload after cooldown to restart the refresh cycle
+      if (rateLimitReloadTimer) clearTimeout(rateLimitReloadTimer);
+      rateLimitReloadTimer = setTimeout(async () => {
+        rateLimitReloadTimer = null;
+        rateLimitCooldownUntilMS = 0;
+        try {
+          const tabs = await queryProlificTabs();
+          if (tabs.length && typeof tabs[0].id === 'number') {
+            await browser.tabs.reload(tabs[0].id);
+            pushDebugLog('refresh.rate_limit_recovery.tab_reloaded', { tab_id: tabs[0].id });
+          }
+        } catch (err) {
+          pushDebugLog('refresh.rate_limit_recovery.error', { error: stringifyError(err) });
+        }
+      }, cooldownMS);
+    }
+
     async function runDelayedRefresh(triggerSource: string, generation: number, runIndex: number, runTotal: number): Promise<void> {
       if (generation !== delayedRefreshGeneration) return;
+      if (isRateLimited()) {
+        pushDebugLog('refresh.delayed.skip_rate_limited', { trigger_source: triggerSource, run_index: runIndex });
+        return;
+      }
+      // Skip if the Prolific tab just fetched recently — avoids near-duplicate requests
+      const sinceLast = Date.now() - lastInterceptedResponseAtMS;
+      if (lastInterceptedResponseAtMS > 0 && sinceLast < DEDUP_WINDOW_MS) {
+        pushDebugLog('refresh.delayed.skip_recent_intercept', {
+          trigger_source: triggerSource,
+          run_index: runIndex,
+          since_last_ms: sinceLast,
+        });
+        return;
+      }
 
       const tabs = await queryProlificTabs();
       if (!tabs.length) {
@@ -853,7 +902,6 @@ export default defineBackground({
           }
         }
       } else {
-        // Non-200: still record the refresh attempt
         try {
           await store.setStudiesRefresh({
             observed_at: observedAt,
@@ -867,6 +915,13 @@ export default defineBackground({
             run_index: runIndex,
             error: stringifyError(err),
           });
+        }
+
+        if (result.status_code === 429) {
+          let parsedBody: unknown;
+          try { parsedBody = JSON.parse(result.body as string); } catch {}
+          await handleRateLimit(429, parsedBody, 'extension.delayed_refresh');
+          return;
         }
       }
 
@@ -1069,8 +1124,8 @@ export default defineBackground({
         priorityStateRuntime.clearSeenForAttemptedStudies(event.removedStudyIDs);
       }
 
-      const filter = await getPriorityStudyFilterSettings();
-      const evaluation = evaluatePrioritySnapshotEvent(priorityStateRuntime.getSnapshot(), event, filter);
+      const filters = await getPriorityFilters();
+      const evaluation = evaluatePrioritySnapshotEvent(priorityStateRuntime.getSnapshot(), event, filters);
       priorityStateRuntime.setSnapshot(evaluation.nextSnapshot);
       await priorityStateRuntime.persistSnapshot(evaluation.nextSnapshot, evaluation.event.observedAtMS);
 
@@ -1086,7 +1141,7 @@ export default defineBackground({
         return;
       }
 
-      if (!filter.enabled) {
+      if (!evaluation.enabledFilters.length) {
         pushDebugLog('tab.priority_auto_open.disabled', {
           trigger: evaluation.event.trigger,
           candidate_count: evaluation.newlySeenStudies.length,
@@ -1094,14 +1149,21 @@ export default defineBackground({
         return;
       }
 
-      if (!evaluation.newPriorityStudies.length) {
+      if (!evaluation.matchesByFilterId.size) {
         return;
       }
 
-      await Promise.all([
-        handlePriorityAlertAction(filter, evaluation.newPriorityStudies, evaluation.event.trigger),
-        handlePriorityAutoOpenAction(filter, evaluation.newPriorityStudies, evaluation.event.trigger),
-      ]);
+      // Each study is assigned to exactly one winning filter (by importance score).
+      // Process each filter's exclusive study set and fire its configured actions.
+      for (const { filter } of evaluation.enabledFilters) {
+        const matched = evaluation.matchesByFilterId.get(filter.id);
+        if (!matched || !matched.length) continue;
+
+        await Promise.all([
+          handlePriorityAlertAction(filter, matched, evaluation.event.trigger),
+          handlePriorityAutoOpenAction(filter, matched, evaluation.event.trigger),
+        ]);
+      }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -1687,6 +1749,8 @@ export default defineBackground({
         return;
       }
 
+      lastInterceptedResponseAtMS = Date.now();
+
       const refreshPolicy = await getStudiesRefreshPolicySettings();
       await bumpCounter('studies_request_completed_count', 1);
       await pushDebugLog('studies.request.completed', {
@@ -1694,10 +1758,12 @@ export default defineBackground({
         status_code: details.statusCode || 0,
       });
 
-      // Only schedule delayed refreshes here. The actual refresh state
-      // is written by ingestStudiesResponse when the body is captured and stored.
       if (details.statusCode === 200) {
+        rateLimitCooldownUntilMS = 0;
+        if (rateLimitReloadTimer) { clearTimeout(rateLimitReloadTimer); rateLimitReloadTimer = null; }
         scheduleDelayedRefreshes('extension.intercepted_response', refreshPolicy);
+      } else if (details.statusCode === 429) {
+        await handleRateLimit(429, null, 'intercepted_response');
       }
     }
 
@@ -2011,7 +2077,7 @@ export default defineBackground({
     // Settings response builder
     // ─────────────────────────────────────────────────────────────
 
-    function buildRefreshSettingsResponse(refreshPolicy: Record<string, number>, autoOpenEnabled?: boolean, priorityFilter?: PriorityFilter | null): Record<string, unknown> {
+    function buildRefreshSettingsResponse(refreshPolicy: Record<string, number>, autoOpenEnabled?: boolean): Record<string, unknown> {
       const settings: Record<string, unknown> = {
         studies_refresh_min_delay_seconds: refreshPolicy.minimum_delay_seconds,
         studies_refresh_average_delay_seconds: refreshPolicy.average_delay_seconds,
@@ -2020,23 +2086,6 @@ export default defineBackground({
       };
       if (typeof autoOpenEnabled === 'boolean') {
         settings.auto_open_prolific_tab = autoOpenEnabled;
-      }
-      if (priorityFilter && typeof priorityFilter === 'object') {
-        settings.priority_filter_enabled = priorityFilter.enabled;
-        settings.priority_filter_auto_open_in_new_tab = priorityFilter.auto_open_in_new_tab !== false;
-        settings.priority_filter_alert_sound_enabled = priorityFilter.alert_sound_enabled !== false;
-        settings.priority_filter_alert_sound_type = priorityFilter.alert_sound_type || DEFAULT_PRIORITY_ALERT_SOUND_TYPE;
-        settings.priority_filter_alert_sound_volume = priorityFilter.alert_sound_volume;
-        settings.priority_filter_minimum_reward = priorityFilter.minimum_reward_major;
-        settings.priority_filter_minimum_hourly_reward = priorityFilter.minimum_hourly_reward_major;
-        settings.priority_filter_maximum_estimated_minutes = priorityFilter.maximum_estimated_minutes;
-        settings.priority_filter_minimum_places = priorityFilter.minimum_places_available;
-        settings.priority_filter_always_open_keywords = Array.isArray(priorityFilter.always_open_keywords)
-          ? priorityFilter.always_open_keywords
-          : [];
-        settings.priority_filter_ignore_keywords = Array.isArray(priorityFilter.ignore_keywords)
-          ? priorityFilter.ignore_keywords
-          : [];
       }
       return settings;
     }
@@ -2093,61 +2142,25 @@ export default defineBackground({
         });
       }
 
-      if (msg && msg.action === 'setPriorityFilter') {
+      if (msg && msg.action === 'setPriorityFilters') {
         return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
-          const priorityFilter = normalizePriorityStudyFilter(
-            msg.enabled,
-            msg.auto_open_in_new_tab,
-            msg.alert_sound_enabled,
-            msg.alert_sound_type,
-            msg.alert_sound_volume,
-            msg.minimum_reward_major,
-            msg.minimum_hourly_reward_major,
-            msg.maximum_estimated_minutes,
-            msg.minimum_places_available,
-            msg.always_open_keywords,
-            msg.ignore_keywords,
-          );
+          const filters = normalizePriorityFilters(msg.filters);
 
           await storageSetLocal({
-            [PRIORITY_FILTER_ENABLED_KEY]: priorityFilter.enabled,
-            [PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY]: priorityFilter.auto_open_in_new_tab,
-            [PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY]: priorityFilter.alert_sound_enabled,
-            [PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY]: priorityFilter.alert_sound_type,
-            [PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY]: priorityFilter.alert_sound_volume,
-            [PRIORITY_FILTER_MIN_REWARD_KEY]: priorityFilter.minimum_reward_major,
-            [PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY]: priorityFilter.minimum_hourly_reward_major,
-            [PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY]: priorityFilter.maximum_estimated_minutes,
-            [PRIORITY_FILTER_MIN_PLACES_KEY]: priorityFilter.minimum_places_available,
-            [PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY]: priorityFilter.always_open_keywords,
-            [PRIORITY_FILTER_IGNORE_KEYWORDS_KEY]: priorityFilter.ignore_keywords,
+            [PRIORITY_FILTERS_KEY]: filters,
           });
 
+          const enabledCount = filters.filter((f: PriorityFilter) => f.enabled).length;
           await setState({
-            priority_filter_enabled: priorityFilter.enabled,
-            priority_filter_auto_open_in_new_tab: priorityFilter.auto_open_in_new_tab,
-            priority_filter_alert_sound_enabled: priorityFilter.alert_sound_enabled,
-            priority_filter_alert_sound_type: priorityFilter.alert_sound_type,
-            priority_filter_alert_sound_volume: priorityFilter.alert_sound_volume,
-            priority_filter_minimum_reward: priorityFilter.minimum_reward_major,
-            priority_filter_minimum_hourly_reward: priorityFilter.minimum_hourly_reward_major,
-            priority_filter_maximum_estimated_minutes: priorityFilter.maximum_estimated_minutes,
-            priority_filter_minimum_places: priorityFilter.minimum_places_available,
-            priority_filter_always_open_keywords: priorityFilter.always_open_keywords,
-            priority_filter_ignore_keywords: priorityFilter.ignore_keywords,
+            priority_filters_count: filters.length,
+            priority_filters_enabled_count: enabledCount,
           });
-          await pushDebugLog('settings.priority_filter.updated', priorityFilter as unknown as Record<string, unknown>);
+          await pushDebugLog('settings.priority_filters.updated', {
+            count: filters.length,
+            enabled_count: enabledCount,
+          });
 
-          const refreshPolicy = await getStudiesRefreshPolicySettings();
-          const autoOpenState = await browser.storage.local.get([AUTO_OPEN_PROLIFIC_TAB_KEY]);
-          sendResponse({
-            ok: true,
-            settings: buildRefreshSettingsResponse(
-              refreshPolicy,
-              autoOpenState[AUTO_OPEN_PROLIFIC_TAB_KEY] !== false,
-              priorityFilter,
-            ),
-          });
+          sendResponse({ ok: true, filters });
         });
       }
 
@@ -2246,6 +2259,7 @@ export default defineBackground({
       if (logEvent) {
         await pushDebugLog(logEvent, {});
       }
+      await migrateLegacyPriorityFilter();
       await priorityStateRuntime.ensureHydrated();
       schedule();
       registerCaptureListeners();

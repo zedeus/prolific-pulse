@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { browser } from 'wxt/browser';
   import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry } from '../../../lib/types';
   import {
@@ -24,43 +25,64 @@
     MIN_PRIORITY_FILTER_MIN_PLACES,
     MAX_PRIORITY_FILTER_MIN_PLACES,
     MAX_PRIORITY_FILTER_KEYWORDS,
+    MAX_PRIORITY_FILTERS,
+    SOUND_TYPE_NONE,
   } from '../../../lib/constants';
 
   let {
     active,
     autoOpenEnabled,
-    priorityFilter = $bindable(),
+    priorityFilters = $bindable(),
     savedRefreshPolicy,
     extensionState,
     refreshState,
     onAutoOpenChange,
-    onPriorityFilterChange,
+    onPriorityFiltersChange,
     onRefreshPolicySave,
     onRefreshDebug,
     onClearDebugLogs,
   } = $props<{
     active: boolean;
     autoOpenEnabled: boolean;
-    priorityFilter: PriorityFilter;
+    priorityFilters: PriorityFilter[];
     savedRefreshPolicy: NormalizedRefreshPolicy;
     extensionState: SyncState | null;
     refreshState: StudiesRefreshState | null;
     onAutoOpenChange: (enabled: boolean) => void;
-    onPriorityFilterChange: (filter: PriorityFilter) => void;
+    onPriorityFiltersChange: () => void;
     onRefreshPolicySave: (minDelay: number, avgDelay: number, spread: number) => void;
     onRefreshDebug: () => void;
     onClearDebugLogs: () => void;
   }>();
 
-  // Local keyword strings — initialized from prop at mount, kept in sync via handlers.
-  // svelte-ignore state_referenced_locally
-  let alwaysKeywordsText = $state(
-    Array.isArray(priorityFilter.always_open_keywords) ? priorityFilter.always_open_keywords.join(', ') : ''
-  );
-  // svelte-ignore state_referenced_locally
-  let ignoreKeywordsText = $state(
-    Array.isArray(priorityFilter.ignore_keywords) ? priorityFilter.ignore_keywords.join(', ') : ''
-  );
+  // Track which filter is expanded (by id), empty string = none
+  let expandedFilterId = $state('');
+
+  // Local keyword text per filter — keeps text inputs editable without normalizing on every keystroke
+  let keywordTextMap = $state(new Map<string, { always: string; ignore: string }>());
+
+  function syncKeywordMaps(filters: PriorityFilter[]) {
+    const activeIds = new Set<string>();
+    for (const f of filters) {
+      activeIds.add(f.id);
+      if (!keywordTextMap.has(f.id)) {
+        keywordTextMap.set(f.id, {
+          always: Array.isArray(f.always_open_keywords) ? f.always_open_keywords.join(', ') : '',
+          ignore: Array.isArray(f.ignore_keywords) ? f.ignore_keywords.join(', ') : '',
+        });
+      }
+    }
+    for (const id of keywordTextMap.keys()) {
+      if (!activeIds.has(id)) keywordTextMap.delete(id);
+    }
+  }
+
+  const filterIds = $derived(priorityFilters.map((f) => f.id).join(','));
+
+  $effect(() => {
+    void filterIds;
+    untrack(() => syncKeywordMaps(priorityFilters));
+  });
 
   // Refresh sliders — local $state initialized from prop at mount time.
   // svelte-ignore state_referenced_locally
@@ -96,7 +118,7 @@
   const debugRows = $derived(buildDebugRows(extensionState, refreshState));
   const debugLogs = $derived(buildDebugLogs(extensionState));
 
-  let previewPlaying = $state(false);
+  let previewPlaying = $state(''); // filter id that's playing, or ''
   let previewAudioContext: AudioContext | null = null;
   let previewActiveSource: AudioBufferSourceNode | null = null;
   let previewResetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -104,14 +126,8 @@
   let soundBufferCache = new Map<string, Promise<AudioBuffer>>();
   let soundBufferContext: AudioContext | null = null;
 
-  const previewButtonDisabled = $derived(!previewPlaying && (priorityFilter.alert_sound_type === 'none' || priorityFilter.alert_sound_volume <= 0));
-  const previewButtonText = $derived(previewPlaying ? '\u25A0' : '\u25B6');
-  const previewButtonTitle = $derived(
-    priorityFilter.alert_sound_volume <= 0 ? 'Volume is 0' : previewPlaying ? 'Stop preview' : 'Preview sound',
-  );
-
   const soundTypeOptions: { value: string; label: string }[] = [
-    { value: 'none', label: 'None' },
+    { value: SOUND_TYPE_NONE, label: 'None' },
     { value: 'pay', label: 'Pay' },
     { value: 'metal_gear', label: 'Metal Gear' },
     { value: 'twitch', label: 'Twitch' },
@@ -121,6 +137,8 @@
     { value: 'lbp', label: 'LBP' },
     { value: 'taco', label: 'Taco' },
   ];
+
+  const soundLabelByType = new Map(soundTypeOptions.map((o) => [o.value, o.label]));
 
   const DEBUG_EVENT_LABELS: Record<string, string> = {
     'token.sync.ok': 'Token synced',
@@ -134,7 +152,7 @@
     'studies.response.filter.error': 'Response capture failed',
     'studies.response.capture.on_parsed_error': 'Response parse hook failed',
     'settings.auto_open.updated': 'Auto-open updated',
-    'settings.priority_filter.updated': 'Priority filter saved',
+    'settings.priority_filters.updated': 'Priority filters saved',
     'priority.alert.disabled': 'Priority alert disabled',
     'tab.priority_auto_open.created': 'Priority study opened',
     'tab.priority_auto_open.disabled_new_tab': 'Priority tab auto-open disabled',
@@ -159,33 +177,91 @@
     return unique;
   }
 
-  // Called when any priority filter input changes. Reads current state from
-  // the $bindable priorityFilter (already updated by bind:) and notifies
-  // the parent to persist.
-  function handlePriorityInput() {
-    // Update keywords from local text state
-    priorityFilter.always_open_keywords = normalizePriorityKeywords(alwaysKeywordsText);
-    priorityFilter.ignore_keywords = normalizePriorityKeywords(ignoreKeywordsText);
-    onPriorityFilterChange(priorityFilter);
+  function handleFilterInput(filter: PriorityFilter) {
+    const kw = keywordTextMap.get(filter.id);
+    filter.always_open_keywords = normalizePriorityKeywords(kw?.always || '');
+    filter.ignore_keywords = normalizePriorityKeywords(kw?.ignore || '');
+    onPriorityFiltersChange();
   }
 
-  function handlePriorityCheckboxChange() {
-    // For checkboxes, bind:checked has already updated priorityFilter.
-    // Update keywords in case they were edited.
-    priorityFilter.always_open_keywords = normalizePriorityKeywords(alwaysKeywordsText);
-    priorityFilter.ignore_keywords = normalizePriorityKeywords(ignoreKeywordsText);
-    onPriorityFilterChange(priorityFilter);
+  function handleKeywordInput(filter: PriorityFilter, field: 'always' | 'ignore', value: string) {
+    const kw = keywordTextMap.get(filter.id) || { always: '', ignore: '' };
+    kw[field] = value;
+    keywordTextMap.set(filter.id, kw);
+    handleFilterInput(filter);
   }
 
-  function handleSoundControlChange() {
-    priorityFilter.alert_sound_enabled = priorityFilter.alert_sound_type !== 'none';
+  function handleSoundControlChange(filter: PriorityFilter) {
+    filter.alert_sound_enabled = filter.alert_sound_type !== SOUND_TYPE_NONE;
     cancelPreview();
-    handlePriorityInput();
+    handleFilterInput(filter);
+  }
+
+  function handleAddFilter() {
+    if (priorityFilters.length >= MAX_PRIORITY_FILTERS) return;
+    const newFilter: PriorityFilter = {
+      id: crypto.randomUUID(),
+      name: `Filter ${priorityFilters.length + 1}`,
+      enabled: true,
+      auto_open_in_new_tab: true,
+      alert_sound_enabled: true,
+      alert_sound_type: DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
+      alert_sound_volume: DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
+      minimum_reward_major: MIN_PRIORITY_FILTER_MIN_REWARD,
+      minimum_hourly_reward_major: MIN_PRIORITY_FILTER_MIN_HOURLY_REWARD,
+      maximum_estimated_minutes: MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
+      minimum_places_available: MIN_PRIORITY_FILTER_MIN_PLACES,
+      always_open_keywords: [],
+      ignore_keywords: [],
+    };
+    keywordTextMap.set(newFilter.id, { always: '', ignore: '' });
+    priorityFilters = [...priorityFilters, newFilter];
+    expandedFilterId = newFilter.id;
+    onPriorityFiltersChange();
+  }
+
+  let deleteConfirmId = $state('');
+  let deleteConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function handleDeleteFilter(filterId: string) {
+    if (deleteConfirmId !== filterId) {
+      deleteConfirmId = filterId;
+      if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
+      deleteConfirmTimer = setTimeout(() => { deleteConfirmId = ''; }, 3000);
+      return;
+    }
+    if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
+    deleteConfirmId = '';
+    priorityFilters = priorityFilters.filter((f) => f.id !== filterId);
+    keywordTextMap.delete(filterId);
+    if (expandedFilterId === filterId) expandedFilterId = '';
+    onPriorityFiltersChange();
+  }
+
+  function toggleFilterExpanded(filterId: string) {
+    expandedFilterId = expandedFilterId === filterId ? '' : filterId;
+  }
+
+  interface FilterBadge { label: string; muted?: boolean }
+
+  function filterBadges(f: PriorityFilter): FilterBadge[] {
+    const badges: FilterBadge[] = [];
+    if (f.minimum_reward_major > 0) badges.push({ label: `$${f.minimum_reward_major}+` });
+    if (f.minimum_hourly_reward_major > 0) badges.push({ label: `$${f.minimum_hourly_reward_major}/hr` });
+    if (f.maximum_estimated_minutes < MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES) badges.push({ label: `\u2264${f.maximum_estimated_minutes}m` });
+    if (f.always_open_keywords.length) badges.push({ label: `${f.always_open_keywords.length} kw` });
+    if (f.auto_open_in_new_tab) badges.push({ label: 'auto-open' });
+    if (f.alert_sound_type !== SOUND_TYPE_NONE && f.alert_sound_enabled) {
+      const soundLabel = soundLabelByType.get(f.alert_sound_type) ?? f.alert_sound_type;
+      badges.push({ label: soundLabel });
+    } else {
+      badges.push({ label: 'silent', muted: true });
+    }
+    return badges;
   }
 
   // Refresh slider handlers
   function handleRefreshSliderInput() {
-    // Normalize the policy from current slider values
     const policy = normalizeRefreshPolicy(localMinDelay, localAvgDelay, localSpread);
     localMinDelay = policy.minimum_delay_seconds;
     localAvgDelay = policy.average_delay_seconds;
@@ -386,11 +462,12 @@
       clearTimeout(previewResetTimer);
       previewResetTimer = null;
     }
-    previewPlaying = false;
+    previewPlaying = '';
   }
 
-  async function handlePreviewClick() {
-    if (previewPlaying) { cancelPreview(); return; }
+  async function handlePreviewClick(filter: PriorityFilter) {
+    if (previewPlaying === filter.id) { cancelPreview(); return; }
+    cancelPreview();
 
     const audioContext = getPreviewAudioContext();
     if (!audioContext) return;
@@ -398,9 +475,9 @@
       await audioContext.resume();
     }
 
-    const soundType = canonicalSoundType(priorityFilter.alert_sound_type ?? DEFAULT_PRIORITY_ALERT_SOUND_TYPE);
+    const soundType = canonicalSoundType(filter.alert_sound_type ?? DEFAULT_PRIORITY_ALERT_SOUND_TYPE);
     const soundVolume = clampInt(
-      priorityFilter.alert_sound_volume ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
+      filter.alert_sound_volume ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
       MIN_PRIORITY_ALERT_SOUND_VOLUME,
       MAX_PRIORITY_ALERT_SOUND_VOLUME,
       DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
@@ -420,11 +497,11 @@
       try { source.disconnect(); gainNode.disconnect(); } catch {}
     };
 
-    previewPlaying = true;
+    previewPlaying = filter.id;
     previewActiveSource = source;
     previewResetTimer = setTimeout(() => {
       previewResetTimer = null;
-      previewPlaying = false;
+      previewPlaying = '';
     }, Math.max(300, Math.ceil((Math.max(0.1, soundBuffer.duration) + 0.12) * 1000) + 180));
     source.start(startTime);
   }
@@ -449,172 +526,219 @@
       />
     </div>
 
-    <!-- Priority filter card -->
+    <!-- Priority filters -->
     <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 mb-2.5">
       <div class="flex items-center justify-between gap-2.5 mb-0.5">
-        <div class="text-sm font-semibold text-base-content">Priority filter</div>
-        <input
-          id="priorityFilterEnabledToggle"
-          type="checkbox"
-          class="toggle toggle-primary toggle-sm"
-          aria-label="Priority filter"
-          bind:checked={priorityFilter.enabled}
-          onchange={handlePriorityCheckboxChange}
-        />
+        <div class="text-sm font-semibold text-base-content">Priority filters</div>
+        {#if priorityFilters.length > 0}
+          <button
+            id="addFilterButton"
+            class="btn btn-ghost btn-xs text-xs font-semibold text-primary"
+            type="button"
+            disabled={priorityFilters.length >= MAX_PRIORITY_FILTERS}
+            onclick={handleAddFilter}
+          >+ Add</button>
+        {/if}
       </div>
-      <div class="text-xs text-base-content/50 leading-snug">Highlight and alert when newly available studies match these rules.</div>
+      <div class="text-xs text-base-content/50 leading-snug mb-3">Alert and auto-open when new studies match these rules. If multiple filters match a study, the most specific one wins (keyword matches beat numeric criteria, then louder alerts take priority).</div>
 
-      {#if priorityFilter.enabled}
-      <div class="mt-3 flex flex-col gap-2.5">
-        <!-- Min reward -->
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-          <label for="priorityMinRewardInput" class="text-[12.5px] text-base-content/50 font-medium">Min reward</label>
-          <input
-            id="priorityMinRewardInput"
-            type="number"
-            class="input input-sm w-full"
-            min={MIN_PRIORITY_FILTER_MIN_REWARD}
-            max={MAX_PRIORITY_FILTER_MIN_REWARD}
-            step="0.1"
-            bind:value={priorityFilter.minimum_reward_major}
-            oninput={handlePriorityInput}
-          />
-        </div>
-
-        <!-- Min reward/hour -->
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-          <label for="priorityMinHourlyInput" class="text-[12.5px] text-base-content/50 font-medium">Min reward/hour</label>
-          <input
-            id="priorityMinHourlyInput"
-            type="number"
-            class="input input-sm w-full"
-            min={MIN_PRIORITY_FILTER_MIN_HOURLY_REWARD}
-            max={MAX_PRIORITY_FILTER_MIN_HOURLY_REWARD}
-            step="0.5"
-            bind:value={priorityFilter.minimum_hourly_reward_major}
-            oninput={handlePriorityInput}
-          />
-        </div>
-
-        <!-- Max ETA -->
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-          <label for="priorityMaxEtaInput" class="text-[12.5px] text-base-content/50 font-medium">Max ETA (minutes)</label>
-          <input
-            id="priorityMaxEtaInput"
-            type="number"
-            class="input input-sm w-full"
-            min={MIN_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES}
-            max={MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES}
-            step="1"
-            bind:value={priorityFilter.maximum_estimated_minutes}
-            oninput={handlePriorityInput}
-          />
-        </div>
-
-        <!-- Min places -->
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-          <label for="priorityMinPlacesInput" class="text-[12.5px] text-base-content/50 font-medium">Min places left</label>
-          <input
-            id="priorityMinPlacesInput"
-            type="number"
-            class="input input-sm w-full"
-            min={MIN_PRIORITY_FILTER_MIN_PLACES}
-            max={MAX_PRIORITY_FILTER_MIN_PLACES}
-            step="1"
-            bind:value={priorityFilter.minimum_places_available}
-            oninput={handlePriorityInput}
-          />
-        </div>
-
-        <!-- Always-open keywords -->
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-          <label for="priorityAlwaysKeywordsInput" class="text-[12.5px] text-base-content/50 font-medium">Always-open keywords</label>
-          <input
-            id="priorityAlwaysKeywordsInput"
-            type="text"
-            class="input input-sm w-full lowercase"
-            spellcheck="false"
-            placeholder="survey, ai, mobile"
-            bind:value={alwaysKeywordsText}
-            oninput={handlePriorityInput}
-          />
-        </div>
-
-        <!-- Ignore keywords -->
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-          <label for="priorityIgnoreKeywordsInput" class="text-[12.5px] text-base-content/50 font-medium">Ignore keywords</label>
-          <input
-            id="priorityIgnoreKeywordsInput"
-            type="text"
-            class="input input-sm w-full lowercase"
-            spellcheck="false"
-            placeholder="screened, webcam"
-            bind:value={ignoreKeywordsText}
-            oninput={handlePriorityInput}
-          />
-        </div>
-      </div>
-
-      <div class="mt-2.5 text-[11px] text-base-content/50 leading-snug">
-        Ignore keywords win first. Otherwise, always-open keywords force open. If neither keyword list matches, numeric filters decide.
-      </div>
-
-      <!-- Auto-open in new tab toggle -->
-      <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2 mt-2">
-        <label for="priorityAutoOpenInNewTabToggle" class="text-[12.5px] text-base-content/50 font-medium">Auto-open in new tab</label>
-        <input
-          id="priorityAutoOpenInNewTabToggle"
-          type="checkbox"
-          class="toggle toggle-primary toggle-sm justify-self-start"
-          aria-label="Auto-open in new tab"
-          bind:checked={priorityFilter.auto_open_in_new_tab}
-          onchange={handlePriorityCheckboxChange}
-        />
-      </div>
-
-      <!-- Alert sound -->
-      <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2 mt-2">
-        <div class="inline-flex items-center gap-1.5">
-          <label for="priorityAlertSoundTypeSelect" class="text-[12.5px] text-base-content/50 font-medium">Alert sound</label>
-          {#if priorityFilter.alert_sound_type !== 'none'}
-            <button
-              id="priorityAlertSoundPreviewButton"
-              class="btn btn-ghost btn-xs w-6 h-6 min-h-0 p-0 text-[11px]"
-              type="button"
-              aria-label="Preview sound"
-              title={previewButtonTitle}
-              disabled={previewButtonDisabled}
-              onclick={handlePreviewClick}
-            >{previewButtonText}</button>
-          {/if}
-        </div>
-        <select
-          id="priorityAlertSoundTypeSelect"
-          class="select select-sm w-full"
-          bind:value={priorityFilter.alert_sound_type}
-          onchange={handleSoundControlChange}
-        >
-          {#each soundTypeOptions as opt (opt.value)}
-            <option value={opt.value}>{opt.label}</option>
-          {/each}
-        </select>
-      </div>
-      {#if priorityFilter.alert_sound_type !== 'none'}
-        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2 mt-2">
-          <label for="priorityAlertSoundVolumeInput" class="text-[12.5px] text-base-content/50 font-medium">Volume</label>
-          <input
-            id="priorityAlertSoundVolumeInput"
-            type="range"
-            class="range range-primary range-xs w-full"
-            min={MIN_PRIORITY_ALERT_SOUND_VOLUME}
-            max={MAX_PRIORITY_ALERT_SOUND_VOLUME}
-            step="1"
-            bind:value={priorityFilter.alert_sound_volume}
-            oninput={handleSoundControlChange}
-          />
-        </div>
+      {#if !priorityFilters.length}
+        <button
+          id="addFilterButton"
+          class="w-full py-3.5 border-2 border-dashed border-base-300 rounded-lg text-xs text-base-content/40 hover:border-primary/40 hover:text-primary/60 transition-colors cursor-pointer bg-transparent"
+          type="button"
+          onclick={handleAddFilter}
+        >+ Create your first filter</button>
       {/if}
-      {/if}
+
+      <div class="flex flex-col gap-2">
+        {#each priorityFilters as filter, idx (filter.id)}
+          {@const isExpanded = expandedFilterId === filter.id}
+          {@const isPreviewPlaying = previewPlaying === filter.id}
+          {@const previewDisabled = !isPreviewPlaying && (filter.alert_sound_type === SOUND_TYPE_NONE || filter.alert_sound_volume <= 0)}
+          {@const isConfirmingDelete = deleteConfirmId === filter.id}
+          <div
+            class="filter-card rounded-lg border {isExpanded ? 'bg-base-100 border-base-300 shadow-sm' : filter.enabled ? 'bg-base-100 border-primary/25' : 'bg-base-200/50 border-base-300'}"
+            class:opacity-45={!filter.enabled && !isExpanded}
+            data-filter-id={filter.id}
+          >
+            <div class="flex items-center gap-1.5 px-3 py-2">
+              <button
+                class="filter-arrow-btn btn btn-ghost btn-xs w-5 h-5 min-h-0 p-0 text-[9px] text-base-content/25"
+                type="button"
+                aria-label={isExpanded ? 'Collapse filter' : 'Expand filter'}
+                onclick={() => toggleFilterExpanded(filter.id)}
+              ><span class="filter-arrow inline-block transition-transform" class:rotate-90={isExpanded}>&#9654;</span></button>
+              {#if isExpanded}
+                <input
+                  type="text"
+                  class="input input-ghost input-xs flex-1 text-[12.5px] font-semibold min-w-0 px-1.5 h-7 rounded bg-base-200/60"
+                  spellcheck="false"
+                  placeholder="Filter name"
+                  bind:value={filter.name}
+                  oninput={() => onPriorityFiltersChange()}
+                  aria-label="Filter name"
+                />
+              {:else}
+                <button
+                  class="filter-header flex-1 text-left bg-transparent border-none cursor-pointer p-0 min-w-0"
+                  type="button"
+                  onclick={() => toggleFilterExpanded(filter.id)}
+                >
+                  <span class="text-[12.5px] font-semibold text-base-content truncate block">{filter.name}</span>
+                </button>
+                {@const badges = filterBadges(filter)}
+                <span class="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end max-w-[55%]">
+                  {#each badges.slice(0, 5) as badge (badge.label)}
+                    <span class="inline-block text-[10px] px-1.5 py-[1px] rounded-full font-medium whitespace-nowrap leading-tight {badge.muted ? 'bg-base-content/5 text-base-content/30' : 'bg-base-content/7 text-base-content/50'}"
+                    >{badge.label}</span>
+                  {/each}
+                </span>
+              {/if}
+              <input
+                id="priorityFilterEnabledToggle-{idx}"
+                type="checkbox"
+                class="toggle toggle-primary toggle-xs"
+                aria-label="Enable filter"
+                bind:checked={filter.enabled}
+                onchange={() => handleFilterInput(filter)}
+              />
+              <button
+                class="btn btn-ghost btn-xs min-h-0 h-6 text-[10px] transition-colors {isConfirmingDelete ? 'text-error font-bold px-2' : 'text-base-content/20 hover:text-error/60 px-1'}"
+                type="button"
+                aria-label={isConfirmingDelete ? 'Confirm delete' : 'Delete filter'}
+                title={isConfirmingDelete ? 'Click again to confirm' : 'Delete filter'}
+                onclick={() => handleDeleteFilter(filter.id)}
+              >{isConfirmingDelete ? 'Delete?' : '\u00d7'}</button>
+            </div>
+
+            {#if isExpanded}
+            <div class="px-3 pb-3 pt-0.5 flex flex-col gap-2">
+              <div class="grid grid-cols-[100px_1fr_100px_1fr] items-center gap-x-2 gap-y-1.5">
+                <label for="priorityMinRewardInput-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Min reward</label>
+                <input
+                  id="priorityMinRewardInput-{idx}"
+                  type="number"
+                  class="input input-xs w-full tabular-nums"
+                  min={MIN_PRIORITY_FILTER_MIN_REWARD}
+                  max={MAX_PRIORITY_FILTER_MIN_REWARD}
+                  step="0.1"
+                  bind:value={filter.minimum_reward_major}
+                  oninput={() => handleFilterInput(filter)}
+                />
+                <label for="priorityMinHourlyInput-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Min reward/hr</label>
+                <input
+                  id="priorityMinHourlyInput-{idx}"
+                  type="number"
+                  class="input input-xs w-full tabular-nums"
+                  min={MIN_PRIORITY_FILTER_MIN_HOURLY_REWARD}
+                  max={MAX_PRIORITY_FILTER_MIN_HOURLY_REWARD}
+                  step="0.5"
+                  bind:value={filter.minimum_hourly_reward_major}
+                  oninput={() => handleFilterInput(filter)}
+                />
+                <label for="priorityMaxEtaInput-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Max ETA (mins)</label>
+                <input
+                  id="priorityMaxEtaInput-{idx}"
+                  type="number"
+                  class="input input-xs w-full tabular-nums"
+                  min={MIN_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES}
+                  max={MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES}
+                  step="1"
+                  bind:value={filter.maximum_estimated_minutes}
+                  oninput={() => handleFilterInput(filter)}
+                />
+                <label for="priorityMinPlacesInput-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Min places</label>
+                <input
+                  id="priorityMinPlacesInput-{idx}"
+                  type="number"
+                  class="input input-xs w-full tabular-nums"
+                  min={MIN_PRIORITY_FILTER_MIN_PLACES}
+                  max={MAX_PRIORITY_FILTER_MIN_PLACES}
+                  step="1"
+                  bind:value={filter.minimum_places_available}
+                  oninput={() => handleFilterInput(filter)}
+                />
+              </div>
+
+              <div class="grid grid-cols-2 gap-x-2">
+                <div>
+                  <label for="priorityAlwaysKeywordsInput-{idx}" class="text-[12.5px] text-base-content/50 font-medium block mb-0.5">Match keywords</label>
+                  <input
+                    id="priorityAlwaysKeywordsInput-{idx}"
+                    type="text"
+                    class="input input-xs w-full lowercase"
+                    spellcheck="false"
+                    placeholder="ai, survey"
+                    value={keywordTextMap.get(filter.id)?.always || ''}
+                    oninput={(e) => handleKeywordInput(filter, 'always', (e.target as HTMLInputElement).value)}
+                  />
+                </div>
+                <div>
+                  <label for="priorityIgnoreKeywordsInput-{idx}" class="text-[12.5px] text-base-content/50 font-medium block mb-0.5">Ignore keywords</label>
+                  <input
+                    id="priorityIgnoreKeywordsInput-{idx}"
+                    type="text"
+                    class="input input-xs w-full lowercase"
+                    spellcheck="false"
+                    placeholder="webcam, screened"
+                    value={keywordTextMap.get(filter.id)?.ignore || ''}
+                    oninput={(e) => handleKeywordInput(filter, 'ignore', (e.target as HTMLInputElement).value)}
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-[100px_1fr] items-center gap-x-2 gap-y-1.5">
+                <label for="priorityAutoOpenInNewTabToggle-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Auto-open tab</label>
+                <div>
+                  <input
+                    id="priorityAutoOpenInNewTabToggle-{idx}"
+                    type="checkbox"
+                    class="toggle toggle-primary toggle-xs"
+                    aria-label="Auto-open in new tab"
+                    bind:checked={filter.auto_open_in_new_tab}
+                    onchange={() => handleFilterInput(filter)}
+                  />
+                </div>
+                <label for="priorityAlertSoundTypeSelect-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Alert sound</label>
+                <div class="flex items-center gap-2">
+                  <select
+                    id="priorityAlertSoundTypeSelect-{idx}"
+                    class="select select-xs w-auto min-w-0"
+                    bind:value={filter.alert_sound_type}
+                    onchange={() => handleSoundControlChange(filter)}
+                  >
+                    {#each soundTypeOptions as opt (opt.value)}
+                      <option value={opt.value}>{opt.label}</option>
+                    {/each}
+                  </select>
+                  {#if filter.alert_sound_type !== SOUND_TYPE_NONE}
+                    <button
+                      class="btn btn-ghost btn-xs w-7 h-7 min-h-0 p-0 text-[11px] flex-shrink-0 bg-base-content/8"
+                      type="button"
+                      aria-label={isPreviewPlaying ? 'Stop preview' : 'Preview sound'}
+                      title={filter.alert_sound_volume <= 0 ? 'Volume is 0' : isPreviewPlaying ? 'Stop' : 'Preview'}
+                      disabled={previewDisabled}
+                      onclick={() => handlePreviewClick(filter)}
+                    >{isPreviewPlaying ? '\u25A0' : '\u25B6'}</button>
+                    <input
+                      id="priorityAlertSoundVolumeInput-{idx}"
+                      type="range"
+                      class="range range-primary range-xs flex-1 min-w-0"
+                      min={MIN_PRIORITY_ALERT_SOUND_VOLUME}
+                      max={MAX_PRIORITY_ALERT_SOUND_VOLUME}
+                      step="1"
+                      bind:value={filter.alert_sound_volume}
+                      oninput={() => handleSoundControlChange(filter)}
+                    />
+                  {/if}
+                </div>
+              </div>
+            </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
     </div>
 
     <!-- Refresh cadence card -->
@@ -625,12 +749,12 @@
       <div class="mt-2 flex flex-col gap-2">
         <div class="refresh-field grid grid-cols-[132px_1fr_auto] items-center gap-2">
           <label for="refreshMinDelayInput" class="text-[12.5px] text-base-content/50 font-medium">Minimum delay (s)</label>
-          <input id="refreshMinDelayInput" type="range" class="range range-primary range-xs w-full" min="1" max={localRefreshPolicy.maximum_minimum_delay_seconds} step="1" bind:value={localMinDelay} oninput={handleRefreshSliderInput} />
+          <input id="refreshMinDelayInput" type="range" class="range range-primary range-xs w-full" min="5" max={localRefreshPolicy.maximum_minimum_delay_seconds} step="1" bind:value={localMinDelay} oninput={handleRefreshSliderInput} />
           <span id="refreshMinDelayValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">{localMinDelay}s</span>
         </div>
         <div class="refresh-field grid grid-cols-[132px_1fr_auto] items-center gap-2">
           <label for="refreshAverageDelayInput" class="text-[12.5px] text-base-content/50 font-medium">Average delay (s)</label>
-          <input id="refreshAverageDelayInput" type="range" class="range range-primary range-xs w-full" min="5" max="60" step="1" bind:value={localAvgDelay} oninput={handleRefreshSliderInput} />
+          <input id="refreshAverageDelayInput" type="range" class="range range-primary range-xs w-full" min="25" max="60" step="1" bind:value={localAvgDelay} oninput={handleRefreshSliderInput} />
           <span id="refreshAverageDelayValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">{localAvgDelay}s</span>
         </div>
         <div class="refresh-field grid grid-cols-[132px_1fr_auto] items-center gap-2">
@@ -749,6 +873,12 @@
   }
   .panel.active {
     display: block;
+  }
+  .filter-arrow {
+    transition: transform 120ms ease;
+  }
+  .filter-card {
+    transition: opacity 150ms ease, border-color 150ms ease;
   }
   .debug-summary::-webkit-details-marker {
     display: none;

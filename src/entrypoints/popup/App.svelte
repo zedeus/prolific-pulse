@@ -20,27 +20,11 @@
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
     DEFAULT_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS,
     DEFAULT_STUDIES_REFRESH_SPREAD_SECONDS,
-    DEFAULT_PRIORITY_FILTER_MIN_REWARD,
-    DEFAULT_PRIORITY_FILTER_MIN_HOURLY_REWARD,
-    DEFAULT_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
-    DEFAULT_PRIORITY_FILTER_MIN_PLACES,
     DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
-    DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-    MIN_PRIORITY_ALERT_SOUND_VOLUME,
-    MAX_PRIORITY_ALERT_SOUND_VOLUME,
+    SOUND_TYPE_NONE,
     STATE_KEY,
     AUTO_OPEN_PROLIFIC_TAB_KEY,
-    PRIORITY_FILTER_ENABLED_KEY,
-    PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
-    PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
-    PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
-    PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-    PRIORITY_FILTER_MIN_REWARD_KEY,
-    PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
-    PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
-    PRIORITY_FILTER_MIN_PLACES_KEY,
-    PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
-    PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
+    PRIORITY_FILTERS_KEY,
     STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY,
     STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY,
     STUDIES_REFRESH_SPREAD_SECONDS_KEY,
@@ -55,9 +39,6 @@
     toUserErrorMessage,
     isAuthRequiredState,
     normalizeRefreshPolicy,
-    canonicalSoundType,
-    clampInt,
-    clampNumber,
   } from '../../lib/format';
 
   import StatusBar from './components/StatusBar.svelte';
@@ -79,19 +60,7 @@
   let autoOpenEnabled = $state(true);
   let settingsLoaded = $state(false);
 
-  let priorityFilter: PriorityFilter = $state({
-    enabled: false,
-    auto_open_in_new_tab: true,
-    alert_sound_enabled: true,
-    alert_sound_type: DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
-    alert_sound_volume: DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-    minimum_reward_major: DEFAULT_PRIORITY_FILTER_MIN_REWARD,
-    minimum_hourly_reward_major: DEFAULT_PRIORITY_FILTER_MIN_HOURLY_REWARD,
-    maximum_estimated_minutes: DEFAULT_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
-    minimum_places_available: DEFAULT_PRIORITY_FILTER_MIN_PLACES,
-    always_open_keywords: [],
-    ignore_keywords: [],
-  });
+  let priorityFilters: PriorityFilter[] = $state([]);
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
@@ -236,47 +205,40 @@
   async function getSettings(): Promise<Settings> {
     const data = await browser.storage.local.get([
       AUTO_OPEN_PROLIFIC_TAB_KEY,
-      PRIORITY_FILTER_ENABLED_KEY,
-      PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
-      PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
-      PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
-      PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-      PRIORITY_FILTER_MIN_REWARD_KEY,
-      PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
-      PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
-      PRIORITY_FILTER_MIN_PLACES_KEY,
-      PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY,
-      PRIORITY_FILTER_IGNORE_KEYWORDS_KEY,
       STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY,
       STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY,
       STUDIES_REFRESH_SPREAD_SECONDS_KEY,
     ]);
     return {
       auto_open_prolific_tab: data[AUTO_OPEN_PROLIFIC_TAB_KEY] !== false,
-      priority_filter_enabled: data[PRIORITY_FILTER_ENABLED_KEY] === true,
-      priority_filter_auto_open_in_new_tab: data[PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY] !== false,
-      priority_filter_alert_sound_enabled: data[PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY] !== false,
-      priority_filter_alert_sound_type: String(data[PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY] ?? DEFAULT_PRIORITY_ALERT_SOUND_TYPE),
-      priority_filter_alert_sound_volume: Number(data[PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY] ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME),
-      priority_filter_minimum_reward: Number(data[PRIORITY_FILTER_MIN_REWARD_KEY] ?? DEFAULT_PRIORITY_FILTER_MIN_REWARD),
-      priority_filter_minimum_hourly_reward: Number(data[PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY] ?? DEFAULT_PRIORITY_FILTER_MIN_HOURLY_REWARD),
-      priority_filter_maximum_estimated_minutes: Number(data[PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY] ?? DEFAULT_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES),
-      priority_filter_minimum_places: Number(data[PRIORITY_FILTER_MIN_PLACES_KEY] ?? DEFAULT_PRIORITY_FILTER_MIN_PLACES),
-      priority_filter_always_open_keywords: Array.isArray(data[PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY]) ? data[PRIORITY_FILTER_ALWAYS_OPEN_KEYWORDS_KEY] as string[] : [],
-      priority_filter_ignore_keywords: Array.isArray(data[PRIORITY_FILTER_IGNORE_KEYWORDS_KEY]) ? data[PRIORITY_FILTER_IGNORE_KEYWORDS_KEY] as string[] : [],
       studies_refresh_min_delay_seconds: Number(data[STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY] ?? DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS),
       studies_refresh_average_delay_seconds: Number(data[STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY] ?? DEFAULT_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS),
       studies_refresh_spread_seconds: Number(data[STUDIES_REFRESH_SPREAD_SECONDS_KEY] ?? DEFAULT_STUDIES_REFRESH_SPREAD_SECONDS),
-    } as Settings;
+    };
+  }
+
+  async function loadPriorityFilters(): Promise<PriorityFilter[]> {
+    const data = await browser.storage.local.get(PRIORITY_FILTERS_KEY);
+    const raw = data[PRIORITY_FILTERS_KEY];
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((f: unknown) => f && typeof f === 'object')
+      .map((f: Record<string, unknown>) => {
+        const filter = { ...f } as PriorityFilter;
+        if (filter.alert_sound_enabled === false) {
+          filter.alert_sound_type = SOUND_TYPE_NONE;
+        }
+        return filter;
+      });
   }
 
   async function setAutoOpen(enabled: boolean) {
     await sendRuntimeMessage('setAutoOpen', { enabled });
   }
 
-  async function setPriorityFilterRemote(filter: PriorityFilter): Promise<Settings> {
-    const response = await sendRuntimeMessage('setPriorityFilter', filter as any);
-    return response.settings || {};
+  async function setPriorityFiltersRemote(filters: PriorityFilter[]): Promise<PriorityFilter[]> {
+    const response = await sendRuntimeMessage('setPriorityFilters', { filters });
+    return Array.isArray(response.filters) ? response.filters : filters;
   }
 
   async function setRefreshDelays(minDelay: number, avgDelay: number, spread: number): Promise<Settings> {
@@ -302,36 +264,6 @@
     return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList };
   }
 
-  function normalizePriorityFilterFromSettings(s: Settings): PriorityFilter {
-    return {
-      enabled: s.priority_filter_enabled === true,
-      auto_open_in_new_tab: s.priority_filter_auto_open_in_new_tab !== false,
-      alert_sound_enabled: s.priority_filter_alert_sound_enabled !== false,
-      alert_sound_type: s.priority_filter_alert_sound_enabled === false ? 'none' : canonicalSoundType(s.priority_filter_alert_sound_type),
-      alert_sound_volume: clampInt(
-        s.priority_filter_alert_sound_volume,
-        MIN_PRIORITY_ALERT_SOUND_VOLUME,
-        MAX_PRIORITY_ALERT_SOUND_VOLUME,
-        DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-      ),
-      minimum_reward_major: Math.round(clampNumber(
-        s.priority_filter_minimum_reward, 0, 100, DEFAULT_PRIORITY_FILTER_MIN_REWARD,
-      ) * 100) / 100,
-      minimum_hourly_reward_major: Math.round(clampNumber(
-        s.priority_filter_minimum_hourly_reward, 0, 100, DEFAULT_PRIORITY_FILTER_MIN_HOURLY_REWARD,
-      ) * 100) / 100,
-      maximum_estimated_minutes: clampInt(
-        s.priority_filter_maximum_estimated_minutes, 1, 240, DEFAULT_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
-      ),
-      minimum_places_available: clampInt(
-        s.priority_filter_minimum_places, 1, 1000, DEFAULT_PRIORITY_FILTER_MIN_PLACES,
-      ),
-      always_open_keywords: Array.isArray(s.priority_filter_always_open_keywords)
-        ? s.priority_filter_always_open_keywords : [],
-      ignore_keywords: Array.isArray(s.priority_filter_ignore_keywords)
-        ? s.priority_filter_ignore_keywords : [],
-    };
-  }
 
   function scheduleViewRefreshAfter(delayMs: number) {
     if (retryRefreshTimer) clearTimeout(retryRefreshTimer);
@@ -380,10 +312,9 @@
 
   async function refreshSettings() {
     try {
-      const settings = await getSettings();
+      const [settings, filters] = await Promise.all([getSettings(), loadPriorityFilters()]);
       autoOpenEnabled = settings.auto_open_prolific_tab !== false;
-      const pf = normalizePriorityFilterFromSettings(settings);
-      priorityFilter = pf;
+      priorityFilters = filters;
       const rp = normalizeRefreshPolicy(
         settings.studies_refresh_min_delay_seconds,
         settings.studies_refresh_average_delay_seconds,
@@ -478,30 +409,24 @@
     }
   }
 
-  async function persistPriorityFilterIfNeeded() {
+  async function persistPriorityFiltersIfNeeded() {
     if (priorityFilterPersistInFlight) return;
     priorityFilterPersistInFlight = true;
     try {
       while (priorityFilterPersistPending) {
         priorityFilterPersistPending = false;
         try {
-          // Create a plain object copy to strip Svelte $state proxies before runtime.sendMessage
-          const plain: PriorityFilter = {
-            enabled: priorityFilter.enabled,
-            auto_open_in_new_tab: priorityFilter.auto_open_in_new_tab,
-            alert_sound_enabled: priorityFilter.alert_sound_type !== 'none',
-            alert_sound_type: priorityFilter.alert_sound_type === 'none' ? DEFAULT_PRIORITY_ALERT_SOUND_TYPE : priorityFilter.alert_sound_type,
-            alert_sound_volume: priorityFilter.alert_sound_volume,
-            minimum_reward_major: priorityFilter.minimum_reward_major,
-            minimum_hourly_reward_major: priorityFilter.minimum_hourly_reward_major,
-            maximum_estimated_minutes: priorityFilter.maximum_estimated_minutes,
-            minimum_places_available: priorityFilter.minimum_places_available,
-            always_open_keywords: [...priorityFilter.always_open_keywords],
-            ignore_keywords: [...priorityFilter.ignore_keywords],
-          };
-          await setPriorityFilterRemote(plain);
-          // Don't write normalized back to priorityFilter — the child owns editing state
-          // via $bindable, and writing back would cause the round-trip flicker.
+          // JSON round-trip strips Svelte $state proxies (structuredClone cannot clone them)
+          const plain = JSON.parse(JSON.stringify(priorityFilters)) as PriorityFilter[];
+          for (const f of plain) {
+            if (f.alert_sound_type === SOUND_TYPE_NONE) {
+              f.alert_sound_enabled = false;
+              f.alert_sound_type = DEFAULT_PRIORITY_ALERT_SOUND_TYPE;
+            } else {
+              f.alert_sound_enabled = true;
+            }
+          }
+          await setPriorityFiltersRemote(plain);
         } catch (err) {
           errorMessage = err instanceof Error ? err.message : String(err);
         }
@@ -511,14 +436,12 @@
     }
   }
 
-  function handlePriorityFilterChange(_filter: PriorityFilter) {
-    // The binding has already updated priorityFilter in the parent.
-    // We only need to schedule persistence here.
+  function handlePriorityFiltersChange() {
     priorityFilterPersistPending = true;
     if (priorityFilterPersistTimer) clearTimeout(priorityFilterPersistTimer);
     priorityFilterPersistTimer = setTimeout(() => {
       priorityFilterPersistTimer = null;
-      void persistPriorityFilterIfNeeded();
+      void persistPriorityFiltersIfNeeded();
     }, PRIORITY_FILTER_PERSIST_DEBOUNCE_MS);
   }
 
@@ -579,7 +502,7 @@
   <LivePanel
     active={activeTab === 'live'}
     {studies}
-    {priorityFilter}
+    {priorityFilters}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
   />
@@ -599,12 +522,12 @@
   <SettingsPanel
     active={activeTab === 'settings'}
     {autoOpenEnabled}
-    bind:priorityFilter
+    bind:priorityFilters
     {savedRefreshPolicy}
     {extensionState}
     refreshState={refreshStateData}
     onAutoOpenChange={handleAutoOpenChange}
-    onPriorityFilterChange={handlePriorityFilterChange}
+    onPriorityFiltersChange={handlePriorityFiltersChange}
     onRefreshPolicySave={handleRefreshPolicySave}
     onRefreshDebug={handleRefreshDebug}
     onClearDebugLogs={handleClearDebugLogs}

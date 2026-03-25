@@ -71,6 +71,8 @@ export interface StudiesRefreshState {
 }
 
 export interface PriorityFilter {
+  id: string;
+  name: string;
   enabled: boolean;
   auto_open_in_new_tab: boolean;
   alert_sound_enabled: boolean;
@@ -98,17 +100,6 @@ export interface NormalizedRefreshPolicy extends RefreshPolicy {
 
 export interface Settings {
   auto_open_prolific_tab: boolean;
-  priority_filter_enabled: boolean;
-  priority_filter_auto_open_in_new_tab: boolean;
-  priority_filter_alert_sound_enabled: boolean;
-  priority_filter_alert_sound_type: string;
-  priority_filter_alert_sound_volume: number;
-  priority_filter_minimum_reward: number;
-  priority_filter_minimum_hourly_reward: number;
-  priority_filter_maximum_estimated_minutes: number;
-  priority_filter_minimum_places: number;
-  priority_filter_always_open_keywords: string[];
-  priority_filter_ignore_keywords: string[];
   studies_refresh_min_delay_seconds: number;
   studies_refresh_average_delay_seconds: number;
   studies_refresh_spread_seconds: number;
@@ -187,18 +178,9 @@ export interface SyncState {
   studies_refresh_spread_seconds: number;
   studies_refresh_cycle_seconds: number;
 
-  // Priority filter settings
-  priority_filter_enabled: boolean;
-  priority_filter_auto_open_in_new_tab: boolean;
-  priority_filter_alert_sound_enabled: boolean;
-  priority_filter_alert_sound_type: string;
-  priority_filter_alert_sound_volume: number;
-  priority_filter_minimum_reward: number;
-  priority_filter_minimum_hourly_reward: number;
-  priority_filter_maximum_estimated_minutes: number;
-  priority_filter_minimum_places: number;
-  priority_filter_always_open_keywords: string[];
-  priority_filter_ignore_keywords: string[];
+  // Priority filters
+  priority_filters_count: number;
+  priority_filters_enabled_count: number;
 
   // Debug
   debug_logs: DebugLogEntry[];
