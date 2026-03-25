@@ -1,0 +1,23 @@
+src/assets/app.css
+  01389a80935d2ec9 8-11,13-16,18-19,21-24,26,28,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "86842373712285b3db0945bfa10a2d759f4973b1",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 28,
+      "total_deletions": 23,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    }
+  }
+}
