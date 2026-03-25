@@ -1,0 +1,19 @@
+src/entrypoints/popup/App.svelte
+  7e6c62504e9a7a13 24,27,63,217-232,239-241,315,317,412,419-429,439,444,505,525,530
+src/entrypoints/background/domain.ts
+  7e6c62504e9a7a13 2,34-35,58,76-77,107-128,234-235,254,288-321,330-331
+src/entrypoints/background/settings.ts
+  7e6c62504e9a7a13 4,7-19,51-54,92-96,98-103,106-110,117-118,122-126,129-172,176-179
+src/entrypoints/popup/components/LivePanel.svelte
+  7e6c62504e9a7a13 13,15,18,23,54-55
+src/entrypoints/popup/components/SettingsPanel.svelte
+  7e6c62504e9a7a13 2,28-29,35,40,47,52,58-85,121,130,141-142,155,180-184,187-191,194-195,197,200-260,465,468-470,478,480,500,504,529,532-541,543,545-552,554-613,615-734,736-740,752,757,877-882
+src/lib/types.ts
+  7e6c62504e9a7a13 74-75,181-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "d66313fc7acb2185cd9a38fbf72bfb6e9e22e5e4",
+  "prompts": {}
+}
