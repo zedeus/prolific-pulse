@@ -307,7 +307,7 @@
       enabled: s.priority_filter_enabled === true,
       auto_open_in_new_tab: s.priority_filter_auto_open_in_new_tab !== false,
       alert_sound_enabled: s.priority_filter_alert_sound_enabled !== false,
-      alert_sound_type: canonicalSoundType(s.priority_filter_alert_sound_type),
+      alert_sound_type: s.priority_filter_alert_sound_enabled === false ? 'none' : canonicalSoundType(s.priority_filter_alert_sound_type),
       alert_sound_volume: clampInt(
         s.priority_filter_alert_sound_volume,
         MIN_PRIORITY_ALERT_SOUND_VOLUME,
@@ -489,8 +489,8 @@
           const plain: PriorityFilter = {
             enabled: priorityFilter.enabled,
             auto_open_in_new_tab: priorityFilter.auto_open_in_new_tab,
-            alert_sound_enabled: priorityFilter.alert_sound_enabled,
-            alert_sound_type: priorityFilter.alert_sound_type,
+            alert_sound_enabled: priorityFilter.alert_sound_type !== 'none',
+            alert_sound_type: priorityFilter.alert_sound_type === 'none' ? DEFAULT_PRIORITY_ALERT_SOUND_TYPE : priorityFilter.alert_sound_type,
             alert_sound_volume: priorityFilter.alert_sound_volume,
             minimum_reward_major: priorityFilter.minimum_reward_major,
             minimum_hourly_reward_major: priorityFilter.minimum_hourly_reward_major,

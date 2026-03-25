@@ -1987,10 +1987,23 @@ export default defineBackground({
 
     function registerCaptureListeners(): void {
       registerStudiesCompletedCapture();
+      registerOAuthCompletedFallbackListener();
+
+      // filterResponseData is Firefox-only; skip all blocking captures on Chrome
+      if (!getFilterResponseDataFunction()) {
+        setState({
+          studies_response_capture_supported: false,
+          studies_response_capture_registered: false,
+          studies_response_capture_ok: null,
+          studies_response_capture_reason: 'filterResponseData not supported',
+          studies_response_capture_checked_at: nowIso(),
+        });
+        return;
+      }
+
       registerStudiesResponseCaptureIfSupported();
       registerSubmissionResponseCaptureIfSupported();
       registerParticipantSubmissionsResponseCaptureIfSupported();
-      registerOAuthCompletedFallbackListener();
       registerOAuthResponseCaptureIfSupported();
     }
 
@@ -2237,6 +2250,34 @@ export default defineBackground({
       schedule();
       registerCaptureListeners();
       await requestTokenSync(trigger);
+
+      // If we got a token and there's an open Prolific tab, do one immediate
+      // fetch so that "install with tab already open" isn't stuck on "never".
+      try {
+        const existing = await browser.storage.local.get(STATE_KEY);
+        const state = (existing[STATE_KEY] as Record<string, unknown>) || {};
+        if (state.token_ok) {
+          const tabs = await queryProlificTabs();
+          const tabId = tabs[0]?.id;
+          if (typeof tabId === 'number') {
+            pushDebugLog('boot.initial_refresh', { trigger, tab_id: tabId });
+            const result = await fetchStudiesInTab(tabId);
+            if (result.ok && result.status_code === 200) {
+              const observedAt = nowIso();
+              let parsedBody: unknown;
+              try { parsedBody = JSON.parse(result.body as string); } catch { /* ignore */ }
+              if (parsedBody) {
+                await ingestStudiesResponse(parsedBody, observedAt, 'boot.initial_refresh', FETCH_STUDIES_API_URL, result.status_code as number);
+                notifyPopupDashboardUpdated('boot.initial_refresh', observedAt);
+                const refreshPolicy = await getStudiesRefreshPolicySettings();
+                scheduleDelayedRefreshes('boot.initial_refresh', refreshPolicy);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        pushDebugLog('boot.initial_refresh.error', { error: stringifyError(err) });
+      }
     }
 
     boot('startup-load', 'extension.init').catch(() => {

@@ -104,13 +104,14 @@
   let soundBufferCache = new Map<string, Promise<AudioBuffer>>();
   let soundBufferContext: AudioContext | null = null;
 
-  const previewButtonDisabled = $derived(!previewPlaying && priorityFilter.alert_sound_volume <= 0);
+  const previewButtonDisabled = $derived(!previewPlaying && (priorityFilter.alert_sound_type === 'none' || priorityFilter.alert_sound_volume <= 0));
   const previewButtonText = $derived(previewPlaying ? '\u25A0' : '\u25B6');
   const previewButtonTitle = $derived(
     priorityFilter.alert_sound_volume <= 0 ? 'Volume is 0' : previewPlaying ? 'Stop preview' : 'Preview sound',
   );
 
   const soundTypeOptions: { value: string; label: string }[] = [
+    { value: 'none', label: 'None' },
     { value: 'pay', label: 'Pay' },
     { value: 'metal_gear', label: 'Metal Gear' },
     { value: 'twitch', label: 'Twitch' },
@@ -177,6 +178,7 @@
   }
 
   function handleSoundControlChange() {
+    priorityFilter.alert_sound_enabled = priorityFilter.alert_sound_type !== 'none';
     cancelPreview();
     handlePriorityInput();
   }
@@ -570,59 +572,46 @@
         />
       </div>
 
-      <!-- Alert sound toggle -->
+      <!-- Alert sound -->
       <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2 mt-2">
-        <label for="priorityAlertSoundToggle" class="text-[12.5px] text-base-content/50 font-medium">Alert sound</label>
-        <input
-          id="priorityAlertSoundToggle"
-          type="checkbox"
-          class="toggle toggle-primary toggle-sm justify-self-start"
-          aria-label="Alert sound"
-          bind:checked={priorityFilter.alert_sound_enabled}
-          onchange={handlePriorityCheckboxChange}
-        />
+        <div class="inline-flex items-center gap-1.5">
+          <label for="priorityAlertSoundTypeSelect" class="text-[12.5px] text-base-content/50 font-medium">Alert sound</label>
+          {#if priorityFilter.alert_sound_type !== 'none'}
+            <button
+              id="priorityAlertSoundPreviewButton"
+              class="btn btn-ghost btn-xs w-6 h-6 min-h-0 p-0 text-[11px]"
+              type="button"
+              aria-label="Preview sound"
+              title={previewButtonTitle}
+              disabled={previewButtonDisabled}
+              onclick={handlePreviewClick}
+            >{previewButtonText}</button>
+          {/if}
+        </div>
+        <select
+          id="priorityAlertSoundTypeSelect"
+          class="select select-sm w-full"
+          bind:value={priorityFilter.alert_sound_type}
+          onchange={handleSoundControlChange}
+        >
+          {#each soundTypeOptions as opt (opt.value)}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
       </div>
-
-      <!-- Alert sound config (shown when sound enabled) -->
-      {#if priorityFilter.alert_sound_enabled}
-        <div id="priorityAlertSoundConfig" class="mt-2.5 p-3 border border-base-300 rounded-md bg-base-200/50">
-          <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
-            <div class="inline-flex items-center gap-1.5">
-              <label for="priorityAlertSoundTypeSelect" class="text-[12.5px] text-base-content/50 font-medium">Sound</label>
-              <button
-                id="priorityAlertSoundPreviewButton"
-                class="btn btn-ghost btn-xs w-6 h-6 min-h-0 p-0 text-[11px]"
-                type="button"
-                aria-label="Preview sound"
-                title={previewButtonTitle}
-                disabled={previewButtonDisabled}
-                onclick={handlePreviewClick}
-              >{previewButtonText}</button>
-            </div>
-            <select
-              id="priorityAlertSoundTypeSelect"
-              class="select select-sm w-full"
-              bind:value={priorityFilter.alert_sound_type}
-              onchange={handleSoundControlChange}
-            >
-              {#each soundTypeOptions as opt (opt.value)}
-                <option value={opt.value}>{opt.label}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2 mt-2">
-            <label for="priorityAlertSoundVolumeInput" class="text-[12.5px] text-base-content/50 font-medium">Volume</label>
-            <input
-              id="priorityAlertSoundVolumeInput"
-              type="range"
-              class="range range-primary range-xs w-full"
-              min={MIN_PRIORITY_ALERT_SOUND_VOLUME}
-              max={MAX_PRIORITY_ALERT_SOUND_VOLUME}
-              step="1"
-              bind:value={priorityFilter.alert_sound_volume}
-              oninput={handleSoundControlChange}
-            />
-          </div>
+      {#if priorityFilter.alert_sound_type !== 'none'}
+        <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2 mt-2">
+          <label for="priorityAlertSoundVolumeInput" class="text-[12.5px] text-base-content/50 font-medium">Volume</label>
+          <input
+            id="priorityAlertSoundVolumeInput"
+            type="range"
+            class="range range-primary range-xs w-full"
+            min={MIN_PRIORITY_ALERT_SOUND_VOLUME}
+            max={MAX_PRIORITY_ALERT_SOUND_VOLUME}
+            step="1"
+            bind:value={priorityFilter.alert_sound_volume}
+            oninput={handleSoundControlChange}
+          />
         </div>
       {/if}
       {/if}
