@@ -203,9 +203,9 @@ function perHourBadgeVariant(value: number): 'ultra' | 'high' | null {
 
 export function rateColorClass(value: number): string {
   const variant = perHourBadgeVariant(value);
-  if (variant === 'ultra') return 'text-purple-500 dark:text-purple-400';
-  if (variant === 'high') return 'text-teal-600 dark:text-teal-400';
-  return 'text-base-content/50';
+  if (variant === 'ultra') return 'text-violet-600 dark:text-violet-400';
+  if (variant === 'high') return 'text-emerald-600 dark:text-emerald-400';
+  return 'text-base-content/45';
 }
 
 export function canonicalSoundType(value: unknown): SoundType {

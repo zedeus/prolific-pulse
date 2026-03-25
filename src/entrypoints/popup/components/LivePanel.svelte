@@ -38,7 +38,7 @@
 </script>
 
 <div id="panelLive" class="panel" class:active role="tabpanel" aria-labelledby="tabLive">
-  <div class="live-studies min-h-[420px] max-h-[420px] overflow-auto pb-1">
+  <div class="live-studies min-h-[420px] max-h-[420px] scroll-container pb-1">
     {#if overrideMessage}
       <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-100">
         {overrideMessage}
@@ -76,13 +76,15 @@
                   <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{firstSeenText}</div>
                 {/if}
               </div>
-              <div class="event-metrics mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">
                 <span class="text-[15px] font-bold text-primary">{reward}</span>
-                <span class="text-[13px] font-semibold {hourlyClass}">{perHour}/hr</span>
-                <span class="text-xs text-base-content/45">{eta}</span>
-                <span class="text-xs {placesLow ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-base-content/45'}">{placesLabel}</span>
+                <span class="text-[12px] font-semibold {hourlyClass}">{perHour}/hr</span>
+                <span class="text-base-content/20 select-none">·</span>
+                <span class="text-xs text-base-content/55">{eta}</span>
+                <span class="text-base-content/20 select-none">·</span>
+                <span class="text-xs {placesLow ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-base-content/55'}">{placesLabel}</span>
                 {#if isPriority}
-                  <span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-px rounded bg-purple-600 text-white">Priority</span>
+                  <span class="ml-0.5 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-[1px] rounded bg-purple-700 text-purple-100 dark:bg-purple-500 dark:text-white">priority</span>
                 {/if}
               </div>
             </div>

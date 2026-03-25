@@ -24,7 +24,7 @@
 </script>
 
 <div id="panelFeed" class="panel" class:active role="tabpanel" aria-labelledby="tabFeed">
-  <div class="events min-h-[420px] max-h-[420px] overflow-auto pb-1">
+  <div class="events min-h-[420px] max-h-[420px] scroll-container pb-1">
     {#if overrideMessage}
       <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-100">
         {overrideMessage}
@@ -64,11 +64,13 @@
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
               </div>
-              <div class="event-metrics mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">
                 <span class="text-[15px] font-bold text-primary">{reward}</span>
-                <span class="text-[13px] font-semibold {hourlyClass}">{perHour}/hr</span>
-                <span class="text-xs text-base-content/45">{duration}</span>
-                <span class="text-xs {isLowRemaining ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-base-content/45'}">{placesLine}</span>
+                <span class="text-[12px] font-semibold {hourlyClass}">{perHour}/hr</span>
+                <span class="text-base-content/20 select-none">·</span>
+                <span class="text-xs text-base-content/55">{duration}</span>
+                <span class="text-base-content/20 select-none">·</span>
+                <span class="text-xs {isLowRemaining ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-base-content/55'}">{placesLine}</span>
               </div>
             </div>
           </a>

@@ -435,7 +435,7 @@
 </script>
 
 <div id="panelSettings" class="panel" class:active role="tabpanel" aria-labelledby="tabSettings">
-  <div class="settings">
+  <div class="settings min-h-[420px] max-h-[420px] scroll-container pb-1">
     <!-- Auto-open card -->
     <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 flex items-center justify-between gap-3 mb-2.5">
       <div>
@@ -745,7 +745,7 @@
           {/each}
         </div>
 
-        <div id="debugLog" class="debug-log max-h-[180px] overflow-auto border border-base-300 rounded-md bg-base-100/80 p-2 font-mono text-[10px] leading-snug text-base-content/70">
+        <div id="debugLog" class="debug-log max-h-[180px] scroll-container border border-base-300 rounded-md bg-base-100/80 p-2 font-mono text-[10px] leading-snug text-base-content/70">
           {#if !debugLogs.length}
             <div class="debug-line">No diagnostic events yet.</div>
           {:else}

@@ -3,14 +3,32 @@
   themes: light --default, dark --prefersdark;
 }
 
-html, body { background: oklch(var(--b2)); margin: 0; }
+html, body { background: oklch(var(--b2)); margin: 0; overflow: hidden; }
 
-/* Thin scrollbars */
-.overflow-auto::-webkit-scrollbar { width: 6px; }
-.overflow-auto::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 9999px; }
-.overflow-auto::-webkit-scrollbar-track { background: transparent; }
-
-/* Compact range sliders for the extension popup */
-.range-xs {
-  --range-thumb-size: 1rem;
+/* Overlay scrollbar — overlaps content, fades in on hover/scroll */
+.scroll-container {
+  overflow-y: scroll;
+  scrollbar-width: none; /* hide Firefox default */
 }
+.scroll-container::-webkit-scrollbar {
+  width: 5px;
+  position: absolute;
+  right: 0;
+}
+.scroll-container::-webkit-scrollbar-track { background: transparent; }
+.scroll-container::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background 0.2s;
+}
+.scroll-container:hover::-webkit-scrollbar-thumb {
+  background: oklch(var(--bc) / 0.18);
+}
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--bc) / 0.35);
+}
+/* Firefox: show thin scrollbar only on hover */
+.scroll-container:hover { scrollbar-width: thin; scrollbar-color: oklch(var(--bc) / 0.18) transparent; }
+
+/* Compact range sliders */
+.range-xs { --range-thumb-size: 1rem; }
