@@ -253,7 +253,6 @@ export function normalizeRefreshPolicy(minDelay: number, avgDelay: number, sprea
     average_delay_seconds: average,
     spread_seconds: spreadClamped,
     cycle_seconds: STUDIES_REFRESH_CYCLE_SECONDS,
-    calculated_cycle_seconds: calculatedCycleSeconds,
     maximum_minimum_delay_seconds: maximumMinimumDelaySeconds,
     maximum_spread_seconds: maximumSpreadSeconds,
   };

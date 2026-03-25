@@ -9,6 +9,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4",
+    "@wdio/cli": "^9.27.0",
     "@wxt-dev/module-svelte": "^2",
     "daisyui": "^5",
     "eslint": "^10.1.0",

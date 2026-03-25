@@ -45,6 +45,9 @@ export default defineConfig({
       browser === 'firefox'
         ? { gecko: { id: 'prolific-pulse@prolific-pulse', strict_min_version: '110.0' } }
         : undefined,
+    web_accessible_resources: browser === 'chrome' ? [
+      { resources: ['intercept-main.js'], matches: ['*://app.prolific.com/*', '*://auth.prolific.com/*'] },
+    ] : undefined,
     homepage_url: 'https://github.com/zedeus/prolific-pulse',
   }),
   vite: () => ({

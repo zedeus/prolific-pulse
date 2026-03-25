@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { browser } from 'wxt/browser';
   import type {
     Study,
@@ -27,7 +28,6 @@
     DEFAULT_PRIORITY_FILTER_MIN_PLACES,
     DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
     DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-    DEFAULT_PRIORITY_ALERT_SOUND_DURATION_MS,
     MIN_PRIORITY_ALERT_SOUND_VOLUME,
     MAX_PRIORITY_ALERT_SOUND_VOLUME,
   } from '../../lib/constants';
@@ -70,7 +70,6 @@
     alert_sound_enabled: true,
     alert_sound_type: DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
     alert_sound_volume: DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-    alert_sound_duration_ms: DEFAULT_PRIORITY_ALERT_SOUND_DURATION_MS,
     minimum_reward_major: DEFAULT_PRIORITY_FILTER_MIN_REWARD,
     minimum_hourly_reward_major: DEFAULT_PRIORITY_FILTER_MIN_HOURLY_REWARD,
     maximum_estimated_minutes: DEFAULT_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
@@ -128,7 +127,7 @@
   $effect(() => {
     const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
     function applyTheme(dark: boolean) {
-      document.documentElement.setAttribute('data-theme', dark ? 'business' : 'corporate');
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     }
     applyTheme(darkQuery.matches);
     const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
@@ -162,8 +161,10 @@
   });
 
   $effect(() => {
-    refreshSettings();
-    refreshView();
+    untrack(() => {
+      refreshSettings();
+      refreshView();
+    });
   });
 
   $effect(() => {
@@ -241,7 +242,6 @@
         MAX_PRIORITY_ALERT_SOUND_VOLUME,
         DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
       ),
-      alert_sound_duration_ms: DEFAULT_PRIORITY_ALERT_SOUND_DURATION_MS,
       minimum_reward_major: Math.round(clampNumber(
         s.priority_filter_minimum_reward, 0, 100, DEFAULT_PRIORITY_FILTER_MIN_REWARD,
       ) * 100) / 100,
@@ -492,7 +492,8 @@
       while (priorityFilterPersistPending) {
         priorityFilterPersistPending = false;
         try {
-          const saved = await setPriorityFilterRemote(priorityFilter);
+          // Deep-clone to strip Svelte $state proxies before runtime.sendMessage
+          const saved = await setPriorityFilterRemote(JSON.parse(JSON.stringify(priorityFilter)));
           const normalized = normalizePriorityFilterFromSettings(saved);
           priorityFilter = normalized;
         } catch (err) {

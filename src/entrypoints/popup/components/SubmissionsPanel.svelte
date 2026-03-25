@@ -52,13 +52,13 @@
 
   function cardBorderClass(status: string, phase: string): string {
     const upper = normalizeSubmissionStatus(status);
-    if (upper === 'APPROVED') return 'border-l-success bg-emerald-50/50';
-    if (upper === 'AWAITING REVIEW') return 'border-l-warning bg-amber-50/50';
-    if (upper === 'RETURNED' || upper === 'REJECTED' || upper === 'SCREENED OUT') return 'border-l-error bg-rose-50/50';
+    if (upper === 'APPROVED') return 'border-l-success';
+    if (upper === 'AWAITING REVIEW') return 'border-l-warning';
+    if (upper === 'RETURNED' || upper === 'REJECTED' || upper === 'SCREENED OUT') return 'border-l-error';
     const normalizedPhase = String(phase || '').toLowerCase().trim();
-    if (normalizedPhase === 'submitting') return 'border-l-info bg-base-100';
-    if (normalizedPhase === 'submitted') return 'border-l-base-300 bg-base-100';
-    return 'border-l-base-300 bg-base-200/50';
+    if (normalizedPhase === 'submitting') return 'border-l-info';
+    if (normalizedPhase === 'submitted') return 'border-l-base-300';
+    return 'border-l-base-300';
   }
 
   function handleLinkClick(event: MouseEvent, url: string) {
@@ -103,7 +103,7 @@
             title="Open study in Prolific"
             onclick={(e) => handleLinkClick(e, studyURL)}
           >
-            <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] shadow-sm border-l-3 {borderClass}">
+            <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 border-l-3 {borderClass}">
               <div class="event-top flex items-start justify-between gap-2.5">
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
@@ -118,7 +118,7 @@
             </div>
           </a>
         {:else}
-          <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] shadow-sm border-l-3 {borderClass}">
+          <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 border-l-3 {borderClass}">
             <div class="event-top flex items-start justify-between gap-2.5">
               <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
               <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>

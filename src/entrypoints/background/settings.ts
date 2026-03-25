@@ -11,7 +11,6 @@ export interface PrioritySettingsKeys {
   alertSoundEnabled: string;
   alertSoundType: string;
   alertSoundVolume: string;
-  alertSoundDurationMS: string;
   minimumReward: string;
   minimumHourlyReward: string;
   maximumEstimatedMinutes: string;
@@ -32,8 +31,6 @@ export interface PrioritySettingsLimits {
   minMinimumPlaces: number;
   maxAlertSoundVolume: number;
   minAlertSoundVolume: number;
-  maxAlertSoundDurationMS: number;
-  minAlertSoundDurationMS: number;
 }
 
 export interface PrioritySettingsDefaults {
@@ -43,7 +40,6 @@ export interface PrioritySettingsDefaults {
   minimumPlacesAvailable: number;
   alertSoundType: SoundType;
   alertSoundVolume: number;
-  alertSoundDurationMS: number;
 }
 
 export interface CreatePrioritySettingsOptions {
@@ -59,7 +55,6 @@ export interface PrioritySettings {
     rawAlertSoundEnabled: unknown,
     rawAlertSoundType: unknown,
     rawAlertSoundVolume: unknown,
-    rawAlertSoundDurationMS: unknown,
     rawMinimumRewardMajor: unknown,
     rawMinimumHourlyRewardMajor: unknown,
     rawMaximumEstimatedMinutes: unknown,
@@ -112,7 +107,6 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
     rawAlertSoundEnabled: unknown,
     rawAlertSoundType: unknown,
     rawAlertSoundVolume: unknown,
-    rawAlertSoundDurationMS: unknown,
     rawMinimumRewardMajor: unknown,
     rawMinimumHourlyRewardMajor: unknown,
     rawMaximumEstimatedMinutes: unknown,
@@ -173,21 +167,12 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
         parseInteger(rawAlertSoundVolume, defaults.alertSoundVolume),
       ),
     );
-    const alertSoundDurationMS = Math.min(
-      limits.maxAlertSoundDurationMS,
-      Math.max(
-        limits.minAlertSoundDurationMS,
-        parseInteger(rawAlertSoundDurationMS, defaults.alertSoundDurationMS),
-      ),
-    );
-
     return {
       enabled: rawEnabled === true,
       auto_open_in_new_tab: rawAutoOpenInNewTab !== false,
       alert_sound_enabled: rawAlertSoundEnabled !== false,
       alert_sound_type: normalizedAlertSoundType,
       alert_sound_volume: alertSoundVolume,
-      alert_sound_duration_ms: alertSoundDurationMS,
       minimum_reward_major: Math.round(minimumRewardMajor * 100) / 100,
       minimum_hourly_reward_major: Math.round(minimumHourlyRewardMajor * 100) / 100,
       maximum_estimated_minutes: maximumEstimatedMinutes,
@@ -204,7 +189,6 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
       keys.alertSoundEnabled,
       keys.alertSoundType,
       keys.alertSoundVolume,
-      keys.alertSoundDurationMS,
       keys.minimumReward,
       keys.minimumHourlyReward,
       keys.maximumEstimatedMinutes,
@@ -218,7 +202,6 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
       data[keys.alertSoundEnabled] !== false,
       data[keys.alertSoundType],
       data[keys.alertSoundVolume],
-      data[keys.alertSoundDurationMS],
       data[keys.minimumReward],
       data[keys.minimumHourlyReward],
       data[keys.maximumEstimatedMinutes],

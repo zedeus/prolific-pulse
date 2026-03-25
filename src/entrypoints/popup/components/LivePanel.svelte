@@ -69,7 +69,7 @@
             title="Open study in Prolific"
             onclick={(e) => handleLinkClick(e, url)}
           >
-            <div class="event live {isPriority ? 'priority' : ''} p-3.5 rounded-lg mb-2.5 text-[12.5px] bg-base-100 shadow-sm {isPriority ? 'border-l-3 border-l-purple-600 !bg-purple-50 shadow-[0_1px_3px_rgba(15,23,42,0.06),inset_0_0_0_1px_rgba(124,58,237,0.12)]' : 'border-l-3 border-l-transparent'}">
+            <div class="event live {isPriority ? 'priority' : ''} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 {isPriority ? '!border-l-3 !border-l-purple-500 !bg-purple-500/10' : ''}">
               <div class="event-top flex items-start justify-between gap-2.5">
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{study.name || '(unnamed study)'}</div>
                 {#if firstSeenText}
@@ -89,7 +89,7 @@
             </div>
           </a>
         {:else}
-          <div class="event live {isPriority ? 'priority' : ''} p-3.5 rounded-lg mb-2.5 text-[12.5px] bg-base-100 shadow-sm border-l-3 border-l-transparent">
+          <div class="event live {isPriority ? 'priority' : ''} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200">
             <div class="event-top flex items-start justify-between gap-2.5">
               <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{study.name || '(unnamed study)'}</div>
               {#if firstSeenText}

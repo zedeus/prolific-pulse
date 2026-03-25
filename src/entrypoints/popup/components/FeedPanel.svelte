@@ -59,7 +59,7 @@
             title="Open study in Prolific"
             onclick={(e) => handleLinkClick(e, studyURL)}
           >
-            <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] shadow-sm border-l-3 {type === 'available' ? 'border-l-success bg-base-100' : 'border-l-error bg-base-200/50'}">
+            <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
               <div class="event-top flex items-start justify-between gap-2.5">
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
@@ -74,7 +74,7 @@
             </div>
           </a>
         {:else}
-          <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] shadow-sm border-l-3 {type === 'available' ? 'border-l-success bg-base-100' : 'border-l-error bg-base-200/50'}">
+          <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
             <div class="event-top flex items-start justify-between gap-2.5">
               <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
               <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>

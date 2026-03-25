@@ -39,7 +39,6 @@ import {
   PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
   PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
   PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-  PRIORITY_FILTER_ALERT_SOUND_DURATION_MS_KEY,
   PRIORITY_FILTER_MIN_REWARD_KEY,
   PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
   PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
@@ -79,11 +78,8 @@ import {
   PRIORITY_ALERT_COOLDOWN_MS,
   DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
   DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-  DEFAULT_PRIORITY_ALERT_SOUND_DURATION_MS,
   MIN_PRIORITY_ALERT_SOUND_VOLUME,
   MAX_PRIORITY_ALERT_SOUND_VOLUME,
-  MIN_PRIORITY_ALERT_SOUND_DURATION_MS,
-  MAX_PRIORITY_ALERT_SOUND_DURATION_MS,
   PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH,
   DEBUG_LOG_LIMIT,
   DEBUG_LOG_SUPPRESSED_EVENTS,
@@ -147,7 +143,6 @@ export default defineBackground({
         alertSoundEnabled: PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
         alertSoundType: PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
         alertSoundVolume: PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-        alertSoundDurationMS: PRIORITY_FILTER_ALERT_SOUND_DURATION_MS_KEY,
         minimumReward: PRIORITY_FILTER_MIN_REWARD_KEY,
         minimumHourlyReward: PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
         maximumEstimatedMinutes: PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
@@ -167,8 +162,6 @@ export default defineBackground({
         maxMinimumPlaces: MAX_PRIORITY_FILTER_MIN_PLACES,
         minAlertSoundVolume: MIN_PRIORITY_ALERT_SOUND_VOLUME,
         maxAlertSoundVolume: MAX_PRIORITY_ALERT_SOUND_VOLUME,
-        minAlertSoundDurationMS: MIN_PRIORITY_ALERT_SOUND_DURATION_MS,
-        maxAlertSoundDurationMS: MAX_PRIORITY_ALERT_SOUND_DURATION_MS,
       },
       defaults: {
         minimumRewardMajor: DEFAULT_PRIORITY_FILTER_MIN_REWARD,
@@ -177,7 +170,6 @@ export default defineBackground({
         minimumPlacesAvailable: DEFAULT_PRIORITY_FILTER_MIN_PLACES,
         alertSoundType: DEFAULT_PRIORITY_ALERT_SOUND_TYPE as SoundType,
         alertSoundVolume: DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-        alertSoundDurationMS: DEFAULT_PRIORITY_ALERT_SOUND_DURATION_MS,
       },
     });
 
@@ -2506,7 +2498,6 @@ export default defineBackground({
         settings.priority_filter_alert_sound_enabled = priorityFilter.alert_sound_enabled !== false;
         settings.priority_filter_alert_sound_type = priorityFilter.alert_sound_type || DEFAULT_PRIORITY_ALERT_SOUND_TYPE;
         settings.priority_filter_alert_sound_volume = priorityFilter.alert_sound_volume;
-        settings.priority_filter_alert_sound_duration_ms = priorityFilter.alert_sound_duration_ms;
         settings.priority_filter_minimum_reward = priorityFilter.minimum_reward_major;
         settings.priority_filter_minimum_hourly_reward = priorityFilter.minimum_hourly_reward_major;
         settings.priority_filter_maximum_estimated_minutes = priorityFilter.maximum_estimated_minutes;
@@ -2564,7 +2555,6 @@ export default defineBackground({
           PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
           PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY,
           PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY,
-          PRIORITY_FILTER_ALERT_SOUND_DURATION_MS_KEY,
           PRIORITY_FILTER_MIN_REWARD_KEY,
           PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY,
           PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY,
@@ -2586,7 +2576,6 @@ export default defineBackground({
             data[PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY] !== false,
             data[PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY],
             data[PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY],
-            data[PRIORITY_FILTER_ALERT_SOUND_DURATION_MS_KEY],
             data[PRIORITY_FILTER_MIN_REWARD_KEY],
             data[PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY],
             data[PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY],
@@ -2658,7 +2647,6 @@ export default defineBackground({
             msg.alert_sound_enabled,
             msg.alert_sound_type,
             msg.alert_sound_volume,
-            msg.alert_sound_duration_ms,
             msg.minimum_reward_major,
             msg.minimum_hourly_reward_major,
             msg.maximum_estimated_minutes,
@@ -2673,7 +2661,6 @@ export default defineBackground({
             [PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY]: priorityFilter.alert_sound_enabled,
             [PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY]: priorityFilter.alert_sound_type,
             [PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY]: priorityFilter.alert_sound_volume,
-            [PRIORITY_FILTER_ALERT_SOUND_DURATION_MS_KEY]: priorityFilter.alert_sound_duration_ms,
             [PRIORITY_FILTER_MIN_REWARD_KEY]: priorityFilter.minimum_reward_major,
             [PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY]: priorityFilter.minimum_hourly_reward_major,
             [PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY]: priorityFilter.maximum_estimated_minutes,
@@ -2689,7 +2676,6 @@ export default defineBackground({
             priority_filter_alert_sound_enabled: priorityFilter.alert_sound_enabled,
             priority_filter_alert_sound_type: priorityFilter.alert_sound_type,
             priority_filter_alert_sound_volume: priorityFilter.alert_sound_volume,
-            priority_filter_alert_sound_duration_ms: priorityFilter.alert_sound_duration_ms,
             priority_filter_minimum_reward: priorityFilter.minimum_reward_major,
             priority_filter_minimum_hourly_reward: priorityFilter.minimum_hourly_reward_major,
             priority_filter_maximum_estimated_minutes: priorityFilter.maximum_estimated_minutes,
@@ -2748,7 +2734,6 @@ export default defineBackground({
         return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
           await updateState(() => ({
             debug_logs: [],
-            debug_logs_cleared_at: nowIso(),
           }));
           sendResponse({ ok: true });
         });

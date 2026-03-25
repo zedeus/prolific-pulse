@@ -89,7 +89,6 @@ export interface PriorityFilter {
   alert_sound_enabled: boolean;
   alert_sound_type: string;
   alert_sound_volume: number;
-  alert_sound_duration_ms: number;
   minimum_reward_major: number;
   minimum_hourly_reward_major: number;
   maximum_estimated_minutes: number;
@@ -106,7 +105,6 @@ export interface RefreshPolicy {
 
 export interface NormalizedRefreshPolicy extends RefreshPolicy {
   cycle_seconds: number;
-  calculated_cycle_seconds: number;
   maximum_minimum_delay_seconds: number;
   maximum_spread_seconds: number;
 }
@@ -118,7 +116,6 @@ export interface Settings {
   priority_filter_alert_sound_enabled: boolean;
   priority_filter_alert_sound_type: string;
   priority_filter_alert_sound_volume: number;
-  priority_filter_alert_sound_duration_ms: number;
   priority_filter_minimum_reward: number;
   priority_filter_minimum_hourly_reward: number;
   priority_filter_maximum_estimated_minutes: number;
@@ -217,7 +214,6 @@ export interface SyncState {
   priority_filter_alert_sound_enabled: boolean;
   priority_filter_alert_sound_type: string;
   priority_filter_alert_sound_volume: number;
-  priority_filter_alert_sound_duration_ms: number;
   priority_filter_minimum_reward: number;
   priority_filter_minimum_hourly_reward: number;
   priority_filter_maximum_estimated_minutes: number;

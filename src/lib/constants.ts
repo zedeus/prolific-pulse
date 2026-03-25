@@ -72,7 +72,6 @@ export const PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY = 'priorityFilterAutoOpenInNe
 export const PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY = 'priorityFilterAlertSoundEnabled';
 export const PRIORITY_FILTER_ALERT_SOUND_TYPE_KEY = 'priorityFilterAlertSoundType';
 export const PRIORITY_FILTER_ALERT_SOUND_VOLUME_KEY = 'priorityFilterAlertSoundVolume';
-export const PRIORITY_FILTER_ALERT_SOUND_DURATION_MS_KEY = 'priorityFilterAlertSoundDurationMS';
 export const PRIORITY_FILTER_MIN_REWARD_KEY = 'priorityFilterMinimumReward';
 export const PRIORITY_FILTER_MIN_HOURLY_REWARD_KEY = 'priorityFilterMinimumHourlyReward';
 export const PRIORITY_FILTER_MAX_ESTIMATED_MINUTES_KEY = 'priorityFilterMaximumEstimatedMinutes';
@@ -116,11 +115,8 @@ export const PRIORITY_ALERT_COOLDOWN_MS = 7000;
 
 export const DEFAULT_PRIORITY_ALERT_SOUND_TYPE = 'pay';
 export const DEFAULT_PRIORITY_ALERT_SOUND_VOLUME = 100;
-export const DEFAULT_PRIORITY_ALERT_SOUND_DURATION_MS = 1400;
 export const MIN_PRIORITY_ALERT_SOUND_VOLUME = 0;
 export const MAX_PRIORITY_ALERT_SOUND_VOLUME = 100;
-export const MIN_PRIORITY_ALERT_SOUND_DURATION_MS = 200;
-export const MAX_PRIORITY_ALERT_SOUND_DURATION_MS = 5000;
 
 export const PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH = Object.freeze({
   pay: 'sounds/pay.base64',
