@@ -43,7 +43,7 @@ build/
 
 # WXT build output and dependencies
 src/.output/
-src/.wxt/
+.wxt/
 src/node_modules/
 
 # Test artifacts
