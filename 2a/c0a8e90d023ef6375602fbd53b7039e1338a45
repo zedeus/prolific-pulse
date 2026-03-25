@@ -1,0 +1,23 @@
+src/entrypoints/background/index.ts
+  7e6c62504e9a7a13 87-90,769-821,824-827,909-914,1750-1751,1753-1754
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "2ac0a8e90d023ef6375602fbd53b7039e1338a45",
+  "prompts": {
+    "7e6c62504e9a7a13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b17ac52-5b7d-415d-b179-f364b44c0feb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 6,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    }
+  }
+}
