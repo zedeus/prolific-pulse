@@ -1,0 +1,59 @@
+tests-wdio/specs/04-server-reconnect.js
+  01389a80935d2ec9 11,15-36
+src/eslint.config.js
+  01389a80935d2ec9 1-50
+src/lib/types.ts
+  01389a80935d2ec9 1-252
+src/wxt.config.ts
+  01389a80935d2ec9 1-56
+tests-wdio/helpers/shared-setup.js
+  01389a80935d2ec9 11,13,33-34,94-100
+src/entrypoints/popup/components/StatusBar.svelte
+  01389a80935d2ec9 1-47
+.gitignore
+  01389a80935d2ec9 44-48,56
+src/entrypoints/popup/components/TabBar.svelte
+  01389a80935d2ec9 1-28
+src/assets/app.css
+  01389a80935d2ec9 1-16
+src/entrypoints/popup/components/FeedPanel.svelte
+  01389a80935d2ec9 1-26,28,30-32,34-53,55-115
+tests-wdio/specs/08-popup-panels.js
+  01389a80935d2ec9 1-6,8-143,146-208,210-239,242,244-249,252-281,286-289,291-300,302-303,305-318,320-358,360-448,450-547,549
+src/entrypoints/popup/components/LivePanel.svelte
+  01389a80935d2ec9 1-22,24-40,42,44-46,48-63,65-146
+src/lib/format.ts
+  01389a80935d2ec9 1-270
+tests-wdio/specs/05-settings.js
+  01389a80935d2ec9 3-74,77-105,107-112,115-170,173,175-178,181-186,189,191-194,196-217,219-239,241-261,263-264,266-294,296-315,317-331,333-353,355-356,358-366,368-380,382-384,387-416,418-424,426-427
+tests-wdio/specs/09-screenshots.js
+  01389a80935d2ec9 1-51
+src/entrypoints/popup/components/SettingsPanel.svelte
+  01389a80935d2ec9 1-97,100-113,115-747,749-782
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  01389a80935d2ec9 1-22,24-59,61-78,80,82-84,86-105,107-167
+src/entrypoints/background/index.ts
+  01389a80935d2ec9 1-2810
+src/entrypoints/popup/App.svelte
+  01389a80935d2ec9 1-102,104-108,110-116,118-123,126-652
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "e60e8126eb4083e7f705145abcc77ef4cb5ac0e5",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 24,
+      "accepted_lines": 6383,
+      "overriden_lines": 0
+    }
+  }
+}

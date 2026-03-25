@@ -1,0 +1,59 @@
+src/entrypoints/popup/components/StatusBar.svelte
+  01389a80935d2ec9 1-47
+src/entrypoints/popup/components/TabBar.svelte
+  01389a80935d2ec9 1-28
+tests-wdio/specs/08-popup-panels.js
+  01389a80935d2ec9 1-6,8-143,146-208,210-239,242,244-249,252-281,286-289,291-300,302-303,305-318,320-358,360-448,450-547,549
+tests-wdio/helpers/shared-setup.js
+  01389a80935d2ec9 11,13,33-34,94-100
+tests-wdio/specs/09-screenshots.js
+  01389a80935d2ec9 1-51
+tests-wdio/specs/04-server-reconnect.js
+  01389a80935d2ec9 11,15-36
+.gitignore
+  01389a80935d2ec9 44-48,56
+src/eslint.config.js
+  01389a80935d2ec9 1-50
+src/entrypoints/background/index.ts
+  01389a80935d2ec9 1-2808
+src/lib/format.ts
+  01389a80935d2ec9 1-270
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  01389a80935d2ec9 1-22,24-59,61-70,72,74-76,78-97,99-157
+src/entrypoints/popup/components/FeedPanel.svelte
+  01389a80935d2ec9 1-26,28,30-32,34-53,55-113
+src/entrypoints/popup/components/LivePanel.svelte
+  01389a80935d2ec9 1-22,24-40,42,44-46,48-63,65-137
+src/lib/types.ts
+  01389a80935d2ec9 1-252
+src/wxt.config.ts
+  01389a80935d2ec9 1-56
+src/entrypoints/popup/components/SettingsPanel.svelte
+  01389a80935d2ec9 1,3-6,8-30,39-67,69-91,93,95-99,102-108,123-132,134-149,151-153,156-160,163-168,173-239,248-256,258-320,322-323,325,327-511,513-812,814-865,867-897
+src/assets/app.css
+  01389a80935d2ec9 1-4
+tests-wdio/specs/05-settings.js
+  01389a80935d2ec9 3-74,77-105,107-112,115-170,173,175-178,181-186,189,191-194,196-217,219-241,243-251,253-269,271-272,274-276,278-279,282-294,296-303,305-307,310-339,341-347,349-350
+src/entrypoints/popup/App.svelte
+  01389a80935d2ec9 1-100,102-106,108-114,116-121,124-602
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "7c7973201595dfdc78d4d20b2e0511f9b0229ceb",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 24,
+      "accepted_lines": 6287,
+      "overriden_lines": 0
+    }
+  }
+}
