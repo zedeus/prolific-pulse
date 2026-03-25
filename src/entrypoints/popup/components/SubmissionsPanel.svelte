@@ -102,8 +102,7 @@
         {@const borderClass = cardBorderClass(entry.status, entry.phase)}
         {@const statusLabel = formatSubmissionStatus(entry.status)}
 
-        {#if studyURL}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
           <a
             class="event-link block no-underline text-inherit rounded-lg outline-none"
             href={studyURL}
@@ -125,21 +124,6 @@
               </div>
             </div>
           </a>
-        {:else}
-          <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 shadow-sm bg-base-100 border-l-[3px] {borderClass}">
-            <div class="event-top flex items-start justify-between gap-2.5">
-              <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
-              <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
-            </div>
-            <div class="event-metrics mt-2.5 flex flex-wrap items-center gap-1.5">
-              <span class="metric reward text-base font-bold text-primary">{reward}</span>
-              <span class="metric rate text-sm font-bold {hourlyClass}">{hourly}</span>
-              <span class="w-px h-[18px] bg-base-300 mx-0.5"></span>
-              <span class="badge badge-sm px-2 py-0.5 bg-base-200 border-base-300 text-base-content/60 font-semibold">{statusLabel}</span>
-              <span class="badge badge-sm px-2 py-0.5 bg-base-200 border-base-300 text-base-content/60 font-semibold">{duration}</span>
-            </div>
-          </div>
-        {/if}
       {/each}
     {/if}
   </div>

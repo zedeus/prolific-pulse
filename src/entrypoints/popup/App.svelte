@@ -261,7 +261,7 @@
 
   function normalizePriorityFilterFromSettings(s: Settings): PriorityFilter {
     return {
-      enabled: s.auto_open_priority_studies === true || (s as any).priority_filter_enabled === true,
+      enabled: s.auto_open_priority_studies === true || s.priority_filter_enabled === true,
       auto_open_in_new_tab: s.priority_filter_auto_open_in_new_tab !== false,
       alert_sound_enabled: s.priority_filter_alert_sound_enabled !== false,
       alert_sound_type: canonicalSoundType(s.priority_filter_alert_sound_type),
