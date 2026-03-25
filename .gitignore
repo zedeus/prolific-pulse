@@ -41,6 +41,11 @@ extension/*.zip
 dist/
 build/
 
+# WXT build output and dependencies
+src/.output/
+src/.wxt/
+src/node_modules/
+
 # Test artifacts
 tests/profiles/
 

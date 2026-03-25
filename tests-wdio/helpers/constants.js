@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
-export const EXTENSION_DIR = path.join(PROJECT_ROOT, 'extension');
+export const WXT_SRC_DIR = path.join(PROJECT_ROOT, 'src');
+export const EXTENSION_DIR = path.join(WXT_SRC_DIR, '.output', 'firefox-mv2');
+export const CHROME_EXTENSION_OUTPUT_DIR = path.join(WXT_SRC_DIR, '.output', 'chrome-mv3');
 export const PROFILE_DIR = path.join(PROJECT_ROOT, 'tests', 'profiles', 'prolific');
 const ADDON_ID = 'prolific-pulse@prolific-pulse';
 const ADDON_UUID = 'a1b2c3d4-0000-4000-8000-000000000001';

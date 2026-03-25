@@ -1,26 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { EXTENSION_DIR, PROFILE_DIR } from './constants.js';
+import { CHROME_EXTENSION_OUTPUT_DIR, PROFILE_DIR } from './constants.js';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 export const CHROME_EXTENSION_DIR = path.join(__dirname, '..', '.chrome-extension');
 
 /**
- * Prepare a Chrome-compatible extension directory by copying all extension
- * files and swapping manifest.chrome.json → manifest.json.
+ * Prepare a Chrome-compatible extension directory by copying from
+ * WXT's Chrome build output (already has the correct manifest).
  */
 export function prepareChromeExtensionDir() {
   if (fs.existsSync(CHROME_EXTENSION_DIR)) {
     fs.rmSync(CHROME_EXTENSION_DIR, { recursive: true });
   }
-  fs.cpSync(EXTENSION_DIR, CHROME_EXTENSION_DIR, { recursive: true });
-  const chromeManifest = path.join(CHROME_EXTENSION_DIR, 'manifest.chrome.json');
-  const manifest = path.join(CHROME_EXTENSION_DIR, 'manifest.json');
-  if (fs.existsSync(chromeManifest)) {
-    fs.rmSync(manifest);
-    fs.renameSync(chromeManifest, manifest);
-  }
+  fs.cpSync(CHROME_EXTENSION_OUTPUT_DIR, CHROME_EXTENSION_DIR, { recursive: true });
 }
 
 

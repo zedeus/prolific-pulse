@@ -8,8 +8,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { PROLIFIC_STUDIES_URL, GO_SERVER_URL } from './constants.js';
+import { PROLIFIC_STUDIES_URL, GO_SERVER_URL, WXT_SRC_DIR } from './constants.js';
 import { GoServerManager } from './go-server.js';
 import { isLoggedIn, automatedLogin } from './auth.js';
 
@@ -87,6 +88,13 @@ export async function sharedBefore(opts = {}) {
   for (const f of ['prolific_pulse.db', 'prolific_pulse.db-shm', 'prolific_pulse.db-wal']) {
     try { fs.rmSync(path.join(PROJECT_ROOT, f)); } catch { /* ok */ }
   }
+
+  // Build extension with WXT for both browsers.
+  const browserName = browser.capabilities?.browserName || 'firefox';
+  const wxtTarget = browserName === 'chrome' ? 'chrome' : 'firefox';
+  console.log(`Building extension with WXT for ${wxtTarget}...`);
+  execSync(`npx wxt build -b ${wxtTarget}`, { cwd: WXT_SRC_DIR, stdio: 'inherit' });
+  console.log('Extension built.');
 
   // Build and start Go server.
   const goServer = new GoServerManager();

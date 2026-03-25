@@ -5,13 +5,40 @@ Go server + browser extension (Firefox & Chrome) that monitors Prolific study av
 ## Architecture
 
 - **Go server** (`*.go`): HTTP/WS server on `:8080`. Stores studies, submissions, refresh state in SQLite.
-- **Browser extension** (`extension/`): MV3 extension (Firefox & Chrome) that intercepts Prolific API responses and forwards them to the Go server via WebSocket.
-- **Popup** (`popup.html/popup.js`): Extension popup with live studies, feed, submissions, settings tabs and debug diagnostics.
+- **Browser extension** (`src/`): WXT + Svelte 5 + TypeScript + Tailwind v4 + DaisyUI 5. MV3 for Chrome, MV2 for Firefox (auto-converted by WXT).
+- **Popup**: Svelte 5 components with DaisyUI styling. Tabs: live studies, feed, submissions, settings, diagnostics.
+- **Old extension** (`extension/`): Legacy vanilla JS version. Kept for reference during migration. Will be removed.
 
 ### Browser-specific paths
-- **Firefox**: Uses `webRequest.filterResponseData()` for passive API response interception. Background runs as an event page. Audio via direct `AudioContext`.
-- **Chrome**: Uses MAIN-world content scripts (`content-intercept.js` + `content-bridge.js`) to monkeypatch `fetch()` for API response interception. Background runs as a service worker (modules loaded via `importScripts`). Audio via `chrome.offscreen` API (`offscreen.html/offscreen.js`).
-- **Shared**: WebSocket protocol, priority filter engine, popup UI, all background modules (`background/*.js`), and the main `background.js` (with browser detection at runtime).
+- **Firefox**: Uses `webRequest.filterResponseData()` for passive API response interception. Background runs as an event page. Audio via direct `AudioContext`. Guarded by `import.meta.env.FIREFOX`.
+- **Chrome**: Uses MAIN-world content scripts (`intercept-main.ts` injected via `injectScript()`) to monkeypatch `fetch()`. Background runs as a service worker. Audio via `chrome.offscreen` API (`offscreen/`). Guarded by `import.meta.env.CHROME`.
+- **Shared**: WebSocket protocol, priority filter engine, popup UI, all background modules, TypeScript types.
+
+### Extension source structure (`src/`)
+```
+src/
+  entrypoints/
+    background/          # Background script + modules (domain, state, actions, settings, adapters)
+    popup/               # Svelte 5 popup (App.svelte + components/)
+    offscreen/           # Chrome audio offscreen document
+    intercept.content.ts # Chrome content script (ISOLATED world, injects intercept-main)
+    intercept-main.ts    # Chrome unlisted script (MAIN world, patches fetch/XHR)
+  lib/
+    types.ts             # Shared TypeScript interfaces
+    constants.ts         # All constants (URLs, timings, defaults, storage keys)
+    format.ts            # Shared formatting utilities
+    services.ts          # comctx RPC service definitions (planned integration)
+    adapters.ts          # comctx transport adapters (planned integration)
+    firefox.d.ts         # Firefox-only API type declarations
+  assets/
+    app.css              # Tailwind v4 + DaisyUI 5 entry
+    sounds/              # Alert sounds (base64 encoded)
+  public/
+    icons/               # Extension icons
+  wxt.config.ts          # WXT configuration (manifest, vite, modules)
+  package.json
+  tsconfig.json
+```
 
 ## Key Patterns
 
@@ -27,7 +54,7 @@ Go server + browser extension (Firefox & Chrome) that monitors Prolific study av
 - Priority filter settings: `priorityFilterMinimumReward`, `priorityFilterMinimumHourlyReward`, etc.
 - Refresh timing: `studiesRefreshMinDelaySeconds`, `studiesRefreshAverageDelaySeconds`
 
-### Popup DOM Selectors
+### Popup DOM Selectors (used by E2E tests)
 - Status: `#syncDot` (`.bad` class = offline), `#latestRefresh`, `#errorMessage`
 - Tabs: `button[data-tab="live|feed|submissions|settings"]`
 - Panels: `#panelLive`, `#panelFeed`, `#panelSubmissions`, `#panelSettings` (`.active` = visible)
@@ -40,25 +67,33 @@ Go server + browser extension (Firefox & Chrome) that monitors Prolific study av
 # Go server
 go build -o prolific-pulse .
 
-# Extension packages (outputs to dist/)
-# Produces both Firefox XPI and Chrome ZIP
-./build-xpi.sh
+# Extension (WXT builds for both browsers)
+cd src && npm run build          # Both browsers
+cd src && npx wxt build -b chrome   # Chrome only
+cd src && npx wxt build -b firefox  # Firefox only
+
+# ZIP packages for store submission
+cd src && npx wxt zip -b chrome
+cd src && npx wxt zip -b firefox
 ```
+
+Build output: `src/.output/chrome-mv3/` and `src/.output/firefox-mv2/`
 
 ## Testing
 
 Tests use **WebdriverIO** (Node.js/Mocha) with geckodriver for Firefox extension testing.
-Located in `tests-wdio/`.
+Located in `tests-wdio/`. The WXT extension is built automatically before each test run.
 
 ### Prerequisites
-1. Node.js deps: `cd tests-wdio && npm install`
-2. Prolific login session: `cd tests-wdio && node setup-login.js`
+1. Extension deps: `cd src && npm install`
+2. Test deps: `cd tests-wdio && npm install`
+3. Prolific login session: `cd tests-wdio && node setup-login.js`
 
 ### Running Tests
 ```bash
 cd tests-wdio
 
-# All tests (Go server is managed automatically)
+# All tests (Go server is managed automatically, WXT builds automatically)
 npx wdio run wdio.conf.js
 
 # Skip slow tests (delayed refresh ~45s)
@@ -71,12 +106,12 @@ HEADLESS=1 npx wdio run wdio.conf.js
 ### Extension Loading
 The extension has `browser_specific_settings.gecko.id` set to `prolific-pulse@prolific-pulse`.
 Tests use WebdriverIO Firefox with a persistent profile at `tests/profiles/prolific/`.
-The extension is zipped at runtime and installed via `browser.installAddOn()`.
+The extension is zipped at runtime from WXT output and installed via `browser.installAddOn()`.
 The extension UUID is pre-seeded via `extensions.webextensions.uuids` Firefox preference for deterministic popup URLs.
 
 ### Popup Navigation
-WebdriverIO uses geckodriver (WebDriver protocol) which natively supports `moz-extension://` URLs.
-Tests navigate directly to `browser.url('moz-extension://UUID/popup.html')`.
+Popup URL is discovered dynamically from `GET /debug/extension-state` (works for both browsers).
+Tests navigate directly to the discovered URL.
 
 ### Debug State Endpoint
 `GET /debug/extension-state` returns the latest state reported by the extension over WS.
@@ -102,6 +137,18 @@ Spec files are numbered (01-07) to enforce execution order:
 - `06-studies-intercept` must run before `07-debug-state` (populates server state)
 - `04-server-reconnect` stops/restarts the Go server (combined into single test)
 - SQLite database is cleaned in the `before` hook of each test run
+
+### Svelte 5 Rules
+- Use `$state()`, `$derived()`, `$effect()`, `$props()` (runes only)
+- Use `onclick={handler}` NOT `on:click={handler}`
+- Use `let { prop } = $props()` NOT `export let prop`
+- Use `{@render children()}` NOT `<slot/>`
+
+### DaisyUI 5 Rules
+- `tabs-border` NOT `tabs-bordered`
+- `card-border` NOT `card-bordered`
+- `card-sm` NOT `card-compact`
+- Inputs have borders by default — do NOT use `input-bordered`
 
 ## Commit Rules
 

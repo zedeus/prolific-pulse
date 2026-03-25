@@ -1,0 +1,25 @@
+{
+  "name": "prolific-pulse-extension",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "comctx": "^1",
+    "svelte": "^5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4",
+    "@wxt-dev/module-svelte": "^2",
+    "daisyui": "^5",
+    "eslint": "^10.1.0",
+    "eslint-plugin-svelte": "^3.16.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-svelte": "^3.5.1",
+    "svelte-check": "^4.4.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "typescript-eslint": "^8.57.2",
+    "vitest": "^3",
+    "wxt": "^0.20"
+  }
+}
