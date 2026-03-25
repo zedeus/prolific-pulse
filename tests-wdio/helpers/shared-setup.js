@@ -30,6 +30,7 @@ export const SHARED_SPECS = [[
   './specs/05-settings.js',
   './specs/06-studies-intercept.js',
   './specs/07-debug-state.js',
+  './specs/08-popup-panels.js',
 ]];
 
 export const SHARED_CONFIG = {
