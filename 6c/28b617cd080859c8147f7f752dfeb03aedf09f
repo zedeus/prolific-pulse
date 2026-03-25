@@ -1,0 +1,29 @@
+tests-wdio/specs/08-popup-panels.js
+  01389a80935d2ec9 35-46,50-61,65-75,269
+src/entrypoints/popup/components/FeedPanel.svelte
+  01389a80935d2ec9 67-71
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  01389a80935d2ec9 66-69,119-123
+src/entrypoints/popup/components/LivePanel.svelte
+  01389a80935d2ec9 79-83,85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "6c28b617cd080859c8147f7f752dfeb03aedf09f",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 56,
+      "total_deletions": 52,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}
