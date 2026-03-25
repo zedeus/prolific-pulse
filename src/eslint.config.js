@@ -26,6 +26,7 @@ export default ts.config(
         MouseEvent: 'readonly',
         MediaQueryListEvent: 'readonly',
         MessageEvent: 'readonly',
+        HTMLElement: 'readonly',
         HTMLDetailsElement: 'readonly',
         HTMLInputElement: 'readonly',
         HTMLSelectElement: 'readonly',

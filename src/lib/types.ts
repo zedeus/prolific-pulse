@@ -112,6 +112,7 @@ export interface NormalizedRefreshPolicy extends RefreshPolicy {
 export interface Settings {
   auto_open_prolific_tab: boolean;
   auto_open_priority_studies: boolean;
+  priority_filter_enabled: boolean;
   priority_filter_auto_open_in_new_tab: boolean;
   priority_filter_alert_sound_enabled: boolean;
   priority_filter_alert_sound_type: string;
