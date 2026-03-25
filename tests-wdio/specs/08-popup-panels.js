@@ -1,235 +1,542 @@
 /**
- * Tests for popup panel rendering: live studies, feed events, submissions.
- * These tests run AFTER 06-studies-intercept which populates server data.
+ * Comprehensive popup functionality tests.
+ * Runs after 06-studies-intercept (server has data) and 07-debug-state.
  */
 import { navigateToPopup, getPopupStatus } from '../helpers/popup-dom.js';
-import { getServerStudies } from '../helpers/server-api.js';
+import { getServerStudies, getServerStatus } from '../helpers/server-api.js';
 
-function switchToTab(tab) {
-  return browser.execute((t) => {
-    document.querySelector(`button[data-tab="${t}"]`)?.click();
-  }, tab);
+// ── Helpers ─────────────────────────────────────────────────────
+
+function exec(fn, ...args) {
+  return browser.execute(fn, ...args);
 }
 
-function getPanelState(panelId) {
-  return browser.execute((id) => {
+function switchToTab(tab) {
+  return exec((t) => document.querySelector(`button[data-tab="${t}"]`)?.click(), tab);
+}
+
+function getPanelInfo(panelId) {
+  return exec((id) => {
     const panel = document.getElementById(id);
-    if (!panel) return { exists: false };
-    const isActive = panel.classList.contains('active');
-    const childCount = panel.querySelectorAll('.event').length;
-    const emptyState = panel.querySelector('.empty-events');
-    const text = panel.textContent?.trim().slice(0, 200) ?? '';
+    if (!panel) return null;
     return {
-      exists: true,
-      active: isActive,
-      cardCount: childCount,
-      hasEmptyState: !!emptyState,
-      textPreview: text,
+      active: panel.classList.contains('active'),
+      visible: window.getComputedStyle(panel).display !== 'none',
+      cardCount: panel.querySelectorAll('.event').length,
+      linkCount: panel.querySelectorAll('.event-link').length,
+      emptyState: !!panel.querySelector('.empty-events'),
+      emptyText: panel.querySelector('.empty-events')?.textContent?.trim() ?? '',
+      height: panel.offsetHeight,
     };
   }, panelId);
 }
 
 function getStudyCards() {
-  return browser.execute(() => {
-    const cards = document.querySelectorAll('#panelLive .event.live');
-    return [...cards].map((card) => {
-      const title = card.querySelector('.event-title')?.textContent ?? '';
-      const reward = card.querySelector('.metric.reward')?.textContent ?? '';
-      const rate = card.querySelector('.metric.rate')?.textContent ?? '';
-      const badges = [...card.querySelectorAll('.badge')].map((b) => b.textContent ?? '');
-      return { title, reward, rate, badges };
-    });
-  });
+  return exec(() => [...document.querySelectorAll('#panelLive .event.live')].map((card) => ({
+    title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
+    reward: card.querySelector('.metric.reward')?.textContent?.trim() ?? '',
+    rate: card.querySelector('.metric.rate')?.textContent?.trim() ?? '',
+    badges: [...card.querySelectorAll('.badge')].map((b) => b.textContent?.trim() ?? ''),
+    hasPriorityBadge: !!card.querySelector('.badge')?.textContent?.includes('Priority'),
+    isPriorityCard: card.classList.contains('priority'),
+    hasFirstSeen: !!card.querySelector('.event-time'),
+    linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
+  })));
 }
 
 function getEventCards() {
-  return browser.execute(() => {
-    const cards = document.querySelectorAll('#panelFeed .event');
-    return [...cards].map((card) => {
-      const title = card.querySelector('.event-title')?.textContent ?? '';
-      const time = card.querySelector('.event-time')?.textContent ?? '';
-      const isAvailable = card.classList.contains('available');
-      const isUnavailable = card.classList.contains('unavailable');
-      return { title, time, isAvailable, isUnavailable };
-    });
-  });
+  return exec(() => [...document.querySelectorAll('#panelFeed .event')].map((card) => ({
+    title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
+    time: card.querySelector('.event-time')?.textContent?.trim() ?? '',
+    type: card.classList.contains('available') ? 'available' : card.classList.contains('unavailable') ? 'unavailable' : 'unknown',
+    reward: card.querySelector('.metric.reward')?.textContent?.trim() ?? '',
+    rate: card.querySelector('.metric.rate')?.textContent?.trim() ?? '',
+    badges: [...card.querySelectorAll('.badge')].map((b) => b.textContent?.trim() ?? ''),
+    linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
+  })));
 }
 
 function getSubmissionCards() {
-  return browser.execute(() => {
-    const cards = document.querySelectorAll('#panelSubmissions .event');
-    return [...cards].map((card) => {
-      const title = card.querySelector('.event-title')?.textContent ?? '';
-      const time = card.querySelector('.event-time')?.textContent ?? '';
-      const badges = [...card.querySelectorAll('.badge')].map((b) => b.textContent ?? '');
-      return { title, time, badges };
-    });
+  return exec(() => [...document.querySelectorAll('#panelSubmissions .event')].map((card) => ({
+    title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
+    time: card.querySelector('.event-time')?.textContent?.trim() ?? '',
+    reward: card.querySelector('.metric.reward')?.textContent?.trim() ?? '',
+    rate: card.querySelector('.metric.rate')?.textContent?.trim() ?? '',
+    badges: [...card.querySelectorAll('.badge')].map((b) => b.textContent?.trim() ?? ''),
+    linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
+  })));
+}
+
+function getTabStates() {
+  return exec(() => {
+    const tabs = {};
+    for (const btn of document.querySelectorAll('[data-tab]')) {
+      tabs[btn.dataset.tab] = {
+        active: btn.classList.contains('tab-active'),
+        ariaSelected: btn.getAttribute('aria-selected'),
+        text: btn.textContent?.trim() ?? '',
+      };
+    }
+    return tabs;
   });
 }
 
+function getSettingsState() {
+  return exec(() => {
+    const get = (id) => document.getElementById(id);
+    return {
+      autoOpen: get('autoOpenToggle')?.checked ?? null,
+      priorityEnabled: get('priorityFilterEnabledToggle')?.checked ?? null,
+      autoOpenNewTab: get('priorityAutoOpenInNewTabToggle')?.checked ?? null,
+      alertSound: get('priorityAlertSoundToggle')?.checked ?? null,
+      soundType: get('priorityAlertSoundTypeSelect')?.value ?? null,
+      soundVolume: get('priorityAlertSoundVolumeInput')?.value ?? null,
+      minReward: get('priorityMinRewardInput')?.value ?? null,
+      minHourly: get('priorityMinHourlyInput')?.value ?? null,
+      maxEta: get('priorityMaxEtaInput')?.value ?? null,
+      minPlaces: get('priorityMinPlacesInput')?.value ?? null,
+      alwaysKeywords: get('priorityAlwaysKeywordsInput')?.value ?? null,
+      ignoreKeywords: get('priorityIgnoreKeywordsInput')?.value ?? null,
+      refreshMinDelay: get('refreshMinDelayInput')?.value ?? null,
+      refreshAvgDelay: get('refreshAverageDelayInput')?.value ?? null,
+      refreshSpread: get('refreshSpreadInput')?.value ?? null,
+      refreshMinLabel: get('refreshMinDelayValue')?.textContent ?? null,
+      refreshAvgLabel: get('refreshAverageDelayValue')?.textContent ?? null,
+      refreshSpreadLabel: get('refreshSpreadValue')?.textContent ?? null,
+    };
+  });
+}
+
+function getDiagnostics() {
+  return exec(() => {
+    // Open debug section if closed
+    const details = document.querySelector('details.debug-details');
+    if (details && !details.open) details.querySelector('summary')?.click();
+
+    const grid = {};
+    for (const row of document.querySelectorAll('#debugGrid .debug-row')) {
+      const key = row.querySelector('.debug-key')?.textContent?.trim() ?? '';
+      const val = row.querySelector('.debug-value')?.textContent?.trim() ?? '';
+      if (key) grid[key] = val;
+    }
+
+    const logs = [...document.querySelectorAll('#debugLog .debug-line')]
+      .map((el) => el.textContent?.trim() ?? '')
+      .filter(Boolean);
+
+    return { grid, logs, gridCount: Object.keys(grid).length, logCount: logs.length };
+  });
+}
+
+async function reopenPopup() {
+  await browser.url('about:blank');
+  await browser.pause(500);
+  await navigateToPopup();
+  await browser.pause(1500);
+}
+
+// ── Tests ───────────────────────────────────────────────────────
+
 describe('Popup Panels', () => {
-  it('should show all four panels in DOM', async () => {
+
+  // ── Panel structure ───────────────────────────────────────────
+
+  it('all four panels exist in DOM', async () => {
     await navigateToPopup();
     for (const id of ['panelLive', 'panelFeed', 'panelSubmissions', 'panelSettings']) {
-      const state = await getPanelState(id);
-      expect(state.exists).toBe(true);
+      const info = await getPanelInfo(id);
+      expect(info).not.toBeNull();
     }
   });
 
-  it('should show live panel as active by default', async () => {
+  it('exactly one panel visible at a time', async () => {
     await navigateToPopup();
-    const live = await getPanelState('panelLive');
-    const feed = await getPanelState('panelFeed');
-    expect(live.active).toBe(true);
-    expect(feed.active).toBe(false);
+    for (const tab of ['live', 'feed', 'submissions', 'settings']) {
+      await switchToTab(tab);
+      await browser.pause(200);
+
+      const panels = {};
+      for (const id of ['panelLive', 'panelFeed', 'panelSubmissions', 'panelSettings']) {
+        panels[id] = await getPanelInfo(id);
+      }
+
+      const visibleCount = Object.values(panels).filter((p) => p.active).length;
+      expect(visibleCount).toBe(1);
+    }
   });
 
-  it('should render study cards when data is available', async () => {
+  // ── Tab bar ───────────────────────────────────────────────────
+
+  it('tab bar has all four tabs with correct labels', async () => {
+    await navigateToPopup();
+    const tabs = await getTabStates();
+    expect(Object.keys(tabs).sort()).toEqual(['feed', 'live', 'settings', 'submissions']);
+    expect(tabs.live.text).toBe('Live');
+    expect(tabs.feed.text).toBe('Feed');
+    expect(tabs.submissions.text).toBe('Submissions');
+    expect(tabs.settings.text).toBe('Settings');
+  });
+
+  it('tab active state matches panel visibility', async () => {
+    await navigateToPopup();
+    const tabToPanel = { live: 'panelLive', feed: 'panelFeed', submissions: 'panelSubmissions', settings: 'panelSettings' };
+
+    for (const [tab, panelId] of Object.entries(tabToPanel)) {
+      await switchToTab(tab);
+      await browser.pause(200);
+
+      const tabs = await getTabStates();
+      const panel = await getPanelInfo(panelId);
+
+      expect(tabs[tab].active).toBe(true);
+      expect(panel.active).toBe(true);
+
+      // All other tabs inactive
+      for (const [otherTab, otherPanel] of Object.entries(tabToPanel)) {
+        if (otherTab !== tab) {
+          expect(tabs[otherTab].active).toBe(false);
+          expect((await getPanelInfo(otherPanel)).active).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('live tab is active on popup open', async () => {
+    await navigateToPopup();
+    const tabs = await getTabStates();
+    expect(tabs.live.active).toBe(true);
+    expect((await getPanelInfo('panelLive')).active).toBe(true);
+  });
+
+  // ── Status bar ────────────────────────────────────────────────
+
+  it('status dot is green when connected', async () => {
+    await navigateToPopup();
+    const status = await getPopupStatus();
+    expect(status.dot_bad).toBe(false);
+  });
+
+  it('refresh text shows relative time, not error', async () => {
+    await navigateToPopup();
+    const status = await getPopupStatus();
+    expect(status.refresh_text).not.toBe('');
+    expect(status.refresh_text).not.toBe('Offline');
+    expect(status.refresh_text).not.toBe('Signed out');
+    expect(status.refresh_text).not.toBe('never');
+  });
+
+  it('no error message shown when healthy', async () => {
+    await navigateToPopup();
+    const status = await getPopupStatus();
+    expect(status.error_visible).toBe(false);
+  });
+
+  it('refresh time updates over time', async () => {
+    await navigateToPopup();
+    await browser.pause(3000);
+
+    // The label should still be valid after 3 seconds
+    const status = await getPopupStatus();
+    expect(status.refresh_text.length).toBeGreaterThan(0);
+    expect(status.dot_bad).toBe(false);
+  });
+
+  // ── Live studies panel ────────────────────────────────────────
+
+  it('live panel shows studies or empty state', async () => {
     await navigateToPopup();
     await browser.pause(2000);
 
     const serverData = await getServerStudies();
-    const live = await getPanelState('panelLive');
+    const panel = await getPanelInfo('panelLive');
 
     if (serverData.meta.count > 0) {
-      expect(live.cardCount).toBeGreaterThan(0);
+      expect(panel.cardCount).toBeGreaterThan(0);
+      expect(panel.emptyState).toBe(false);
     } else {
-      expect(live.hasEmptyState).toBe(true);
+      expect(panel.emptyState).toBe(true);
     }
   });
 
-  it('should show study details in cards', async () => {
+  it('study cards have title, reward, rate, and badges', async () => {
     await navigateToPopup();
     await browser.pause(2000);
 
     const cards = await getStudyCards();
-    if (cards.length > 0) {
-      const first = cards[0];
-      expect(first.title.length).toBeGreaterThan(0);
-      expect(first.reward.length).toBeGreaterThan(0);
-      expect(first.rate).toContain('/hr');
-      expect(first.badges.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(card.title.length).toBeGreaterThan(0);
+      expect(card.reward.length).toBeGreaterThan(0);
+      expect(card.rate).toContain('/hr');
+      expect(card.badges.length).toBeGreaterThanOrEqual(1);
     }
   });
 
-  it('should render feed events when switching to feed tab', async () => {
+  it('study cards link to prolific.com/studies/', async () => {
+    await navigateToPopup();
+    await browser.pause(2000);
+
+    const cards = await getStudyCards();
+    for (const card of cards) {
+      if (card.linkHref) {
+        expect(card.linkHref).toMatch(/prolific\.com\/studies\//);
+      }
+    }
+  });
+
+  it('study card count matches server data', async () => {
+    await navigateToPopup();
+    await browser.pause(2000);
+
+    const serverData = await getServerStudies(50);
+    const cards = await getStudyCards();
+    // Popup requests 50, server returns up to 50
+    expect(cards.length).toBe(Math.min(50, serverData.meta.count));
+  });
+
+  // ── Feed panel ────────────────────────────────────────────────
+
+  it('feed events have title, time, type, and reward', async () => {
     await navigateToPopup();
     await switchToTab('feed');
     await browser.pause(500);
 
-    const feed = await getPanelState('panelFeed');
-    expect(feed.active).toBe(true);
-
     const events = await getEventCards();
-    if (events.length > 0) {
-      const first = events[0];
-      expect(first.title.length).toBeGreaterThan(0);
-      expect(first.time.length).toBeGreaterThan(0);
-      expect(first.isAvailable || first.isUnavailable).toBe(true);
+    for (const evt of events) {
+      expect(evt.title.length).toBeGreaterThan(0);
+      expect(evt.time.length).toBeGreaterThan(0);
+      expect(['available', 'unavailable']).toContain(evt.type);
+      expect(evt.reward.length).toBeGreaterThan(0);
+      expect(evt.rate).toContain('/hr');
     }
   });
 
-  it('should render submissions when switching to submissions tab', async () => {
+  it('feed event links point to prolific studies', async () => {
+    await navigateToPopup();
+    await switchToTab('feed');
+    await browser.pause(500);
+
+    const events = await getEventCards();
+    for (const evt of events) {
+      if (evt.linkHref) {
+        expect(evt.linkHref).toMatch(/prolific\.com\/studies\//);
+      }
+    }
+  });
+
+  // ── Submissions panel ─────────────────────────────────────────
+
+  it('submissions panel shows cards or empty state', async () => {
     await navigateToPopup();
     await switchToTab('submissions');
     await browser.pause(500);
 
-    const panel = await getPanelState('panelSubmissions');
+    const panel = await getPanelInfo('panelSubmissions');
     expect(panel.active).toBe(true);
-    // May have submissions or empty state
-    expect(panel.cardCount >= 0 || panel.hasEmptyState).toBe(true);
+    // Either has cards or shows empty state
+    expect(panel.cardCount > 0 || panel.emptyState).toBe(true);
   });
 
-  it('should have clickable study links', async () => {
+  it('submission cards have title and time if present', async () => {
     await navigateToPopup();
-    await browser.pause(2000);
+    await switchToTab('submissions');
+    await browser.pause(500);
 
-    const hasLinks = await browser.execute(() => {
-      const links = document.querySelectorAll('#panelLive .event-link');
-      if (links.length === 0) return null;
-      const href = links[0].getAttribute('href');
-      return href && href.includes('prolific.com/studies/');
-    });
-
-    if (hasLinks !== null) {
-      expect(hasLinks).toBe(true);
+    const cards = await getSubmissionCards();
+    for (const card of cards) {
+      expect(card.title.length).toBeGreaterThan(0);
+      expect(card.time.length).toBeGreaterThan(0);
     }
   });
 
-  it('should show status bar with refresh time', async () => {
-    await navigateToPopup();
-    const status = await getPopupStatus();
+  // ── Settings panel structure ──────────────────────────────────
 
-    expect(status.dot_bad).toBe(false);
-    expect(status.refresh_text.length).toBeGreaterThan(0);
-    expect(status.refresh_text).not.toBe('Offline');
-    expect(status.refresh_text).not.toBe('Signed out');
-  });
-
-  it('should update refresh time ticker', async () => {
-    await navigateToPopup();
-    const first = await getPopupStatus();
-    await browser.pause(2000);
-    const second = await getPopupStatus();
-
-    // The text may or may not change in 2s (depends on how recent the refresh was)
-    // but both should be non-empty and not error states
-    expect(first.refresh_text.length).toBeGreaterThan(0);
-    expect(second.refresh_text.length).toBeGreaterThan(0);
-  });
-
-  it('should show diagnostics section in settings', async () => {
+  it('settings panel has all expected controls', async () => {
     await navigateToPopup();
     await switchToTab('settings');
     await browser.pause(300);
 
-    const hasDebugSection = await browser.execute(() => {
-      return !!document.querySelector('details.debug-details');
-    });
-    expect(hasDebugSection).toBe(true);
+    const state = await getSettingsState();
 
-    // Expand it
-    await browser.execute(() => {
+    // All controls should exist (not null)
+    expect(state.autoOpen).not.toBeNull();
+    expect(state.priorityEnabled).not.toBeNull();
+    expect(state.minReward).not.toBeNull();
+    expect(state.minHourly).not.toBeNull();
+    expect(state.maxEta).not.toBeNull();
+    expect(state.minPlaces).not.toBeNull();
+    expect(state.alwaysKeywords).not.toBeNull();
+    expect(state.ignoreKeywords).not.toBeNull();
+    expect(state.refreshMinDelay).not.toBeNull();
+    expect(state.refreshAvgDelay).not.toBeNull();
+    expect(state.refreshSpread).not.toBeNull();
+  });
+
+  it('settings controls have reasonable default values', async () => {
+    await navigateToPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    const state = await getSettingsState();
+
+    // Auto-open should be boolean
+    expect(typeof state.autoOpen).toBe('boolean');
+
+    // Number inputs should be numeric strings
+    expect(Number(state.minReward)).not.toBeNaN();
+    expect(Number(state.minHourly)).not.toBeNaN();
+    expect(Number(state.maxEta)).not.toBeNaN();
+    expect(Number(state.minPlaces)).not.toBeNaN();
+
+    // Slider values should be in valid ranges
+    const minDelay = Number(state.refreshMinDelay);
+    const avgDelay = Number(state.refreshAvgDelay);
+    const spread = Number(state.refreshSpread);
+    expect(minDelay).toBeGreaterThanOrEqual(1);
+    expect(minDelay).toBeLessThanOrEqual(60);
+    expect(avgDelay).toBeGreaterThanOrEqual(5);
+    expect(avgDelay).toBeLessThanOrEqual(60);
+    expect(spread).toBeGreaterThanOrEqual(0);
+    expect(spread).toBeLessThanOrEqual(60);
+  });
+
+  it('slider labels match slider values', async () => {
+    await navigateToPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    const state = await getSettingsState();
+    expect(state.refreshMinLabel).toBe(state.refreshMinDelay + 's');
+    expect(state.refreshAvgLabel).toBe(state.refreshAvgDelay + 's');
+    expect(state.refreshSpreadLabel).toBe(state.refreshSpread + 's');
+  });
+
+  // ── Diagnostics ───────────────────────────────────────────────
+
+  it('diagnostics grid has expected keys', async () => {
+    await navigateToPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    const diag = await getDiagnostics();
+    expect(diag.gridCount).toBeGreaterThanOrEqual(4);
+
+    // Should include key diagnostic rows
+    const keys = Object.keys(diag.grid);
+    expect(keys.some((k) => k.includes('Auth'))).toBe(true);
+    expect(keys.some((k) => k.includes('Refresh') || k.includes('refresh'))).toBe(true);
+  });
+
+  it('diagnostics log has entries', async () => {
+    await navigateToPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    const diag = await getDiagnostics();
+    expect(diag.logCount).toBeGreaterThan(0);
+  });
+
+  it('clear debug logs button works', async () => {
+    await navigateToPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    // Open debug section
+    await exec(() => {
       const details = document.querySelector('details.debug-details');
       if (details && !details.open) details.querySelector('summary')?.click();
     });
     await browser.pause(300);
 
-    const debugGrid = await browser.execute(() => {
-      const rows = document.querySelectorAll('#debugGrid .debug-row');
-      return rows.length;
-    });
-    expect(debugGrid).toBeGreaterThan(0);
+    const before = await getDiagnostics();
+    expect(before.logCount).toBeGreaterThan(0);
 
-    const debugLog = await browser.execute(() => {
-      const lines = document.querySelectorAll('#debugLog .debug-line');
-      return lines.length;
-    });
-    expect(debugLog).toBeGreaterThan(0);
+    // Click clear button
+    await exec(() => document.getElementById('clearDebugButton')?.click());
+    await browser.pause(1000);
+
+    // Reopen popup to verify persistence
+    await reopenPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    const after = await getDiagnostics();
+    // After clearing, log count should be less than before
+    // (may not be 0 since new events fire during the reopen)
+    expect(after.logCount).toBeLessThan(before.logCount);
   });
 
-  it('should show correct tab active states', async () => {
+  // ── Data consistency ──────────────────────────────────────────
+
+  it('popup data matches server data', async () => {
     await navigateToPopup();
+    await browser.pause(2000);
 
-    for (const tab of ['live', 'feed', 'submissions', 'settings']) {
-      await switchToTab(tab);
-      await browser.pause(200);
+    // Get server-side counts
+    const serverStudies = await getServerStudies(50);
+    const serverStatus = await getServerStatus();
 
-      const activeTab = await browser.execute(() => {
-        const btns = document.querySelectorAll('[data-tab]');
-        for (const btn of btns) {
-          if (btn.classList.contains('tab-active')) return btn.dataset.tab;
-        }
-        return null;
-      });
-      expect(activeTab).toBe(tab);
+    // Get popup counts
+    const cards = await getStudyCards();
 
-      const activePanel = await browser.execute((t) => {
-        const map = { live: 'panelLive', feed: 'panelFeed', submissions: 'panelSubmissions', settings: 'panelSettings' };
-        const panel = document.getElementById(map[t]);
-        return panel?.classList.contains('active') ?? false;
-      }, tab);
-      expect(activePanel).toBe(true);
+    // Study count should match
+    expect(cards.length).toBe(Math.min(50, serverStudies.meta.count));
+
+    // If server has a refresh timestamp, popup should show it
+    if (serverStatus.last_studies_refresh_at) {
+      const status = await getPopupStatus();
+      expect(status.refresh_text).not.toBe('never');
     }
+  });
+
+  // ── Settings persistence end-to-end ───────────────────────────
+
+  it('settings survive popup close and reopen', async () => {
+    await navigateToPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    // Capture current state
+    const before = await getSettingsState();
+
+    // Close and reopen
+    await reopenPopup();
+    await switchToTab('settings');
+    await browser.pause(300);
+
+    // Compare
+    const after = await getSettingsState();
+    expect(after.autoOpen).toBe(before.autoOpen);
+    expect(after.priorityEnabled).toBe(before.priorityEnabled);
+    expect(after.minReward).toBe(before.minReward);
+    expect(after.minHourly).toBe(before.minHourly);
+    expect(after.maxEta).toBe(before.maxEta);
+    expect(after.minPlaces).toBe(before.minPlaces);
+  });
+
+  // ── Tab switching doesn't lose data ───────────────────────────
+
+  it('switching tabs preserves panel content', async () => {
+    await navigateToPopup();
+    await browser.pause(2000);
+
+    const liveCardsBefore = (await getStudyCards()).length;
+
+    // Switch away and back
+    await switchToTab('settings');
+    await browser.pause(300);
+    await switchToTab('live');
+    await browser.pause(300);
+
+    const liveCardsAfter = (await getStudyCards()).length;
+    expect(liveCardsAfter).toBe(liveCardsBefore);
+  });
+
+  // ── Popup width ───────────────────────────────────────────────
+
+  it('popup has expected width', async () => {
+    await navigateToPopup();
+    const width = await exec(() => document.querySelector('main')?.offsetWidth ?? 0);
+    expect(width).toBeGreaterThanOrEqual(580);
+    expect(width).toBeLessThanOrEqual(640);
   });
 });
