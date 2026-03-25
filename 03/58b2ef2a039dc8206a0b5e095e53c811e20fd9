@@ -1,0 +1,29 @@
+src/lib/format.ts
+  01389a80935d2ec9 206-208
+src/entrypoints/popup/components/FeedPanel.svelte
+  01389a80935d2ec9 67,69-73
+src/entrypoints/popup/components/LivePanel.svelte
+  01389a80935d2ec9 79,81-85,87
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  01389a80935d2ec9 119,121-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "0358b2ef2a039dc8206a0b5e095e53c811e20fd9",
+  "prompts": {
+    "01389a80935d2ec9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "addc0782-0618-4f6a-aa23-a68e69ee56b3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 16,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    }
+  }
+}
