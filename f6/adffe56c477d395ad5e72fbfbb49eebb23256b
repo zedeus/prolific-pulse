@@ -1,0 +1,25 @@
+src/lib/constants.ts
+  7e6c62504e9a7a13 43
+src/entrypoints/popup/components/SettingsPanel.svelte
+  7e6c62504e9a7a13 757
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "f6adffe56c477d395ad5e72fbfbb49eebb23256b",
+  "prompts": {
+    "7e6c62504e9a7a13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b17ac52-5b7d-415d-b179-f364b44c0feb",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
