@@ -1,0 +1,65 @@
+src/entrypoints/popup/App.svelte
+  333ce9a06139b30d 31-49,51,137,232-233,237-270,295-302,410,419,422,424-434,440-441
+tests-wdio/specs/01-extension-health.js
+  333ce9a06139b30d 1-19
+src/lib/db.ts
+  333ce9a06139b30d 1-74
+src/wxt.config.ts
+  333ce9a06139b30d 34
+tests-wdio/specs/04-extension-resilience.js
+  333ce9a06139b30d 1-47
+src/lib/normalize.ts
+  333ce9a06139b30d 1-197
+tests-wdio/specs/08-popup-panels.js
+  333ce9a06139b30d 258-259,286,290,292,469,473,475,477-478,480-481,483
+.gitignore
+  333ce9a06139b30d 30-32
+src/entrypoints/background/ingest.ts
+  333ce9a06139b30d 1-70
+src/lib/constants.ts
+  333ce9a06139b30d 4,19,104
+tests-wdio/helpers/shared-setup.js
+  333ce9a06139b30d 5-6,12,23,26,52-55,58-66,70-74,76-77,80-82,109-110,113,177
+src/lib/types.ts
+  333ce9a06139b30d 220
+src/entrypoints/background/domain.ts
+  333ce9a06139b30d 278-310
+src/lib/store.ts
+  333ce9a06139b30d 1-344
+tests-wdio/specs/07-debug-state.js
+  333ce9a06139b30d 1,4-8,10-14,17-19,21,23-28,30-34,36-37,40-48,51-52,58-63,65-72
+CLAUDE.md
+  333ce9a06139b30d 3,9,14,20,26-28,43-58,60,69,104,121-123,139-141
+src/lib/__tests__/normalize.test.ts
+  333ce9a06139b30d 1-245
+README.md
+  333ce9a06139b30d 3,10,14,17-18,26,31,45
+src/lib/__tests__/store.test.ts
+  333ce9a06139b30d 1-430
+src/entrypoints/background/index.ts
+  333ce9a06139b30d 2,6-10,23,75,115,313,831-838,840,855-870,1333,1336,1504,1512,1529-1538,1568-1570,1579,1595-1597,1618-1620,1697-1700,2100
+tests-wdio/specs/06-studies-intercept.js
+  333ce9a06139b30d 1,7,9,11,13-20,24,27-31,34-51,57,61-67,69-70,72,74-84,89
+src/vitest.config.ts
+  333ce9a06139b30d 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "1645c4d7eba192a241eb94731583671bd035e452",
+  "prompts": {
+    "333ce9a06139b30d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01850023-dd00-4c7f-a384-587855f4f55c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 2007,
+      "total_deletions": 1339,
+      "accepted_lines": 1825,
+      "overriden_lines": 0
+    }
+  }
+}
