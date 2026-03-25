@@ -2,3 +2,15 @@
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark;
 }
+
+html, body { background: oklch(var(--b2)); margin: 0; }
+
+/* Thin scrollbars */
+.overflow-auto::-webkit-scrollbar { width: 6px; }
+.overflow-auto::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.2); border-radius: 9999px; }
+.overflow-auto::-webkit-scrollbar-track { background: transparent; }
+
+/* Compact range sliders for the extension popup */
+.range-xs {
+  --range-thumb-size: 1rem;
+}

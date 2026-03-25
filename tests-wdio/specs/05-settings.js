@@ -233,71 +233,148 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    // Change average delay (use change event to commit)
-    await browser.execute(() => {
-      const el = document.getElementById('refreshAverageDelayInput');
-      if (el) {
-        el.value = '15';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
+    // Read current value and change to something different
+    const currentAvg = await getInputValue('refreshAverageDelayInput');
+    const newAvg = parseInt(currentAvg) === 20 ? '40' : '20';
+    await setRangeValue('refreshAverageDelayInput', newAvg);
     await browser.pause(500);
 
-    const saveVisible = await isElementVisible('#refreshCadenceActions .setting-action:first-child');
-    // The save/revert buttons should be visible since value changed from default
-    // (Note: they may or may not show depending on whether committedState updated)
+    // Save button must exist and be visible
+    const saveBtn = await browser.execute(() => {
+      const btn = document.getElementById('refreshCadenceSaveButton');
+      if (!btn) return { exists: false };
+      return { exists: true, visible: btn.offsetParent !== null, text: btn.textContent };
+    });
+    expect(saveBtn.exists).toBe(true);
+    expect(saveBtn.visible).toBe(true);
+    expect(saveBtn.text).toContain('Save');
+
+    // Revert button must also exist
+    const revertBtn = await browser.execute(() => {
+      const btn = document.getElementById('refreshCadenceRevertButton');
+      return btn ? { exists: true, visible: btn.offsetParent !== null } : { exists: false };
+    });
+    expect(revertBtn.exists).toBe(true);
+    expect(revertBtn.visible).toBe(true);
   });
 
-  it('should persist refresh rate after save and popup reopen', async () => {
+  it('should save refresh rate and persist across popup reopen', async () => {
     await navigateToPopup();
     await switchToSettings();
     await browser.pause(300);
 
-    // Set minimum delay to 1 via direct DOM manipulation + input event
-    await setRangeValue('refreshMinDelayInput', '1');
-    await browser.pause(200);
-
-    // The label should show 1s
-    const labelAfterInput = await getLabelText('refreshMinDelayValue');
-    expect(labelAfterInput).toContain('1');
-
-    // Commit the change (fire change event to update committed state)
-    await browser.execute(() => {
-      const el = document.getElementById('refreshMinDelayInput');
-      if (el) {
-        el.value = '1';
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
+    // Read current value and change to something distinctly different
+    const currentAvg = await getInputValue('refreshAverageDelayInput');
+    const targetAvg = parseInt(currentAvg) === 25 ? 35 : 25;
+    await setRangeValue('refreshAverageDelayInput', String(targetAvg));
     await browser.pause(500);
 
-    // Click save if save button exists
-    const hasSave = await browser.execute(() => {
-      const actions = document.getElementById('refreshCadenceActions');
-      if (!actions) return false;
-      const btn = actions.querySelector('.setting-action');
-      if (btn && window.getComputedStyle(actions).display !== 'none') {
-        btn.click();
-        return true;
-      }
-      return false;
+    // Verify the label updated
+    const labelBefore = await getLabelText('refreshAverageDelayValue');
+    expect(labelBefore).toBe(targetAvg + 's');
+
+    // Debug: check state
+    const debug = await browser.execute(() => {
+      const saveBtn = document.getElementById('refreshCadenceSaveButton');
+      const revertBtn = document.getElementById('refreshCadenceRevertButton');
+      const avgInput = document.getElementById('refreshAverageDelayInput');
+      const avgLabel = document.getElementById('refreshAverageDelayValue');
+      return {
+        saveBtnExists: !!saveBtn,
+        saveBtnVisible: saveBtn ? saveBtn.offsetParent !== null : false,
+        saveBtnText: saveBtn ? saveBtn.textContent : null,
+        revertBtnExists: !!revertBtn,
+        avgInputValue: avgInput ? avgInput.value : null,
+        avgLabelText: avgLabel ? avgLabel.textContent : null,
+      };
     });
+    console.log('DEBUG save test state:', JSON.stringify(debug));
 
-    await browser.pause(1500);
+    // The save button MUST be visible
+    expect(debug.saveBtnVisible).toBe(true);
 
-    // Reopen popup
+    // Debug: check button state before clicking
+    const beforeClick = await browser.execute(() => {
+      const container = document.getElementById('refreshCadenceActions');
+      const btn = document.getElementById('refreshCadenceSaveButton');
+      return {
+        containerDisplay: container ? window.getComputedStyle(container).display : 'no-container',
+        containerClasses: container ? container.className : '',
+        btnExists: !!btn,
+        btnDisplay: btn ? window.getComputedStyle(btn).display : 'no-btn',
+        btnVisible: btn ? btn.offsetParent !== null : false,
+      };
+    });
+    console.log('DEBUG before save click:', JSON.stringify(beforeClick));
+
+    // Click save — use WebdriverIO native click instead of programmatic .click()
+    const saveBtn = await $('#refreshCadenceSaveButton');
+    if (await saveBtn.isDisplayed()) {
+      await saveBtn.click();
+    }
+    await browser.pause(3000);
+
+    // Check what the save handler sent
+    const saveLog = await browser.execute(() => window.__ppSaveLog);
+    const saveResult = await browser.execute(() => window.__ppSaveResult);
+    console.log('DEBUG save log:', JSON.stringify(saveLog));
+    console.log('DEBUG save result:', JSON.stringify(saveResult));
+
+    // After save, buttons should disappear
+    const afterSave = await browser.execute(() => {
+      const container = document.getElementById('refreshCadenceActions');
+      const btn = document.getElementById('refreshCadenceSaveButton');
+      return {
+        containerClasses: container ? container.className : '',
+        containerDisplay: container ? window.getComputedStyle(container).display : '',
+        btnVisible: btn ? btn.offsetParent !== null : false,
+      };
+    });
+    console.log('DEBUG after save click:', JSON.stringify(afterSave));
+    const saveGoneAfterSave = !afterSave.btnVisible;
+    expect(saveGoneAfterSave).toBe(true);
+
+    // Reopen popup and verify persistence
     await reopenPopup();
 
-    // Check minimum delay value
-    const sliderVal = await getInputValue('refreshMinDelayInput');
-    const labelVal = await getLabelText('refreshMinDelayValue');
+    // Wait for settings to load
+    await browser.pause(2000);
 
-    // The saved value should be persisted (might be clamped by normalizeRefreshPolicy)
-    expect(sliderVal).not.toBeNull();
-    expect(labelVal).not.toBeNull();
+    const sliderVal = await getInputValue('refreshAverageDelayInput');
+    const labelVal = await getLabelText('refreshAverageDelayValue');
 
-    // Log for debugging
-    console.log(`Refresh rate persistence: slider=${sliderVal}, label=${labelVal}, saved=${hasSave}`);
+    expect(parseInt(sliderVal)).toBe(targetAvg);
+    expect(labelVal).toBe(targetAvg + 's');
+  });
+
+  it('should revert refresh rate changes', async () => {
+    await navigateToPopup();
+    await switchToSettings();
+    await browser.pause(300);
+
+    // Read current average delay
+    const originalVal = await getInputValue('refreshAverageDelayInput');
+
+    // Change it
+    const newVal = parseInt(originalVal) === 15 ? '20' : '15';
+    await setRangeValue('refreshAverageDelayInput', newVal);
+    await browser.pause(500);
+
+    // Click revert — use WebdriverIO native click
+    const revertBtn = await $('#refreshCadenceRevertButton');
+    await revertBtn.click();
+    await browser.pause(500);
+
+    // Value should be back to original
+    const afterRevert = await getInputValue('refreshAverageDelayInput');
+    expect(afterRevert).toBe(originalVal);
+
+    // Buttons should be gone
+    const saveGone = await browser.execute(() => {
+      const btn = document.getElementById('refreshCadenceSaveButton');
+      return !btn || btn.offsetParent === null;
+    });
+    expect(saveGone).toBe(true);
   });
 
   // ── Alert sound toggle ────────────────────────────────────────

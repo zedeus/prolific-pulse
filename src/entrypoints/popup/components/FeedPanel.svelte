@@ -24,14 +24,14 @@
 </script>
 
 <div id="panelFeed" class="panel" class:active role="tabpanel" aria-labelledby="tabFeed">
-  <div class="events min-h-[420px] max-h-[420px] overflow-auto">
+  <div class="events min-h-[420px] max-h-[420px] overflow-auto pb-1">
     {#if overrideMessage}
-      <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-200/50">
+      <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-100">
         {overrideMessage}
       </div>
     {:else if !events.length}
-      <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-200/50">
-        No study events yet.
+      <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-100">
+        No events recorded yet. Events appear when studies become available or fill up.
       </div>
     {:else}
       {#each events as evt (evt.row_id)}
@@ -59,22 +59,21 @@
             title="Open study in Prolific"
             onclick={(e) => handleLinkClick(e, studyURL)}
           >
-            <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
+            <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 {type === 'available' ? 'bg-base-100 shadow-sm' : 'bg-base-200/60'} border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
               <div class="event-top flex items-start justify-between gap-2.5">
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
               </div>
-              <div class="event-metrics mt-2.5 flex flex-wrap items-center gap-1.5">
-                <span class="metric reward text-base font-bold text-primary">{reward}</span>
-                <span class="metric rate text-sm font-bold {hourlyClass}">{perHour}/hr</span>
-                <span class="w-px h-[18px] bg-base-300 mx-0.5"></span>
-                <span class="badge badge-sm bg-base-200 border-base-300 text-base-content/60 font-semibold">{duration}</span>
-                <span class="badge badge-sm font-semibold {isLowRemaining ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-base-200 border-base-300 text-base-content/60'}">{placesLine}</span>
+              <div class="event-metrics mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span class="text-[15px] font-bold text-primary">{reward}</span>
+                <span class="text-[13px] font-semibold {hourlyClass}">{perHour}/hr</span>
+                <span class="text-xs text-base-content/45">{duration}</span>
+                <span class="text-xs {isLowRemaining ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-base-content/45'}">{placesLine}</span>
               </div>
             </div>
           </a>
         {:else}
-          <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 bg-base-200 border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
+          <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 {type === 'available' ? 'bg-base-100 shadow-sm' : 'bg-base-200/60'} border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
             <div class="event-top flex items-start justify-between gap-2.5">
               <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
               <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
@@ -83,8 +82,8 @@
               <span class="metric reward text-base font-bold text-primary">{reward}</span>
               <span class="metric rate text-sm font-bold {hourlyClass}">{perHour}/hr</span>
               <span class="w-px h-[18px] bg-base-300 mx-0.5"></span>
-              <span class="badge badge-sm bg-base-200 border-base-300 text-base-content/60 font-semibold">{duration}</span>
-              <span class="badge badge-sm font-semibold {isLowRemaining ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-base-200 border-base-300 text-base-content/60'}">{placesLine}</span>
+              <span class="badge badge-sm px-2 py-0.5 bg-base-200 border-base-300 text-base-content/60 font-semibold">{duration}</span>
+              <span class="badge badge-sm px-2 py-0.5 font-semibold {isLowRemaining ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200' : 'bg-base-200 border-base-300 text-base-content/60'}">{placesLine}</span>
             </div>
           </div>
         {/if}
@@ -94,12 +93,15 @@
 </div>
 
 <style>
+  .event {
+    transition: transform 100ms ease, box-shadow 100ms ease;
+  }
   .event-link:hover .event {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.06);
+    box-shadow: 0 4px 12px oklch(var(--bc) / 0.10), 0 1px 3px oklch(var(--bc) / 0.06);
   }
   .event-link:focus-visible .event {
-    box-shadow: 0 0 0 2px oklch(var(--p));
+    box-shadow: 0 4px 12px oklch(var(--bc) / 0.10), 0 1px 3px oklch(var(--bc) / 0.06);
   }
   .event-link:active .event {
     transform: translateY(0);

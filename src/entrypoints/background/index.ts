@@ -2706,11 +2706,13 @@ export default defineBackground({
             msg.spread_seconds,
           );
 
-          await storageSetLocal({
+          // Write to storage and confirm before responding
+          const writeItems = {
             [STUDIES_REFRESH_MIN_DELAY_SECONDS_KEY]: refreshPolicy.minimum_delay_seconds,
             [STUDIES_REFRESH_AVERAGE_DELAY_SECONDS_KEY]: refreshPolicy.average_delay_seconds,
             [STUDIES_REFRESH_SPREAD_SECONDS_KEY]: refreshPolicy.spread_seconds,
-          });
+          };
+          await browser.storage.local.set(writeItems);
 
           sendResponse({
             ok: true,

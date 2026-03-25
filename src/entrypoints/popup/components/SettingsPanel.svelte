@@ -1,10 +1,8 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
   import { browser } from 'wxt/browser';
   import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry } from '../../../lib/types';
   import {
     formatRelative,
-    parseDate,
     compactText,
     isAuthRequiredState,
     isServiceConnectingMessage,
@@ -28,20 +26,12 @@
     MIN_PRIORITY_FILTER_MIN_PLACES,
     MAX_PRIORITY_FILTER_MIN_PLACES,
     MAX_PRIORITY_FILTER_KEYWORDS,
-    DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
-    DEFAULT_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS,
-    DEFAULT_STUDIES_REFRESH_SPREAD_SECONDS,
-    MIN_STUDIES_REFRESH_MIN_DELAY_SECONDS,
-    MAX_STUDIES_REFRESH_MIN_DELAY_SECONDS,
-    MIN_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS,
-    MAX_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS,
-    MAX_STUDIES_REFRESH_SPREAD_SECONDS,
   } from '../../../lib/constants';
 
   let {
     active,
     autoOpenEnabled,
-    priorityFilter,
+    priorityFilter = $bindable(),
     savedRefreshPolicy,
     extensionState,
     refreshState,
@@ -64,113 +54,49 @@
     onClearDebugLogs: () => void;
   }>();
 
-  // Priority filter inputs are fully imperative — same pattern as the refresh sliders.
-  // On input: read raw DOM values → call onPriorityFilterChange for persistence.
-  // No reactive value/checked attributes; applyPriorityFilterToControls sets DOM on mount.
-  let priorityContainerEl: HTMLDivElement | undefined;
+  // Local keyword strings — initialized from prop at mount, kept in sync via handlers.
+  // svelte-ignore state_referenced_locally
+  let alwaysKeywordsText = $state(
+    Array.isArray(priorityFilter.always_open_keywords) ? priorityFilter.always_open_keywords.join(', ') : ''
+  );
+  // svelte-ignore state_referenced_locally
+  let ignoreKeywordsText = $state(
+    Array.isArray(priorityFilter.ignore_keywords) ? priorityFilter.ignore_keywords.join(', ') : ''
+  );
 
-  // Track whether alert sound is enabled locally (drives conditional rendering of sound config).
-  let localAlertSoundEnabled = $state(false);
+  // Refresh sliders — local $state initialized from prop at mount time.
+  // svelte-ignore state_referenced_locally
+  let localMinDelay = $state(savedRefreshPolicy.minimum_delay_seconds);
+  // svelte-ignore state_referenced_locally
+  let localAvgDelay = $state(savedRefreshPolicy.average_delay_seconds);
+  // svelte-ignore state_referenced_locally
+  let localSpread = $state(savedRefreshPolicy.spread_seconds);
 
-  function getPriorityEls() {
-    if (!priorityContainerEl) return null;
-    return {
-      enabled: priorityContainerEl.querySelector('#priorityFilterEnabledToggle') as HTMLInputElement | null,
-      minReward: priorityContainerEl.querySelector('#priorityMinRewardInput') as HTMLInputElement | null,
-      minHourly: priorityContainerEl.querySelector('#priorityMinHourlyInput') as HTMLInputElement | null,
-      maxEta: priorityContainerEl.querySelector('#priorityMaxEtaInput') as HTMLInputElement | null,
-      minPlaces: priorityContainerEl.querySelector('#priorityMinPlacesInput') as HTMLInputElement | null,
-      alwaysKeywords: priorityContainerEl.querySelector('#priorityAlwaysKeywordsInput') as HTMLInputElement | null,
-      ignoreKeywords: priorityContainerEl.querySelector('#priorityIgnoreKeywordsInput') as HTMLInputElement | null,
-      autoOpenTab: priorityContainerEl.querySelector('#priorityAutoOpenInNewTabToggle') as HTMLInputElement | null,
-      alertSound: priorityContainerEl.querySelector('#priorityAlertSoundToggle') as HTMLInputElement | null,
-      soundType: priorityContainerEl.querySelector('#priorityAlertSoundTypeSelect') as HTMLSelectElement | null,
-      soundVolume: priorityContainerEl.querySelector('#priorityAlertSoundVolumeInput') as HTMLInputElement | null,
-    };
-  }
+  // svelte-ignore state_referenced_locally — intentional: init from prop at mount
+  let savedMin = $state(savedRefreshPolicy.minimum_delay_seconds);
+  // svelte-ignore state_referenced_locally
+  let savedAvg = $state(savedRefreshPolicy.average_delay_seconds);
+  // svelte-ignore state_referenced_locally
+  let savedSpread = $state(savedRefreshPolicy.spread_seconds);
 
-  function applyPriorityFilterToControls(filter: PriorityFilter) {
-    const els = getPriorityEls();
-    if (!els) return;
-    if (els.enabled) els.enabled.checked = !!filter.enabled;
-    if (els.minReward) els.minReward.value = String(filter.minimum_reward_major ?? 0);
-    if (els.minHourly) els.minHourly.value = String(filter.minimum_hourly_reward_major ?? 0);
-    if (els.maxEta) els.maxEta.value = String(filter.maximum_estimated_minutes ?? 0);
-    if (els.minPlaces) els.minPlaces.value = String(filter.minimum_places_available ?? 1);
-    if (els.alwaysKeywords) els.alwaysKeywords.value = Array.isArray(filter.always_open_keywords) ? filter.always_open_keywords.join(', ') : '';
-    if (els.ignoreKeywords) els.ignoreKeywords.value = Array.isArray(filter.ignore_keywords) ? filter.ignore_keywords.join(', ') : '';
-    if (els.autoOpenTab) els.autoOpenTab.checked = !!filter.auto_open_in_new_tab;
-    if (els.alertSound) els.alertSound.checked = !!filter.alert_sound_enabled;
-    if (els.soundType) els.soundType.value = canonicalSoundType(filter.alert_sound_type);
-    if (els.soundVolume) els.soundVolume.value = String(filter.alert_sound_volume ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME);
-    localAlertSoundEnabled = !!filter.alert_sound_enabled;
-  }
+  const localRefreshPolicy = $derived(normalizeRefreshPolicy(localMinDelay, localAvgDelay, localSpread));
 
-  function readPriorityFilterFromDOM(): PriorityFilter {
-    const els = getPriorityEls();
-    if (!els) return priorityFilter;
-    return {
-      enabled: els.enabled?.checked ?? false,
-      minimum_reward_major: els.minReward ? Number(els.minReward.value) : 0,
-      minimum_hourly_reward_major: els.minHourly ? Number(els.minHourly.value) : 0,
-      maximum_estimated_minutes: els.maxEta ? Number(els.maxEta.value) : 0,
-      minimum_places_available: els.minPlaces ? Number(els.minPlaces.value) : 1,
-      always_open_keywords: els.alwaysKeywords ? normalizePriorityKeywords(els.alwaysKeywords.value) : [],
-      ignore_keywords: els.ignoreKeywords ? normalizePriorityKeywords(els.ignoreKeywords.value) : [],
-      auto_open_in_new_tab: els.autoOpenTab?.checked ?? false,
-      alert_sound_enabled: els.alertSound?.checked ?? false,
-      alert_sound_type: els.soundType ? els.soundType.value : DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
-      alert_sound_volume: els.soundVolume ? Number(els.soundVolume.value) : DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-    };
-  }
+  const hasUnsavedRefreshChanges = $derived(
+    Number(localMinDelay) !== Number(savedMin) ||
+    Number(localAvgDelay) !== Number(savedAvg) ||
+    Number(localSpread) !== Number(savedSpread)
+  );
 
-  // Refresh sliders are fully imperative — matching the old vanilla JS approach.
-  // On input: read raw DOM values → normalize → write back to DOM (value, max, labels).
-  // No $state changes during drag. Only $state changes happen on initial load and revert.
-  let refreshContainerEl: HTMLDivElement | undefined;
+  const refreshPlan = $derived(buildRefreshPlan(localRefreshPolicy));
+  const refreshPlanSummary = $derived.by(() => {
+    const delayLabels = refreshPlan.delays.length
+      ? refreshPlan.delays.map((s) => `${Math.round(s)}s`).join(', ')
+      : 'none within this cycle';
+    return `Per ${localRefreshPolicy.cycle_seconds}s cycle: ${refreshPlan.count} extra refreshes at ${delayLabels}.`;
+  });
 
-  let committedMinDelay = $state(savedRefreshPolicy.minimum_delay_seconds);
-  let committedAvgDelay = $state(savedRefreshPolicy.average_delay_seconds);
-  let committedSpread = $state(savedRefreshPolicy.spread_seconds);
-
-  function getSliderEls() {
-    if (!refreshContainerEl) return null;
-    return {
-      min: refreshContainerEl.querySelector('#refreshMinDelayInput') as HTMLInputElement | null,
-      avg: refreshContainerEl.querySelector('#refreshAverageDelayInput') as HTMLInputElement | null,
-      spread: refreshContainerEl.querySelector('#refreshSpreadInput') as HTMLInputElement | null,
-      minLabel: refreshContainerEl.querySelector('#refreshMinDelayValue') as HTMLElement | null,
-      avgLabel: refreshContainerEl.querySelector('#refreshAverageDelayValue') as HTMLElement | null,
-      spreadLabel: refreshContainerEl.querySelector('#refreshSpreadValue') as HTMLElement | null,
-    };
-  }
-
-  function applyRefreshPolicyToSliders(policy: typeof savedRefreshPolicy) {
-    const els = getSliderEls();
-    if (!els) return;
-    if (els.min) { els.min.max = String(policy.maximum_minimum_delay_seconds); els.min.value = String(policy.minimum_delay_seconds); }
-    if (els.avg) { els.avg.value = String(policy.average_delay_seconds); }
-    if (els.spread) { els.spread.max = String(policy.maximum_spread_seconds); els.spread.value = String(policy.spread_seconds); }
-    if (els.minLabel) els.minLabel.textContent = policy.minimum_delay_seconds + 's';
-    if (els.avgLabel) els.avgLabel.textContent = policy.average_delay_seconds + 's';
-    if (els.spreadLabel) els.spreadLabel.textContent = policy.spread_seconds + 's';
-  }
-
-  function handleRefreshSliderInput() {
-    // Exactly like the old vanilla JS: read → normalize → write back
-    const els = getSliderEls();
-    if (!els) return;
-    const policy = normalizeRefreshPolicy(
-      els.min ? Number(els.min.value) : committedMinDelay,
-      els.avg ? Number(els.avg.value) : committedAvgDelay,
-      els.spread ? Number(els.spread.value) : committedSpread,
-    );
-    applyRefreshPolicyToSliders(policy);
-    // Update committed state so save/revert and plan viz react
-    committedMinDelay = policy.minimum_delay_seconds;
-    committedAvgDelay = policy.average_delay_seconds;
-    committedSpread = policy.spread_seconds;
-  }
+  const debugRows = $derived(buildDebugRows(extensionState, refreshState));
+  const debugLogs = $derived(buildDebugLogs(extensionState));
 
   let previewPlaying = $state(false);
   let previewAudioContext: AudioContext | null = null;
@@ -180,83 +106,11 @@
   let soundBufferCache = new Map<string, Promise<AudioBuffer>>();
   let soundBufferContext: AudioContext | null = null;
 
-  // Initialize sliders once on mount — untrack prevents re-running on prop changes
-  $effect(() => {
-    untrack(() => {
-      const policy = normalizeRefreshPolicy(
-        savedRefreshPolicy.minimum_delay_seconds,
-        savedRefreshPolicy.average_delay_seconds,
-        savedRefreshPolicy.spread_seconds,
-      );
-      applyRefreshPolicyToSliders(policy);
-      committedMinDelay = policy.minimum_delay_seconds;
-      committedAvgDelay = policy.average_delay_seconds;
-      committedSpread = policy.spread_seconds;
-    });
-  });
-
-  // Sync priority filter prop → DOM. Suppressed briefly after user edits to avoid
-  // the persist-then-normalize round-trip from overwriting active input.
-  $effect(() => {
-    const filter = priorityFilter;
-    untrack(() => {
-      if (lastUserEditAt && (Date.now() - lastUserEditAt) < PRIORITY_EDIT_SUPPRESS_MS) {
-        return;
-      }
-      applyPriorityFilterToControls(filter);
-    });
-  });
-
-  // Native addEventListener bypasses Svelte 5's event delegation
-  // (which doesn't fire for programmatically dispatched events in tests).
-  function priorityEvents(node: HTMLElement) {
-    node.addEventListener('input', handlePriorityContainerEvent);
-    node.addEventListener('change', handlePriorityContainerEvent);
-    return {
-      destroy() {
-        node.removeEventListener('input', handlePriorityContainerEvent);
-        node.removeEventListener('change', handlePriorityContainerEvent);
-      },
-    };
-  }
-
-  // When localAlertSoundEnabled changes to true, the sound config section mounts.
-  // We need to apply sound type/volume values after it renders.
-  $effect(() => {
-    if (localAlertSoundEnabled) {
-      // Use tick-like microtask to wait for DOM to update after conditional render
-      untrack(() => {
-        queueMicrotask(() => {
-          const els = getPriorityEls();
-          if (els?.soundType) els.soundType.value = canonicalSoundType(priorityFilter.alert_sound_type);
-          if (els?.soundVolume) els.soundVolume.value = String(priorityFilter.alert_sound_volume ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME);
-        });
-      });
-    }
-  });
-
-  let localRefreshPolicy = $derived(normalizeRefreshPolicy(committedMinDelay, committedAvgDelay, committedSpread));
-
-  // Cache saved values as plain numbers so the derived doesn't re-read the reactive prop
-  let savedMin = savedRefreshPolicy.minimum_delay_seconds;
-  let savedAvg = savedRefreshPolicy.average_delay_seconds;
-  let savedSpread = savedRefreshPolicy.spread_seconds;
-  let hasUnsavedRefreshChanges = $derived(
-    committedMinDelay !== savedMin ||
-    committedAvgDelay !== savedAvg ||
-    committedSpread !== savedSpread
+  const previewButtonDisabled = $derived(!previewPlaying && priorityFilter.alert_sound_volume <= 0);
+  const previewButtonText = $derived(previewPlaying ? '\u25A0' : '\u25B6');
+  const previewButtonTitle = $derived(
+    priorityFilter.alert_sound_volume <= 0 ? 'Volume is 0' : previewPlaying ? 'Stop preview' : 'Preview sound',
   );
-
-  let refreshPlan = $derived(buildRefreshPlan(localRefreshPolicy));
-  let refreshPlanSummary = $derived.by(() => {
-    const delayLabels = refreshPlan.delays.length
-      ? refreshPlan.delays.map((s) => `${Math.round(s)}s`).join(', ')
-      : 'none within this cycle';
-    return `Per ${localRefreshPolicy.cycle_seconds}s cycle: ${refreshPlan.count} extra refreshes at ${delayLabels}.`;
-  });
-
-  let debugRows = $derived(buildDebugRows(extensionState, refreshState));
-  let debugLogs = $derived(buildDebugLogs(extensionState));
 
   const soundTypeOptions: { value: string; label: string }[] = [
     { value: 'pay', label: 'Pay' },
@@ -308,27 +162,71 @@
     return unique;
   }
 
+  // Called when any priority filter input changes. Reads current state from
+  // the $bindable priorityFilter (already updated by bind:) and notifies
+  // the parent to persist.
+  function handlePriorityInput() {
+    // Update keywords from local text state
+    priorityFilter.always_open_keywords = normalizePriorityKeywords(alwaysKeywordsText);
+    priorityFilter.ignore_keywords = normalizePriorityKeywords(ignoreKeywordsText);
+    onPriorityFilterChange(priorityFilter);
+  }
 
+  function handlePriorityCheckboxChange() {
+    // For checkboxes, bind:checked has already updated priorityFilter.
+    // Update keywords in case they were edited.
+    priorityFilter.always_open_keywords = normalizePriorityKeywords(alwaysKeywordsText);
+    priorityFilter.ignore_keywords = normalizePriorityKeywords(ignoreKeywordsText);
+    onPriorityFilterChange(priorityFilter);
+  }
 
-  // Track last user edit time to suppress prop-driven DOM updates during active editing.
-  // After a user edit, we skip prop-to-DOM sync for a brief window so the persist-then-normalize
-  // cycle doesn't fight with the user's input. The window should exceed the debounce + RTT.
-  let lastUserEditAt = 0;
-  const PRIORITY_EDIT_SUPPRESS_MS = 2000;
+  function handleSoundControlChange() {
+    cancelPreview();
+    handlePriorityInput();
+  }
 
-  function handlePriorityContainerEvent(e: Event) {
-    const target = e.target as HTMLElement;
-    // Side effects for sound controls
-    if (target.id === 'priorityAlertSoundVolumeInput') cancelPreview();
-    if (target.id === 'priorityAlertSoundTypeSelect') cancelPreview();
-    const updated = readPriorityFilterFromDOM();
-    // Update local sound state for conditional render (deferred to avoid loops)
-    const newSoundEnabled = updated.alert_sound_enabled;
-    if (newSoundEnabled !== localAlertSoundEnabled) {
-      queueMicrotask(() => { localAlertSoundEnabled = newSoundEnabled; });
+  // Refresh slider handlers
+  function handleRefreshSliderInput() {
+    // Normalize the policy from current slider values
+    const policy = normalizeRefreshPolicy(localMinDelay, localAvgDelay, localSpread);
+    localMinDelay = policy.minimum_delay_seconds;
+    localAvgDelay = policy.average_delay_seconds;
+    localSpread = policy.spread_seconds;
+  }
+
+  function refreshCardActions(node: HTMLElement) {
+    function onClick(e: Event) {
+      const target = e.target as HTMLElement;
+      if (target.closest('#refreshCadenceSaveButton')) handleRefreshSave();
+      else if (target.closest('#refreshCadenceRevertButton')) handleRefreshRevert();
     }
-    lastUserEditAt = Date.now();
-    onPriorityFilterChange(updated);
+    node.addEventListener('click', onClick);
+    return { destroy() { node.removeEventListener('click', onClick); } };
+  }
+
+  function handleRefreshSave() {
+    onRefreshPolicySave(
+      localRefreshPolicy.minimum_delay_seconds,
+      localRefreshPolicy.average_delay_seconds,
+      localRefreshPolicy.spread_seconds,
+    );
+    savedMin = Number(localMinDelay);
+    savedAvg = Number(localAvgDelay);
+    savedSpread = Number(localSpread);
+  }
+
+  function handleRefreshRevert() {
+    const policy = normalizeRefreshPolicy(
+      savedRefreshPolicy.minimum_delay_seconds,
+      savedRefreshPolicy.average_delay_seconds,
+      savedRefreshPolicy.spread_seconds,
+    );
+    localMinDelay = policy.minimum_delay_seconds;
+    localAvgDelay = policy.average_delay_seconds;
+    localSpread = policy.spread_seconds;
+    savedMin = localMinDelay;
+    savedAvg = localAvgDelay;
+    savedSpread = localSpread;
   }
 
   function buildRefreshPlan(policy: NormalizedRefreshPolicy): { delays: number[]; windows: { left: number; right: number }[]; count: number } {
@@ -494,14 +392,8 @@
     previewPlaying = false;
   }
 
-  let previewButtonDisabled = $derived(previewPlaying || priorityFilter.alert_sound_volume <= 0);
-  let previewButtonText = $derived(previewPlaying ? '\u25A0' : '\u25B6');
-  let previewButtonTitle = $derived(
-    priorityFilter.alert_sound_volume <= 0 ? 'Volume is 0' : previewPlaying ? 'Playing' : 'Preview sound',
-  );
-
   async function handlePreviewClick() {
-    if (previewPlaying) return;
+    if (previewPlaying) { cancelPreview(); return; }
 
     const audioContext = getPreviewAudioContext();
     if (!audioContext) return;
@@ -509,11 +401,9 @@
       await audioContext.resume();
     }
 
-    // Read sound type and volume from DOM, not reactive props
-    const els = getPriorityEls();
-    const soundType = canonicalSoundType(els?.soundType?.value ?? DEFAULT_PRIORITY_ALERT_SOUND_TYPE);
+    const soundType = canonicalSoundType(priorityFilter.alert_sound_type ?? DEFAULT_PRIORITY_ALERT_SOUND_TYPE);
     const soundVolume = clampInt(
-      els?.soundVolume ? Number(els.soundVolume.value) : DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
+      priorityFilter.alert_sound_volume ?? DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
       MIN_PRIORITY_ALERT_SOUND_VOLUME,
       MAX_PRIORITY_ALERT_SOUND_VOLUME,
       DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
@@ -542,39 +432,12 @@
     source.start(startTime);
   }
 
-  function handleRefreshSave() {
-    onRefreshPolicySave(
-      localRefreshPolicy.minimum_delay_seconds,
-      localRefreshPolicy.average_delay_seconds,
-      localRefreshPolicy.spread_seconds,
-    );
-    // Update cached saved values so hasUnsavedRefreshChanges becomes false
-    savedMin = committedMinDelay;
-    savedAvg = committedAvgDelay;
-    savedSpread = committedSpread;
-  }
-
-  function handleRefreshRevert() {
-    const policy = normalizeRefreshPolicy(
-      savedRefreshPolicy.minimum_delay_seconds,
-      savedRefreshPolicy.average_delay_seconds,
-      savedRefreshPolicy.spread_seconds,
-    );
-    applyRefreshPolicyToSliders(policy);
-    committedMinDelay = policy.minimum_delay_seconds;
-    committedAvgDelay = policy.average_delay_seconds;
-    committedSpread = policy.spread_seconds;
-    savedMin = committedMinDelay;
-    savedAvg = committedAvgDelay;
-    savedSpread = committedSpread;
-  }
-
 </script>
 
 <div id="panelSettings" class="panel" class:active role="tabpanel" aria-labelledby="tabSettings">
   <div class="settings">
     <!-- Auto-open card -->
-    <div class="setting-card bg-base-200 border border-base-300 rounded-lg p-4 flex items-center justify-between gap-3 mb-2.5">
+    <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 flex items-center justify-between gap-3 mb-2.5">
       <div>
         <div class="text-sm font-semibold text-base-content">Auto-open Prolific tab</div>
         <div class="text-xs text-base-content/50 mt-0.5 leading-snug">Keeps a background Prolific tab alive when none are open.</div>
@@ -590,7 +453,7 @@
     </div>
 
     <!-- Priority filter card -->
-    <div bind:this={priorityContainerEl} use:priorityEvents class="setting-card bg-base-200 border border-base-300 rounded-lg p-4 mb-2.5">
+    <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 mb-2.5">
       <div class="flex items-center justify-between gap-2.5 mb-0.5">
         <div class="text-sm font-semibold text-base-content">Priority filter</div>
         <input
@@ -598,10 +461,13 @@
           type="checkbox"
           class="toggle toggle-primary toggle-sm"
           aria-label="Priority filter"
+          bind:checked={priorityFilter.enabled}
+          onchange={handlePriorityCheckboxChange}
         />
       </div>
       <div class="text-xs text-base-content/50 leading-snug">Highlight and alert when newly available studies match these rules.</div>
 
+      {#if priorityFilter.enabled}
       <div class="mt-3 flex flex-col gap-2.5">
         <!-- Min reward -->
         <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
@@ -613,6 +479,8 @@
             min={MIN_PRIORITY_FILTER_MIN_REWARD}
             max={MAX_PRIORITY_FILTER_MIN_REWARD}
             step="0.1"
+            bind:value={priorityFilter.minimum_reward_major}
+            oninput={handlePriorityInput}
           />
         </div>
 
@@ -626,6 +494,8 @@
             min={MIN_PRIORITY_FILTER_MIN_HOURLY_REWARD}
             max={MAX_PRIORITY_FILTER_MIN_HOURLY_REWARD}
             step="0.5"
+            bind:value={priorityFilter.minimum_hourly_reward_major}
+            oninput={handlePriorityInput}
           />
         </div>
 
@@ -639,6 +509,8 @@
             min={MIN_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES}
             max={MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES}
             step="1"
+            bind:value={priorityFilter.maximum_estimated_minutes}
+            oninput={handlePriorityInput}
           />
         </div>
 
@@ -652,6 +524,8 @@
             min={MIN_PRIORITY_FILTER_MIN_PLACES}
             max={MAX_PRIORITY_FILTER_MIN_PLACES}
             step="1"
+            bind:value={priorityFilter.minimum_places_available}
+            oninput={handlePriorityInput}
           />
         </div>
 
@@ -664,6 +538,8 @@
             class="input input-sm w-full lowercase"
             spellcheck="false"
             placeholder="survey, ai, mobile"
+            bind:value={alwaysKeywordsText}
+            oninput={handlePriorityInput}
           />
         </div>
 
@@ -676,6 +552,8 @@
             class="input input-sm w-full lowercase"
             spellcheck="false"
             placeholder="screened, webcam"
+            bind:value={ignoreKeywordsText}
+            oninput={handlePriorityInput}
           />
         </div>
       </div>
@@ -692,6 +570,8 @@
           type="checkbox"
           class="toggle toggle-primary toggle-sm justify-self-start"
           aria-label="Auto-open in new tab"
+          bind:checked={priorityFilter.auto_open_in_new_tab}
+          onchange={handlePriorityCheckboxChange}
         />
       </div>
 
@@ -703,11 +583,13 @@
           type="checkbox"
           class="toggle toggle-primary toggle-sm justify-self-start"
           aria-label="Alert sound"
+          bind:checked={priorityFilter.alert_sound_enabled}
+          onchange={handlePriorityCheckboxChange}
         />
       </div>
 
       <!-- Alert sound config (shown when sound enabled) -->
-      {#if localAlertSoundEnabled}
+      {#if priorityFilter.alert_sound_enabled}
         <div id="priorityAlertSoundConfig" class="mt-2.5 p-3 border border-base-300 rounded-md bg-base-200/50">
           <div class="priority-field grid grid-cols-[156px_1fr] items-center gap-2">
             <div class="inline-flex items-center gap-1.5">
@@ -725,6 +607,8 @@
             <select
               id="priorityAlertSoundTypeSelect"
               class="select select-sm w-full"
+              bind:value={priorityFilter.alert_sound_type}
+              onchange={handleSoundControlChange}
             >
               {#each soundTypeOptions as opt (opt.value)}
                 <option value={opt.value}>{opt.label}</option>
@@ -736,37 +620,39 @@
             <input
               id="priorityAlertSoundVolumeInput"
               type="range"
-              class="range range-primary range-sm w-full"
+              class="range range-primary range-xs w-full"
               min={MIN_PRIORITY_ALERT_SOUND_VOLUME}
               max={MAX_PRIORITY_ALERT_SOUND_VOLUME}
               step="1"
+              bind:value={priorityFilter.alert_sound_volume}
+              oninput={handleSoundControlChange}
             />
           </div>
         </div>
       {/if}
+      {/if}
     </div>
 
     <!-- Refresh cadence card -->
-    <div class="setting-card bg-base-200 border border-base-300 rounded-lg p-4 mb-2.5">
+    <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 mb-2.5">
       <div class="text-sm font-semibold text-base-content">Studies refresh rate</div>
       <div class="text-xs text-base-content/50 mt-0.5 leading-snug">Plan delayed backend refreshes inside each 2-minute Prolific auto-refresh cycle.</div>
 
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div bind:this={refreshContainerEl} class="mt-2 flex flex-col gap-2" oninput={handleRefreshSliderInput}>
+      <div class="mt-2 flex flex-col gap-2">
         <div class="refresh-field grid grid-cols-[132px_1fr_auto] items-center gap-2">
           <label for="refreshMinDelayInput" class="text-[12.5px] text-base-content/50 font-medium">Minimum delay (s)</label>
-          <input id="refreshMinDelayInput" type="range" class="range range-primary range-sm w-full" min="1" max="30" step="1" />
-          <span id="refreshMinDelayValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">20s</span>
+          <input id="refreshMinDelayInput" type="range" class="range range-primary range-xs w-full" min="1" max={localRefreshPolicy.maximum_minimum_delay_seconds} step="1" bind:value={localMinDelay} oninput={handleRefreshSliderInput} />
+          <span id="refreshMinDelayValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">{localMinDelay}s</span>
         </div>
         <div class="refresh-field grid grid-cols-[132px_1fr_auto] items-center gap-2">
           <label for="refreshAverageDelayInput" class="text-[12.5px] text-base-content/50 font-medium">Average delay (s)</label>
-          <input id="refreshAverageDelayInput" type="range" class="range range-primary range-sm w-full" min="5" max="60" step="1" />
-          <span id="refreshAverageDelayValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">30s</span>
+          <input id="refreshAverageDelayInput" type="range" class="range range-primary range-xs w-full" min="5" max="60" step="1" bind:value={localAvgDelay} oninput={handleRefreshSliderInput} />
+          <span id="refreshAverageDelayValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">{localAvgDelay}s</span>
         </div>
         <div class="refresh-field grid grid-cols-[132px_1fr_auto] items-center gap-2">
           <label for="refreshSpreadInput" class="text-[12.5px] text-base-content/50 font-medium">Spread (s)</label>
-          <input id="refreshSpreadInput" type="range" class="range range-primary range-sm w-full" min="0" max="60" step="1" />
-          <span id="refreshSpreadValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">0s</span>
+          <input id="refreshSpreadInput" type="range" class="range range-primary range-xs w-full" min="0" max={localRefreshPolicy.maximum_spread_seconds} step="1" bind:value={localSpread} oninput={handleRefreshSliderInput} />
+          <span id="refreshSpreadValue" class="text-[11px] text-base-content font-extrabold font-mono text-right min-w-[34px]">{localSpread}s</span>
         </div>
       </div>
 
@@ -776,20 +662,20 @@
       </div>
 
       <!-- Plan track visualization -->
-      <div id="refreshPlanTrack" class="refresh-plan-track mt-2 border border-base-300 rounded-md bg-base-200/50 h-[44px] relative overflow-hidden">
+      <div id="refreshPlanTrack" class="refresh-plan-track mt-2 border border-base-300 rounded-md bg-base-200 dark:bg-base-300/30 h-[44px] relative overflow-hidden">
         <!-- Boundary markers -->
         <span class="refresh-marker boundary absolute top-[6px] h-[22px] w-0.5 rounded-sm bg-success" style="left:0%"></span>
         <span class="refresh-marker boundary absolute top-[6px] h-[22px] w-0.5 rounded-sm bg-success" style="left:100%"></span>
 
         <!-- Min delay exclusion zones -->
-        <span class="refresh-min-window absolute top-[8px] h-[18px] rounded-sm bg-error/10 border border-error/25" style="left:0%;width:{trackPct(localRefreshPolicy.minimum_delay_seconds)}%"></span>
-        <span class="refresh-min-window absolute top-[8px] h-[18px] rounded-sm bg-error/10 border border-error/25" style="left:{trackPct(localRefreshPolicy.cycle_seconds - localRefreshPolicy.minimum_delay_seconds)}%;width:{Math.max(0, 100 - trackPct(localRefreshPolicy.cycle_seconds - localRefreshPolicy.minimum_delay_seconds))}%"></span>
+        <span class="refresh-min-window absolute top-[8px] h-[18px] rounded-sm bg-error/20 border border-error/30" style="left:0%;width:{trackPct(localRefreshPolicy.minimum_delay_seconds)}%"></span>
+        <span class="refresh-min-window absolute top-[8px] h-[18px] rounded-sm bg-error/20 border border-error/30" style="left:{trackPct(localRefreshPolicy.cycle_seconds - localRefreshPolicy.minimum_delay_seconds)}%;width:{Math.max(0, 100 - trackPct(localRefreshPolicy.cycle_seconds - localRefreshPolicy.minimum_delay_seconds))}%"></span>
 
         <!-- Min delay exclusion around each marker -->
         {#each refreshPlan.delays as seconds, i (i)}
           {@const left = trackPct(seconds - localRefreshPolicy.minimum_delay_seconds)}
           {@const right = trackPct(seconds + localRefreshPolicy.minimum_delay_seconds)}
-          <span class="refresh-min-window absolute top-[8px] h-[18px] rounded-sm bg-error/10 border border-error/25" style="left:{left}%;width:{Math.max(0, right - left)}%"></span>
+          <span class="refresh-min-window absolute top-[8px] h-[18px] rounded-sm bg-error/20 border border-error/30" style="left:{left}%;width:{Math.max(0, right - left)}%"></span>
         {/each}
 
         <!-- Spread windows -->
@@ -810,30 +696,26 @@
       </div>
 
       <!-- Save/Revert buttons -->
-      {#if hasUnsavedRefreshChanges}
-        <div id="refreshCadenceActions" class="setting-actions mt-2 flex gap-2 visible">
-          <button
-            id="refreshCadenceSaveButton"
-            class="btn btn-outline btn-sm flex-1"
-            type="button"
-            onclick={handleRefreshSave}
-          >Save</button>
-          <button
-            id="refreshCadenceRevertButton"
-            class="btn btn-outline btn-sm btn-error flex-1"
-            type="button"
-            onclick={handleRefreshRevert}
-          >Revert</button>
-        </div>
-      {:else}
-        <div id="refreshCadenceActions" class="setting-actions mt-2 hidden gap-2"></div>
-      {/if}
+      <div use:refreshCardActions id="refreshCadenceActions" class="setting-actions mt-2 gap-2" class:flex={hasUnsavedRefreshChanges} class:hidden={!hasUnsavedRefreshChanges}>
+        <button
+          id="refreshCadenceSaveButton"
+          class="btn btn-primary btn-sm flex-1"
+          type="button"
+          onclick={handleRefreshSave}
+        >Save</button>
+        <button
+          id="refreshCadenceRevertButton"
+          class="btn btn-outline btn-sm btn-error flex-1"
+          type="button"
+          onclick={handleRefreshRevert}
+        >Revert</button>
+      </div>
     </div>
 
     <!-- Diagnostics collapsible -->
-    <details class="debug-details border border-base-300 rounded-lg bg-base-200/50">
-      <summary class="debug-summary cursor-pointer text-[13px] font-semibold text-base-content/70 p-3 select-none list-none">
-        <span class="debug-arrow mr-1.5 text-base-content/40 inline-block">&#9656;</span>Diagnostics
+    <details class="debug-details border border-base-300 rounded-lg bg-base-100 shadow-sm">
+      <summary class="debug-summary cursor-pointer text-[13px] font-semibold text-base-content/70 p-3 select-none list-none hover:text-base-content transition-colors">
+        <span class="debug-arrow mr-1 text-[10px] text-base-content/40 inline-block">&#9654;</span>Diagnostics
       </summary>
       <div class="debug-card border-t border-base-300 p-3">
         <div class="flex items-center justify-between gap-2.5 mb-2">
@@ -889,6 +771,9 @@
   }
   details[open] .debug-summary {
     border-bottom: 1px solid oklch(var(--bc) / 0.15);
+  }
+  .debug-arrow {
+    transition: transform 120ms ease;
   }
   details[open] .debug-arrow {
     transform: rotate(90deg);

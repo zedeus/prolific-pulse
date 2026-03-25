@@ -32,39 +32,47 @@ function getPanelInfo(panelId) {
 }
 
 function getStudyCards() {
-  return exec(() => [...document.querySelectorAll('#panelLive .event.live')].map((card) => ({
-    title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
-    reward: card.querySelector('.metric.reward')?.textContent?.trim() ?? '',
-    rate: card.querySelector('.metric.rate')?.textContent?.trim() ?? '',
-    badges: [...card.querySelectorAll('.badge')].map((b) => b.textContent?.trim() ?? ''),
-    hasPriorityBadge: !!card.querySelector('.badge')?.textContent?.includes('Priority'),
-    isPriorityCard: card.classList.contains('priority'),
-    hasFirstSeen: !!card.querySelector('.event-time'),
-    linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
-  })));
+  return exec(() => [...document.querySelectorAll('#panelLive .event.live')].map((card) => {
+    const metrics = card.querySelector('.event-metrics');
+    const spans = metrics ? [...metrics.querySelectorAll('span')] : [];
+    return {
+      title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
+      reward: spans[0]?.textContent?.trim() ?? '',
+      rate: spans[1]?.textContent?.trim() ?? '',
+      isPriorityCard: card.classList.contains('priority') || card.classList.contains('priority-card'),
+      hasFirstSeen: !!card.querySelector('.event-time'),
+      linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
+    };
+  }));
 }
 
 function getEventCards() {
-  return exec(() => [...document.querySelectorAll('#panelFeed .event')].map((card) => ({
-    title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
-    time: card.querySelector('.event-time')?.textContent?.trim() ?? '',
-    type: card.classList.contains('available') ? 'available' : card.classList.contains('unavailable') ? 'unavailable' : 'unknown',
-    reward: card.querySelector('.metric.reward')?.textContent?.trim() ?? '',
-    rate: card.querySelector('.metric.rate')?.textContent?.trim() ?? '',
-    badges: [...card.querySelectorAll('.badge')].map((b) => b.textContent?.trim() ?? ''),
-    linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
-  })));
+  return exec(() => [...document.querySelectorAll('#panelFeed .event')].map((card) => {
+    const metrics = card.querySelector('.event-metrics');
+    const spans = metrics ? [...metrics.querySelectorAll('span')] : [];
+    return {
+      title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
+      time: card.querySelector('.event-time')?.textContent?.trim() ?? '',
+      type: card.classList.contains('available') ? 'available' : card.classList.contains('unavailable') ? 'unavailable' : 'unknown',
+      reward: spans[0]?.textContent?.trim() ?? '',
+      rate: spans[1]?.textContent?.trim() ?? '',
+      linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
+    };
+  }));
 }
 
 function getSubmissionCards() {
-  return exec(() => [...document.querySelectorAll('#panelSubmissions .event')].map((card) => ({
-    title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
-    time: card.querySelector('.event-time')?.textContent?.trim() ?? '',
-    reward: card.querySelector('.metric.reward')?.textContent?.trim() ?? '',
-    rate: card.querySelector('.metric.rate')?.textContent?.trim() ?? '',
-    badges: [...card.querySelectorAll('.badge')].map((b) => b.textContent?.trim() ?? ''),
-    linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
-  })));
+  return exec(() => [...document.querySelectorAll('#panelSubmissions .event')].map((card) => {
+    const metrics = card.querySelector('.event-metrics');
+    const spans = metrics ? [...metrics.querySelectorAll('span')] : [];
+    return {
+      title: card.querySelector('.event-title')?.textContent?.trim() ?? '',
+      time: card.querySelector('.event-time')?.textContent?.trim() ?? '',
+      reward: spans[0]?.textContent?.trim() ?? '',
+      rate: spans[1]?.textContent?.trim() ?? '',
+      linkHref: card.closest('.event-link')?.getAttribute('href') ?? null,
+    };
+  }));
 }
 
 function getTabStates() {
@@ -258,7 +266,7 @@ describe('Popup Panels', () => {
     }
   });
 
-  it('study cards have title, reward, rate, and badges', async () => {
+  it('study cards have title, reward, and rate', async () => {
     await navigateToPopup();
     await browser.pause(2000);
 
@@ -267,7 +275,6 @@ describe('Popup Panels', () => {
       expect(card.title.length).toBeGreaterThan(0);
       expect(card.reward.length).toBeGreaterThan(0);
       expect(card.rate).toContain('/hr');
-      expect(card.badges.length).toBeGreaterThanOrEqual(1);
     }
   });
 

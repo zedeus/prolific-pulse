@@ -53,6 +53,7 @@
   import SettingsPanel from './components/SettingsPanel.svelte';
 
   let activeTab = $state('live');
+  let darkMode = $state(false);
   let studies: Study[] = $state([]);
   let events: StudyEvent[] = $state([]);
   let submissions: Submission[] = $state([]);
@@ -63,6 +64,7 @@
   let isAuthRequired = $state(false);
   let autoOpenEnabled = $state(true);
   let panelStatusMessage = $state('');
+  let settingsLoaded = $state(false);
 
   let priorityFilter: PriorityFilter = $state({
     enabled: false,
@@ -98,13 +100,13 @@
   let priorityFilterPersistInFlight = false;
   let tick = $state(0);
 
-  let refreshPrefix = $derived.by(() => {
+  const refreshPrefix = $derived.by(() => {
     if (latestRefreshOffline) return '';
     if (isAuthRequired && !latestRefreshDate) return '';
     return 'Updated ';
   });
 
-  let latestRefreshText = $derived.by(() => {
+  const latestRefreshText = $derived.by(() => {
     void tick;
     if (latestRefreshOffline) return 'Offline';
     if (isAuthRequired && !latestRefreshDate) return 'Signed out';
@@ -112,28 +114,55 @@
     return formatRelative(latestRefreshDate);
   });
 
-  let latestRefreshTitle = $derived.by(() => {
+  const latestRefreshTitle = $derived.by(() => {
     if (latestRefreshOffline) return 'Local service unavailable';
     if (isAuthRequired && !latestRefreshDate) return AUTH_REQUIRED_MESSAGE;
     if (!latestRefreshDate) return '';
     return latestRefreshDate.toLocaleString();
   });
 
-  let showPanelOverride = $derived(isOffline || isAuthRequired);
-  let panelOverrideText = $derived(
+  const showPanelOverride = $derived(isOffline || isAuthRequired);
+  const panelOverrideText = $derived(
     isOffline ? panelStatusMessage : isAuthRequired ? AUTH_REQUIRED_PANEL_MESSAGE : '',
   );
 
+  function applyTheme(dark: boolean) {
+    darkMode = dark;
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }
+
+  // Load theme preference: stored override > system preference
+  $effect(() => {
+    untrack(() => {
+      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      browser.storage.local.get('themePreference').then((data: Record<string, unknown>) => {
+        const pref = data.themePreference as string | undefined;
+        if (pref === 'dark') applyTheme(true);
+        else if (pref === 'light') applyTheme(false);
+        else applyTheme(systemDark);
+      });
+    });
+  });
+
+  // Follow system preference changes (only when no manual override is stored)
   $effect(() => {
     const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    function applyTheme(dark: boolean) {
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    }
-    applyTheme(darkQuery.matches);
-    const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
+    const handler = (e: MediaQueryListEvent) => {
+      browser.storage.local.get('themePreference').then((data: Record<string, unknown>) => {
+        if (!data.themePreference) applyTheme(e.matches);
+      });
+    };
     darkQuery.addEventListener('change', handler);
     return () => darkQuery.removeEventListener('change', handler);
   });
+
+  function toggleDarkMode() {
+    const next = !darkMode;
+    applyTheme(next);
+    // Cycle: light → dark → system (clear preference)
+    // For simplicity: just toggle and store
+    browser.storage.local.set({ themePreference: next ? 'dark' : 'light' });
+  }
 
   $effect(() => {
     latestRefreshTicker = setInterval(() => {
@@ -360,6 +389,7 @@
         settings.studies_refresh_spread_seconds,
       );
       savedRefreshPolicy = rp;
+      settingsLoaded = true;
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : String(err);
     }
@@ -492,10 +522,23 @@
       while (priorityFilterPersistPending) {
         priorityFilterPersistPending = false;
         try {
-          // Deep-clone to strip Svelte $state proxies before runtime.sendMessage
-          const saved = await setPriorityFilterRemote(JSON.parse(JSON.stringify(priorityFilter)));
-          const normalized = normalizePriorityFilterFromSettings(saved);
-          priorityFilter = normalized;
+          // Create a plain object copy to strip Svelte $state proxies before runtime.sendMessage
+          const plain: PriorityFilter = {
+            enabled: priorityFilter.enabled,
+            auto_open_in_new_tab: priorityFilter.auto_open_in_new_tab,
+            alert_sound_enabled: priorityFilter.alert_sound_enabled,
+            alert_sound_type: priorityFilter.alert_sound_type,
+            alert_sound_volume: priorityFilter.alert_sound_volume,
+            minimum_reward_major: priorityFilter.minimum_reward_major,
+            minimum_hourly_reward_major: priorityFilter.minimum_hourly_reward_major,
+            maximum_estimated_minutes: priorityFilter.maximum_estimated_minutes,
+            minimum_places_available: priorityFilter.minimum_places_available,
+            always_open_keywords: [...priorityFilter.always_open_keywords],
+            ignore_keywords: [...priorityFilter.ignore_keywords],
+          };
+          await setPriorityFilterRemote(plain);
+          // Don't write normalized back to priorityFilter — the child owns editing state
+          // via $bindable, and writing back would cause the round-trip flicker.
         } catch (err) {
           errorMessage = err instanceof Error ? err.message : String(err);
         }
@@ -505,8 +548,9 @@
     }
   }
 
-  function handlePriorityFilterChange(filter: PriorityFilter) {
-    priorityFilter = filter;
+  function handlePriorityFilterChange(_filter: PriorityFilter) {
+    // The binding has already updated priorityFilter in the parent.
+    // We only need to schedule persistence here.
     priorityFilterPersistPending = true;
     if (priorityFilterPersistTimer) clearTimeout(priorityFilterPersistTimer);
     priorityFilterPersistTimer = setTimeout(() => {
@@ -554,13 +598,15 @@
   }
 </script>
 
-<main class="w-[620px] p-3 bg-base-100 text-base-content">
+<main class="w-[620px] p-3 bg-base-200 text-base-content">
   <StatusBar
     offline={isOffline || !!errorMessage}
     {errorMessage}
     {latestRefreshText}
     {latestRefreshTitle}
     {refreshPrefix}
+    {darkMode}
+    onToggleDarkMode={toggleDarkMode}
   />
 
   <TabBar {activeTab} onTabChange={handleTabChange} />
@@ -586,10 +632,11 @@
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
   />
+  {#if settingsLoaded}
   <SettingsPanel
     active={activeTab === 'settings'}
     {autoOpenEnabled}
-    {priorityFilter}
+    bind:priorityFilter
     {savedRefreshPolicy}
     {extensionState}
     refreshState={refreshStateData}
@@ -599,4 +646,7 @@
     onRefreshDebug={handleRefreshDebug}
     onClearDebugLogs={handleClearDebugLogs}
   />
+  {:else}
+    <div id="panelSettings" class="panel" class:active={activeTab === 'settings'}></div>
+  {/if}
 </main>

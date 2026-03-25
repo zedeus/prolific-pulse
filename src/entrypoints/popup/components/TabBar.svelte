@@ -11,9 +11,10 @@
   }
 </script>
 
-<div class="flex border-b border-base-300" role="tablist" aria-label="Popup tabs">
+<div class="flex border-b border-base-300 mb-3" role="tablist" aria-label="Popup tabs">
   {#each tabs as tab (tab)}
     <button
+      id="tab{tab.charAt(0).toUpperCase() + tab.slice(1)}"
       class="flex-1 border-b-2 bg-transparent text-base-content/50 text-sm font-semibold leading-none py-2.5 cursor-pointer text-center transition-colors duration-100 hover:text-base-content/70 {activeTab === tab ? 'tab-active !text-primary !border-primary' : 'border-transparent'}"
       type="button"
       data-tab={tab}

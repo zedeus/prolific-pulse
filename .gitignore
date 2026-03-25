@@ -53,6 +53,7 @@ tests/profiles/
 tests-wdio/node_modules/
 tests-wdio/.chrome-extension/
 tests-wdio/.chrome-cookies.json
+tests-wdio/screenshots/
 tests-wdio/.venv/
 
 # Third-party extensions
