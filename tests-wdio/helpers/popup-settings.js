@@ -1,10 +1,40 @@
 /**
- * Toggle the priority filter enabled checkbox.
+ * Ensure at least one priority filter exists, expanding the first one.
  */
-export async function togglePriorityFilter(enable = true) {
+async function ensureFilterExpanded() {
+  // Click settings tab
   await (await $('button[data-tab="settings"]')).click();
   await browser.pause(300);
-  const checkbox = await $('#priorityFilterEnabledToggle');
+
+  // Create filter if none exist
+  const hasFilter = await browser.execute(() => {
+    return document.querySelectorAll('[data-filter-id]').length > 0;
+  });
+  if (!hasFilter) {
+    await browser.execute(() => {
+      const btn = document.getElementById('addFilterButton');
+      if (btn) btn.click();
+    });
+    await browser.pause(500);
+  }
+
+  // Expand first filter if collapsed
+  await browser.execute(() => {
+    const card = document.querySelector('[data-filter-id]');
+    if (card) {
+      const btn = card.querySelector('button[aria-label="Expand filter"], button[aria-label="Collapse filter"]');
+      if (btn) btn.click();
+    }
+  });
+  await browser.pause(300);
+}
+
+/**
+ * Toggle the first priority filter enabled checkbox.
+ */
+export async function togglePriorityFilter(enable = true) {
+  await ensureFilterExpanded();
+  const checkbox = await $('#priorityFilterEnabledToggle-0');
   const isChecked = await checkbox.isSelected();
   if (enable && !isChecked) await checkbox.click();
   else if (!enable && isChecked) await checkbox.click();
@@ -12,7 +42,7 @@ export async function togglePriorityFilter(enable = true) {
 }
 
 /**
- * Fill priority filter fields. Switches to settings tab first.
+ * Fill first priority filter fields. Switches to settings tab first.
  */
 export async function setPriorityFilter({
   minReward,
@@ -20,18 +50,17 @@ export async function setPriorityFilter({
   maxEta,
   minPlaces,
 } = {}) {
-  await (await $('button[data-tab="settings"]')).click();
-  await browser.pause(300);
+  await ensureFilterExpanded();
   if (minReward !== undefined) {
-    await (await $('#priorityMinRewardInput')).setValue(String(minReward));
+    await (await $('#priorityMinRewardInput-0')).setValue(String(minReward));
   }
   if (minHourly !== undefined) {
-    await (await $('#priorityMinHourlyInput')).setValue(String(minHourly));
+    await (await $('#priorityMinHourlyInput-0')).setValue(String(minHourly));
   }
   if (maxEta !== undefined) {
-    await (await $('#priorityMaxEtaInput')).setValue(String(maxEta));
+    await (await $('#priorityMaxEtaInput-0')).setValue(String(maxEta));
   }
   if (minPlaces !== undefined) {
-    await (await $('#priorityMinPlacesInput')).setValue(String(minPlaces));
+    await (await $('#priorityMinPlacesInput-0')).setValue(String(minPlaces));
   }
 }

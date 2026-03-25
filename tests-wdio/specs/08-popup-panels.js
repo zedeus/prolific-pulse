@@ -90,20 +90,32 @@ function getTabStates() {
 
 function getSettingsState() {
   return exec(() => {
+    // Create a filter if none exist
+    if (document.querySelectorAll('[data-filter-id]').length === 0) {
+      const addBtn = document.getElementById('addFilterButton');
+      if (addBtn) addBtn.click();
+    }
+    // Expand first filter if it exists and is collapsed
+    const card = document.querySelector('[data-filter-id]');
+    if (card) {
+      const expandBtn = card.querySelector('button[aria-label="Expand filter"]');
+      if (expandBtn) expandBtn.click();
+    }
+
     const get = (id) => document.getElementById(id);
     return {
       autoOpen: get('autoOpenToggle')?.checked ?? null,
-      priorityEnabled: get('priorityFilterEnabledToggle')?.checked ?? null,
-      autoOpenNewTab: get('priorityAutoOpenInNewTabToggle')?.checked ?? null,
-      alertSound: get('priorityAlertSoundToggle')?.checked ?? null,
-      soundType: get('priorityAlertSoundTypeSelect')?.value ?? null,
-      soundVolume: get('priorityAlertSoundVolumeInput')?.value ?? null,
-      minReward: get('priorityMinRewardInput')?.value ?? null,
-      minHourly: get('priorityMinHourlyInput')?.value ?? null,
-      maxEta: get('priorityMaxEtaInput')?.value ?? null,
-      minPlaces: get('priorityMinPlacesInput')?.value ?? null,
-      alwaysKeywords: get('priorityAlwaysKeywordsInput')?.value ?? null,
-      ignoreKeywords: get('priorityIgnoreKeywordsInput')?.value ?? null,
+      filterCount: document.querySelectorAll('[data-filter-id]').length,
+      priorityEnabled: get('priorityFilterEnabledToggle-0')?.checked ?? null,
+      autoOpenNewTab: get('priorityAutoOpenInNewTabToggle-0')?.checked ?? null,
+      soundType: get('priorityAlertSoundTypeSelect-0')?.value ?? null,
+      soundVolume: get('priorityAlertSoundVolumeInput-0')?.value ?? null,
+      minReward: get('priorityMinRewardInput-0')?.value ?? null,
+      minHourly: get('priorityMinHourlyInput-0')?.value ?? null,
+      maxEta: get('priorityMaxEtaInput-0')?.value ?? null,
+      minPlaces: get('priorityMinPlacesInput-0')?.value ?? null,
+      alwaysKeywords: get('priorityAlwaysKeywordsInput-0')?.value ?? null,
+      ignoreKeywords: get('priorityIgnoreKeywordsInput-0')?.value ?? null,
       refreshMinDelay: get('refreshMinDelayInput')?.value ?? null,
       refreshAvgDelay: get('refreshAverageDelayInput')?.value ?? null,
       refreshSpread: get('refreshSpreadInput')?.value ?? null,

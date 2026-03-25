@@ -73,6 +73,41 @@ async function reopenPopup() {
   await browser.pause(300);
 }
 
+async function expandFirstFilter() {
+  await browser.execute(() => {
+    const card = document.querySelector('[data-filter-id]');
+    if (card) {
+      const btn = card.querySelector('button[aria-label="Expand filter"]');
+      if (btn) btn.click();
+    }
+  });
+  await browser.pause(300);
+}
+
+/** Ensure at least one priority filter exists, expanding it if needed. */
+async function ensureFilterExists() {
+  const hasFilter = await browser.execute(() => {
+    return document.querySelectorAll('[data-filter-id]').length > 0;
+  });
+  if (!hasFilter) {
+    // Click "+ Add" to create a filter
+    await browser.execute(() => {
+      const btn = document.getElementById('addFilterButton');
+      if (btn) btn.click();
+    });
+    await browser.pause(500);
+  }
+  // Expand first filter if collapsed
+  const isExpanded = await browser.execute(() => {
+    const toggle = document.getElementById('priorityFilterEnabledToggle-0');
+    return !!toggle;
+  });
+  if (!isExpanded) {
+    // Click the expand arrow of the first filter
+    await expandFirstFilter();
+  }
+}
+
 describe('Settings', () => {
   // ── Auto-open toggle ──────────────────────────────────────────
 
@@ -100,20 +135,23 @@ describe('Settings', () => {
     await browser.pause(500);
   });
 
-  // ── Priority filter toggle ────────────────────────────────────
+  // ── Priority filter add/enable/delete ─────────────────────────
 
-  it('should enable priority filter toggle', async () => {
+  it('should add a priority filter and enable it', async () => {
     await navigateToPopup();
     await switchToSettings();
     await browser.pause(300);
 
-    const initialState = await getToggleState('priorityFilterEnabledToggle');
+    await ensureFilterExists();
 
-    await clickToggle('priorityFilterEnabledToggle');
-    await browser.pause(1000);
+    const toggleState = await getToggleState('priorityFilterEnabledToggle-0');
+    if (!toggleState) {
+      await clickToggle('priorityFilterEnabledToggle-0');
+      await browser.pause(1000);
+    }
 
-    const afterToggle = await getToggleState('priorityFilterEnabledToggle');
-    expect(afterToggle).toBe(!initialState);
+    const enabled = await getToggleState('priorityFilterEnabledToggle-0');
+    expect(enabled).toBe(true);
   });
 
   it('should persist priority filter toggle across popup reopen', async () => {
@@ -121,18 +159,24 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
+    await ensureFilterExists();
+
     // Enable
-    const initialState = await getToggleState('priorityFilterEnabledToggle');
+    const initialState = await getToggleState('priorityFilterEnabledToggle-0');
     if (!initialState) {
-      await clickToggle('priorityFilterEnabledToggle');
+      await clickToggle('priorityFilterEnabledToggle-0');
       await browser.pause(1000);
     }
-    const enabled = await getToggleState('priorityFilterEnabledToggle');
+    const enabled = await getToggleState('priorityFilterEnabledToggle-0');
     expect(enabled).toBe(true);
 
     // Reopen
     await reopenPopup();
-    const persisted = await getToggleState('priorityFilterEnabledToggle');
+
+    // Expand filter
+    await expandFirstFilter();
+
+    const persisted = await getToggleState('priorityFilterEnabledToggle-0');
     expect(persisted).toBe(true);
   });
 
@@ -143,14 +187,20 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    await setInputValue('priorityMinRewardInput', '3.5');
+    await ensureFilterExists();
+
+    await setInputValue('priorityMinRewardInput-0', '3.5');
     await browser.pause(1500); // Wait for debounced persist
 
-    const value = await getInputValue('priorityMinRewardInput');
+    const value = await getInputValue('priorityMinRewardInput-0');
     expect(parseFloat(value)).toBeCloseTo(3.5, 1);
 
     await reopenPopup();
-    const persisted = await getInputValue('priorityMinRewardInput');
+
+    // Expand filter
+    await expandFirstFilter();
+
+    const persisted = await getInputValue('priorityMinRewardInput-0');
     expect(parseFloat(persisted)).toBeCloseTo(3.5, 1);
   });
 
@@ -159,14 +209,19 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    await setInputValue('priorityMinHourlyInput', '8');
+    await ensureFilterExists();
+
+    await setInputValue('priorityMinHourlyInput-0', '8');
     await browser.pause(1500);
 
-    const value = await getInputValue('priorityMinHourlyInput');
+    const value = await getInputValue('priorityMinHourlyInput-0');
     expect(parseFloat(value)).toBe(8);
 
     await reopenPopup();
-    const persisted = await getInputValue('priorityMinHourlyInput');
+
+    await expandFirstFilter();
+
+    const persisted = await getInputValue('priorityMinHourlyInput-0');
     expect(parseFloat(persisted)).toBe(8);
   });
 
@@ -175,14 +230,19 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    await setInputValue('priorityMaxEtaInput', '45');
+    await ensureFilterExists();
+
+    await setInputValue('priorityMaxEtaInput-0', '45');
     await browser.pause(1500);
 
-    const value = await getInputValue('priorityMaxEtaInput');
+    const value = await getInputValue('priorityMaxEtaInput-0');
     expect(parseInt(value)).toBe(45);
 
     await reopenPopup();
-    const persisted = await getInputValue('priorityMaxEtaInput');
+
+    await expandFirstFilter();
+
+    const persisted = await getInputValue('priorityMaxEtaInput-0');
     expect(parseInt(persisted)).toBe(45);
   });
 
@@ -191,14 +251,19 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    await setInputValue('priorityMinPlacesInput', '3');
+    await ensureFilterExists();
+
+    await setInputValue('priorityMinPlacesInput-0', '3');
     await browser.pause(1500);
 
-    const value = await getInputValue('priorityMinPlacesInput');
+    const value = await getInputValue('priorityMinPlacesInput-0');
     expect(parseInt(value)).toBe(3);
 
     await reopenPopup();
-    const persisted = await getInputValue('priorityMinPlacesInput');
+
+    await expandFirstFilter();
+
+    const persisted = await getInputValue('priorityMinPlacesInput-0');
     expect(parseInt(persisted)).toBe(3);
   });
 
@@ -273,71 +338,32 @@ describe('Settings', () => {
     const labelBefore = await getLabelText('refreshAverageDelayValue');
     expect(labelBefore).toBe(targetAvg + 's');
 
-    // Debug: check state
+    // The save button MUST be visible
     const debug = await browser.execute(() => {
       const saveBtn = document.getElementById('refreshCadenceSaveButton');
-      const revertBtn = document.getElementById('refreshCadenceRevertButton');
-      const avgInput = document.getElementById('refreshAverageDelayInput');
-      const avgLabel = document.getElementById('refreshAverageDelayValue');
       return {
         saveBtnExists: !!saveBtn,
         saveBtnVisible: saveBtn ? saveBtn.offsetParent !== null : false,
-        saveBtnText: saveBtn ? saveBtn.textContent : null,
-        revertBtnExists: !!revertBtn,
-        avgInputValue: avgInput ? avgInput.value : null,
-        avgLabelText: avgLabel ? avgLabel.textContent : null,
       };
     });
-    console.log('DEBUG save test state:', JSON.stringify(debug));
-
-    // The save button MUST be visible
     expect(debug.saveBtnVisible).toBe(true);
 
-    // Debug: check button state before clicking
-    const beforeClick = await browser.execute(() => {
-      const container = document.getElementById('refreshCadenceActions');
-      const btn = document.getElementById('refreshCadenceSaveButton');
-      return {
-        containerDisplay: container ? window.getComputedStyle(container).display : 'no-container',
-        containerClasses: container ? container.className : '',
-        btnExists: !!btn,
-        btnDisplay: btn ? window.getComputedStyle(btn).display : 'no-btn',
-        btnVisible: btn ? btn.offsetParent !== null : false,
-      };
-    });
-    console.log('DEBUG before save click:', JSON.stringify(beforeClick));
-
-    // Click save — use WebdriverIO native click instead of programmatic .click()
+    // Click save
     const saveBtn = await $('#refreshCadenceSaveButton');
     if (await saveBtn.isDisplayed()) {
       await saveBtn.click();
     }
     await browser.pause(3000);
 
-    // Check what the save handler sent
-    const saveLog = await browser.execute(() => window.__ppSaveLog);
-    const saveResult = await browser.execute(() => window.__ppSaveResult);
-    console.log('DEBUG save log:', JSON.stringify(saveLog));
-    console.log('DEBUG save result:', JSON.stringify(saveResult));
-
     // After save, buttons should disappear
     const afterSave = await browser.execute(() => {
-      const container = document.getElementById('refreshCadenceActions');
       const btn = document.getElementById('refreshCadenceSaveButton');
-      return {
-        containerClasses: container ? container.className : '',
-        containerDisplay: container ? window.getComputedStyle(container).display : '',
-        btnVisible: btn ? btn.offsetParent !== null : false,
-      };
+      return { btnVisible: btn ? btn.offsetParent !== null : false };
     });
-    console.log('DEBUG after save click:', JSON.stringify(afterSave));
-    const saveGoneAfterSave = !afterSave.btnVisible;
-    expect(saveGoneAfterSave).toBe(true);
+    expect(afterSave.btnVisible).toBe(false);
 
     // Reopen popup and verify persistence
     await reopenPopup();
-
-    // Wait for settings to load
     await browser.pause(2000);
 
     const sliderVal = await getInputValue('refreshAverageDelayInput');
@@ -360,7 +386,7 @@ describe('Settings', () => {
     await setRangeValue('refreshAverageDelayInput', newVal);
     await browser.pause(500);
 
-    // Click revert — use WebdriverIO native click
+    // Click revert
     const revertBtn = await $('#refreshCadenceRevertButton');
     await revertBtn.click();
     await browser.pause(500);
@@ -377,36 +403,41 @@ describe('Settings', () => {
     expect(saveGone).toBe(true);
   });
 
-  // ── Alert sound toggle ────────────────────────────────────────
+  // ── Alert sound select ────────────────────────────────────────
 
-  it('should toggle alert sound and persist', async () => {
+  it('should change alert sound type and persist', async () => {
     await navigateToPopup();
     await switchToSettings();
     await browser.pause(300);
 
-    // Ensure priority filter is enabled first
-    const pfEnabled = await getToggleState('priorityFilterEnabledToggle');
+    await ensureFilterExists();
+
+    // Ensure filter is enabled
+    const pfEnabled = await getToggleState('priorityFilterEnabledToggle-0');
     if (!pfEnabled) {
-      await clickToggle('priorityFilterEnabledToggle');
+      await clickToggle('priorityFilterEnabledToggle-0');
       await browser.pause(1000);
     }
 
-    const initialState = await getToggleState('priorityAlertSoundToggle');
-    await clickToggle('priorityAlertSoundToggle');
+    // Change sound to 'chime'
+    await browser.execute(() => {
+      const select = document.getElementById('priorityAlertSoundTypeSelect-0');
+      if (select) {
+        (select as HTMLSelectElement).value = 'chime';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
     await browser.pause(1500);
 
-    const afterToggle = await getToggleState('priorityAlertSoundToggle');
-    expect(afterToggle).toBe(!initialState);
+    const value = await getInputValue('priorityAlertSoundTypeSelect-0');
+    expect(value).toBe('chime');
 
     await reopenPopup();
-    const persisted = await getToggleState('priorityAlertSoundToggle');
-    expect(persisted).toBe(!initialState);
 
-    // Restore
-    if (persisted !== initialState) {
-      await clickToggle('priorityAlertSoundToggle');
-      await browser.pause(500);
-    }
+    await expandFirstFilter();
+
+    const persisted = await getInputValue('priorityAlertSoundTypeSelect-0');
+    expect(persisted).toBe('chime');
   });
 
   // ── Reset all test values to defaults ─────────────────────────
@@ -416,14 +447,16 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
+    await ensureFilterExists();
+
     // Reset priority filter values to defaults
-    await setInputValue('priorityMinRewardInput', '0');
-    await setInputValue('priorityMinHourlyInput', '10');
-    await setInputValue('priorityMaxEtaInput', '20');
-    await setInputValue('priorityMinPlacesInput', '1');
+    await setInputValue('priorityMinRewardInput-0', '0');
+    await setInputValue('priorityMinHourlyInput-0', '0');
+    await setInputValue('priorityMaxEtaInput-0', '240');
+    await setInputValue('priorityMinPlacesInput-0', '1');
     await browser.pause(1500);
 
-    const minReward = await getInputValue('priorityMinRewardInput');
+    const minReward = await getInputValue('priorityMinRewardInput-0');
     expect(parseFloat(minReward)).toBe(0);
   });
 });
