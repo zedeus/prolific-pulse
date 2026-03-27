@@ -1,0 +1,59 @@
+name: Sign Firefox addon
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.1.2)'
+        required: true
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+
+      - run: npm ci
+
+      - name: Resolve version
+        working-directory: .
+        run: |
+          VERSION="${{ github.event.inputs.tag }}"
+          VERSION="${VERSION#v}"
+          echo "TAG=${{ github.event.inputs.tag }}" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - run: npx wxt build -b firefox
+
+      - name: Sign Firefox extension
+        run: |
+          npx web-ext sign \
+            --source-dir .output/firefox-mv2 \
+            --api-key "${{ secrets.AMO_JWT_ISSUER }}" \
+            --api-secret "${{ secrets.AMO_JWT_SECRET }}" \
+            --channel unlisted \
+            --artifacts-dir .output/signed \
+            --approval-timeout 1800000
+          mv .output/signed/*.xpi ".output/prolific-pulse-extension-${VERSION}-firefox.xpi"
+
+      - name: Upload Firefox XPI to release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" \
+            "src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi" \
+            --clobber

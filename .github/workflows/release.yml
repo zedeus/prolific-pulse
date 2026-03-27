@@ -56,6 +56,8 @@ jobs:
       - run: npx wxt build -b firefox
 
       - name: Sign Firefox extension
+        id: sign
+        continue-on-error: true
         run: |
           npx web-ext sign \
             --source-dir .output/firefox-mv2 \
@@ -71,8 +73,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" \
-            "src/.output/prolific-pulse-extension-${VERSION}-chrome.zip" \
-            "src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi" \
+          ASSETS=("src/.output/prolific-pulse-extension-${VERSION}-chrome.zip")
+          if [ -f "src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi" ]; then
+            ASSETS+=("src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi")
+          else
+            echo "::warning::Firefox XPI not ready — AMO signing timed out. Run the 'Sign Firefox addon' workflow to attach it later."
+          fi
+          gh release create "$TAG" "${ASSETS[@]}" \
             --title "Prolific Pulse $TAG" \
             --generate-notes
