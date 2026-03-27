@@ -1,0 +1,9 @@
+.gitignore
+  01389a80935d2ec9 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "8bc8e3536cf60a951201bc92a2fd2e022c3e977e",
+  "prompts": {}
+}

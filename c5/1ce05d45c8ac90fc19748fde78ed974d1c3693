@@ -1,0 +1,41 @@
+src/entrypoints/background/settings.ts
+  e8aec3a6c638b8f4 113
+src/entrypoints/popup/App.svelte
+  e8aec3a6c638b8f4 13,35,44,67,319-323,326-328,486-512,564,570-572
+src/entrypoints/background/index.ts
+  e8aec3a6c638b8f4 2-3,71-80,1123-1157,1189-1196,1215,1218-1224,2269-2315,2370-2377
+src/lib/types.ts
+  e8aec3a6c638b8f4 81,90-106,180,189-194
+src/lib/constants.ts
+  e8aec3a6c638b8f4 20,111-132
+src/entrypoints/background/telegram.ts
+  e8aec3a6c638b8f4 1-226
+src/entrypoints/popup/components/SettingsPanel.svelte
+  e8aec3a6c638b8f4 4,12,31-32,39,45-47,55,61-63,154-240,262-269,316,361,811-825,867-1006
+src/wxt.config.ts
+  e8aec3a6c638b8f4 31,35
+src/lib/format.ts
+  e8aec3a6c638b8f4 231-241
+src/lib/__tests__/domain.test.ts
+  e8aec3a6c638b8f4 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "c51ce05d45c8ac90fc19748fde78ed974d1c3693",
+  "prompts": {
+    "e8aec3a6c638b8f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "154958ce-fe32-46bb-bee8-7fe15967c234",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 999,
+      "total_deletions": 290,
+      "accepted_lines": 716,
+      "overriden_lines": 0
+    }
+  }
+}
