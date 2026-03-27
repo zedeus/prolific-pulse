@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
-import { nowIso } from '../../lib/format';
-import type { PriorityFilter, Study } from '../../lib/types';
+import { nowIso, toUserErrorMessage } from '../../lib/format';
+import type { PriorityFilter, Study, TelegramSettings } from '../../lib/types';
 import type { SoundType } from '../../lib/constants';
 import {
   ingestStudiesResponse,
@@ -68,6 +68,16 @@ import type { NormalizedSnapshotEvent } from './domain';
 import { createPriorityState } from './state';
 import { createPriorityActions } from './actions';
 import { createPrioritySettings } from './settings';
+import {
+  loadTelegramSettings,
+  saveTelegramSettings,
+  normalizeTelegramSettings,
+  isTelegramConfigured,
+  sendTelegramMessage,
+  sendTelegramTestMessage,
+  verifyTelegramBot,
+  formatTelegramMessage,
+} from './telegram';
 
 export default defineBackground({
   main() {
@@ -1110,6 +1120,41 @@ export default defineBackground({
       await priorityActionsRuntime.handleAutoOpenAction(filter, candidateStudies, trigger);
     }
 
+    let cachedTelegramSettings: TelegramSettings | null = null;
+
+    async function refreshTelegramSettingsCache(): Promise<TelegramSettings> {
+      cachedTelegramSettings = await loadTelegramSettings();
+      return cachedTelegramSettings;
+    }
+
+    async function sendTelegramNotification(
+      studies: Study[],
+      filter: PriorityFilter | null,
+      trigger: string,
+      settings: TelegramSettings,
+      logPrefix: string,
+    ): Promise<void> {
+      const message = formatTelegramMessage(studies, filter, settings.message_format);
+      if (!message) return;
+
+      const result = await sendTelegramMessage(settings.bot_token, settings.chat_id, message, settings.silent_notifications);
+      const logDetails: Record<string, unknown> = { trigger, study_count: studies.length };
+      if (filter) logDetails.filter = filter.name;
+
+      if (result.ok) {
+        await updateState((prev) => ({
+          priority_telegram_notify_count: (Number(prev.priority_telegram_notify_count) || 0) + 1,
+          telegram_notify_last_at: nowIso(),
+          telegram_notify_last_trigger: trigger,
+          telegram_notify_last_study_count: studies.length,
+        }));
+        pushDebugLog(`${logPrefix}.sent`, logDetails);
+      } else {
+        logDetails.error = result.description || result.error || 'unknown';
+        pushDebugLog(`${logPrefix}.error`, logDetails);
+      }
+    }
+
     function queuePrioritySnapshotEvent(rawEvent: unknown): void {
       priorityStateRuntime.queueEvent(rawEvent, processPrioritySnapshotEvent);
     }
@@ -1141,6 +1186,14 @@ export default defineBackground({
         return;
       }
 
+      const telegramSettings = cachedTelegramSettings;
+      const tgActive = telegramSettings && isTelegramConfigured(telegramSettings);
+
+      if (tgActive && telegramSettings.notify_all_studies) {
+        sendTelegramNotification(evaluation.newlySeenStudies, null, evaluation.event.trigger, telegramSettings, 'telegram.notify_all')
+          .catch((err) => pushDebugLog('telegram.notify_all.error', { error: toUserErrorMessage(err) }));
+      }
+
       if (!evaluation.enabledFilters.length) {
         pushDebugLog('tab.priority_auto_open.disabled', {
           trigger: evaluation.event.trigger,
@@ -1159,10 +1212,16 @@ export default defineBackground({
         const matched = evaluation.matchesByFilterId.get(filter.id);
         if (!matched || !matched.length) continue;
 
-        await Promise.all([
+        const actions: Promise<void>[] = [
           handlePriorityAlertAction(filter, matched, evaluation.event.trigger),
           handlePriorityAutoOpenAction(filter, matched, evaluation.event.trigger),
-        ]);
+        ];
+
+        if (tgActive && !telegramSettings.notify_all_studies && filter.telegram_notify) {
+          actions.push(sendTelegramNotification(matched, filter, evaluation.event.trigger, telegramSettings, 'telegram.notify'));
+        }
+
+        await Promise.all(actions);
       }
     }
 
@@ -2207,6 +2266,53 @@ export default defineBackground({
         });
       }
 
+      if (msg && msg.action === 'setTelegramSettings') {
+        return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
+          const prev = cachedTelegramSettings;
+          const settings = await saveTelegramSettings(msg.settings as TelegramSettings);
+          cachedTelegramSettings = settings;
+          if (!prev || prev.enabled !== settings.enabled) {
+            await setState({ telegram_enabled: settings.enabled });
+          }
+          pushDebugLog('settings.telegram.updated', {
+            enabled: settings.enabled,
+            notify_all: settings.notify_all_studies,
+          });
+          sendResponse({ ok: true, settings });
+        });
+      }
+
+      if (msg && msg.action === 'getTelegramSettings') {
+        return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
+          const settings = cachedTelegramSettings ?? await refreshTelegramSettingsCache();
+          sendResponse({ ok: true, settings });
+        });
+      }
+
+      if (msg && msg.action === 'testTelegramMessage') {
+        return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
+          const settings = normalizeTelegramSettings(msg.settings);
+          if (!settings.bot_token || !settings.chat_id) {
+            sendResponse({ ok: false, error: 'Bot token and chat ID are required' });
+            return;
+          }
+          const result = await sendTelegramTestMessage(settings.bot_token, settings.chat_id);
+          if (result.ok) {
+            pushDebugLog('telegram.test.sent', {});
+          } else {
+            pushDebugLog('telegram.test.error', { error: result.description || result.error });
+          }
+          sendResponse(result);
+        });
+      }
+
+      if (msg && msg.action === 'verifyTelegramBot') {
+        return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
+          const result = await verifyTelegramBot(String(msg.bot_token || ''));
+          sendResponse(result);
+        });
+      }
+
       return false;
     });
 
@@ -2261,6 +2367,14 @@ export default defineBackground({
       }
       await migrateLegacyPriorityFilter();
       await priorityStateRuntime.ensureHydrated();
+
+      try {
+        const tgSettings = await refreshTelegramSettingsCache();
+        await setState({ telegram_enabled: tgSettings.enabled });
+      } catch {
+        // Non-critical
+      }
+
       schedule();
       registerCaptureListeners();
       await requestTokenSync(trigger);

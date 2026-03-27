@@ -48,6 +48,7 @@ function makeFilter(overrides: Partial<PriorityFilter> = {}): PriorityFilter {
     alert_sound_enabled: true,
     alert_sound_type: 'pay',
     alert_sound_volume: 100,
+    telegram_notify: true,
     minimum_reward_major: 0,
     minimum_hourly_reward_major: 0,
     maximum_estimated_minutes: 240,

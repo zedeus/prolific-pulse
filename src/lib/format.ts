@@ -228,6 +228,17 @@ export function normalizeRefreshPolicy(minDelay: number, avgDelay: number, sprea
   };
 }
 
+export function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+export function cloneTelegramSettings<T extends { message_format: Record<string, unknown> }>(settings: T): T {
+  return { ...settings, message_format: { ...settings.message_format } };
+}
+
 export function isAuthRequiredState(state: { token_auth_required?: boolean; token_ok?: boolean; token_reason?: string } | null): boolean {
   if (!state) return false;
   if (state.token_auth_required === true) return true;

@@ -78,12 +78,32 @@ export interface PriorityFilter {
   alert_sound_enabled: boolean;
   alert_sound_type: string;
   alert_sound_volume: number;
+  telegram_notify: boolean;
   minimum_reward_major: number;
   minimum_hourly_reward_major: number;
   maximum_estimated_minutes: number;
   minimum_places_available: number;
   always_open_keywords: string[];
   ignore_keywords: string[];
+}
+
+export interface TelegramMessageFormatOptions {
+  include_reward: boolean;
+  include_hourly_rate: boolean;
+  include_duration: boolean;
+  include_places: boolean;
+  include_researcher: boolean;
+  include_description: boolean;
+  include_link: boolean;
+}
+
+export interface TelegramSettings {
+  enabled: boolean;
+  bot_token: string;
+  chat_id: string;
+  notify_all_studies: boolean;
+  silent_notifications: boolean;
+  message_format: TelegramMessageFormatOptions;
 }
 
 export interface RefreshPolicy {
@@ -157,6 +177,7 @@ export interface SyncState {
   participant_submissions_response_filter_error_count: number;
   priority_alert_sound_count: number;
   priority_study_auto_open_count: number;
+  priority_telegram_notify_count: number;
   tab_auto_open_count: number;
 
   // Priority alerts
@@ -164,6 +185,12 @@ export interface SyncState {
   priority_alert_last_trigger: string;
   priority_alert_last_study_count: number;
   priority_alert_sound_mode: string;
+
+  // Telegram
+  telegram_enabled: boolean;
+  telegram_notify_last_at: string;
+  telegram_notify_last_trigger: string;
+  telegram_notify_last_study_count: number;
 
   // Auto-open
   priority_study_auto_open_last_at: string;

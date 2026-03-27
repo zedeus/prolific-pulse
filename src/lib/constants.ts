@@ -17,6 +17,7 @@ export const STATE_KEY = 'syncState';
 export const PRIORITY_KNOWN_STUDIES_STATE_KEY = 'priorityKnownStudiesState';
 export const AUTO_OPEN_PROLIFIC_TAB_KEY = 'autoOpenProlificTab';
 export const PRIORITY_FILTERS_KEY = 'priorityFilters';
+export const TELEGRAM_SETTINGS_KEY = 'telegramSettings';
 export const MAX_PRIORITY_FILTERS = 10;
 
 // Legacy keys — used only for one-time migration to PRIORITY_FILTERS_KEY
@@ -106,6 +107,28 @@ export const DEBUG_LOG_SUPPRESSED_EVENTS = new Set([
 
 export const AUTH_REQUIRED_MESSAGE = 'Signed out of Prolific. Log in at app.prolific.com to resume syncing.';
 export const AUTH_REQUIRED_PANEL_MESSAGE = 'Waiting for login.';
+
+export const TELEGRAM_API_BASE_URL = 'https://api.telegram.org/bot';
+export const TELEGRAM_SETTINGS_PERSIST_DEBOUNCE_MS = 400;
+export const TELEGRAM_VERIFY_DEBOUNCE_MS = 800;
+export const TELEGRAM_MESSAGE_MAX_STUDIES = 10;
+
+export const DEFAULT_TELEGRAM_SETTINGS = Object.freeze({
+  enabled: false,
+  bot_token: '',
+  chat_id: '',
+  notify_all_studies: false,
+  silent_notifications: false,
+  message_format: Object.freeze({
+    include_reward: true,
+    include_hourly_rate: true,
+    include_duration: true,
+    include_places: true,
+    include_researcher: true,
+    include_description: false,
+    include_link: true,
+  }),
+});
 
 export const DEFAULT_REFRESH_INTERVAL_MS = 60_000;
 export const REACTIVE_REFRESH_DEBOUNCE_MS = 150;

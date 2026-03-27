@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { browser } from 'wxt/browser';
-  import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry } from '../../../lib/types';
+  import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry, TelegramSettings } from '../../../lib/types';
   import {
     formatRelative,
     compactText,
@@ -9,6 +9,7 @@
     clampInt,
     normalizeRefreshPolicy,
     canonicalSoundType,
+    cloneTelegramSettings,
   } from '../../../lib/format';
   import {
     PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH,
@@ -27,17 +28,23 @@
     MAX_PRIORITY_FILTER_KEYWORDS,
     MAX_PRIORITY_FILTERS,
     SOUND_TYPE_NONE,
+    TELEGRAM_SETTINGS_PERSIST_DEBOUNCE_MS,
+    TELEGRAM_VERIFY_DEBOUNCE_MS,
   } from '../../../lib/constants';
 
   let {
     active,
     autoOpenEnabled,
     priorityFilters = $bindable(),
+    telegramSettings,
     savedRefreshPolicy,
     extensionState,
     refreshState,
     onAutoOpenChange,
     onPriorityFiltersChange,
+    onTelegramSettingsChange,
+    onTelegramTest,
+    onTelegramVerifyBot,
     onRefreshPolicySave,
     onRefreshDebug,
     onClearDebugLogs,
@@ -45,11 +52,15 @@
     active: boolean;
     autoOpenEnabled: boolean;
     priorityFilters: PriorityFilter[];
+    telegramSettings: TelegramSettings;
     savedRefreshPolicy: NormalizedRefreshPolicy;
     extensionState: SyncState | null;
     refreshState: StudiesRefreshState | null;
     onAutoOpenChange: (enabled: boolean) => void;
     onPriorityFiltersChange: () => void;
+    onTelegramSettingsChange: (settings: TelegramSettings) => void;
+    onTelegramTest: (settings: TelegramSettings) => Promise<{ ok: boolean; error?: string; description?: string }>;
+    onTelegramVerifyBot: (botToken: string) => Promise<{ ok: boolean; bot_name?: string; bot_username?: string; error?: string }>;
     onRefreshPolicySave: (minDelay: number, avgDelay: number, spread: number) => void;
     onRefreshDebug: () => void;
     onClearDebugLogs: () => void;
@@ -140,6 +151,93 @@
 
   const soundLabelByType = new Map(soundTypeOptions.map((o) => [o.value, o.label]));
 
+  // svelte-ignore state_referenced_locally — init from prop at mount (parent gates with settingsLoaded)
+  let tg = $state(cloneTelegramSettings(telegramSettings));
+
+  let tgTestStatus = $state<'idle' | 'sending' | 'success' | 'error'>('idle');
+  let tgTestError = $state('');
+  let tgBotStatus = $state<'idle' | 'verifying' | 'valid' | 'invalid'>('idle');
+  let tgBotName = $state('');
+  let tgBotError = $state('');
+  let tgSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let tgVerifyTimer: ReturnType<typeof setTimeout> | null = null;
+  let tgExpanded = $state(false);
+
+  $effect(() => {
+    return () => {
+      if (tgSaveTimer) clearTimeout(tgSaveTimer);
+      if (tgVerifyTimer) clearTimeout(tgVerifyTimer);
+    };
+  });
+
+  const tgConfigured = $derived(tg.bot_token.length > 0 && tg.chat_id.length > 0);
+
+  const tgFormatOptions: { key: keyof TelegramSettings['message_format']; label: string }[] = [
+    { key: 'include_reward', label: 'Reward' },
+    { key: 'include_hourly_rate', label: 'Hourly rate' },
+    { key: 'include_duration', label: 'Duration' },
+    { key: 'include_places', label: 'Places available' },
+    { key: 'include_researcher', label: 'Researcher' },
+    { key: 'include_description', label: 'Description' },
+    { key: 'include_link', label: 'Study link' },
+  ];
+
+  function snapshotTelegramSettings(): TelegramSettings {
+    const s = cloneTelegramSettings(tg);
+    s.bot_token = s.bot_token.trim();
+    s.chat_id = s.chat_id.trim();
+    return s;
+  }
+
+  function debounceTelegramSave() {
+    if (tgSaveTimer) clearTimeout(tgSaveTimer);
+    tgSaveTimer = setTimeout(() => {
+      tgSaveTimer = null;
+      onTelegramSettingsChange(snapshotTelegramSettings());
+    }, TELEGRAM_SETTINGS_PERSIST_DEBOUNCE_MS);
+  }
+
+  function debounceBotVerify() {
+    if (tgVerifyTimer) clearTimeout(tgVerifyTimer);
+    tgBotStatus = 'idle';
+    tgBotName = '';
+    tgBotError = '';
+    const token = tg.bot_token.trim();
+    if (!token) return;
+    tgVerifyTimer = setTimeout(async () => {
+      tgVerifyTimer = null;
+      tgBotStatus = 'verifying';
+      const result = await onTelegramVerifyBot(token);
+      if (tg.bot_token.trim() !== token) return;
+      if (result.ok) {
+        tgBotStatus = 'valid';
+        tgBotName = result.bot_username ? `@${result.bot_username}` : result.bot_name || '';
+      } else {
+        tgBotStatus = 'invalid';
+        tgBotError = result.error || 'Verification failed';
+      }
+    }, TELEGRAM_VERIFY_DEBOUNCE_MS);
+  }
+
+  function handleBotTokenInput() {
+    debounceTelegramSave();
+    debounceBotVerify();
+  }
+
+  async function handleTgTestClick() {
+    tgTestStatus = 'sending';
+    tgTestError = '';
+    const result = await onTelegramTest(snapshotTelegramSettings());
+    if (result.ok) {
+      tgTestStatus = 'success';
+      setTimeout(() => { if (tgTestStatus === 'success') tgTestStatus = 'idle'; }, 3000);
+    } else {
+      tgTestStatus = 'error';
+      tgTestError = result.description || result.error || 'Unknown error';
+      setTimeout(() => { if (tgTestStatus === 'error') tgTestStatus = 'idle'; }, 5000);
+    }
+  }
+
   const DEBUG_EVENT_LABELS: Record<string, string> = {
     'token.sync.ok': 'Token synced',
     'token.sync.error': 'Token sync failed',
@@ -161,6 +259,14 @@
     'priority.alert.error': 'Priority alert failed',
     'settings.studies_refresh_policy.updated': 'Cadence saved',
     'settings.studies_refresh_policy.schedule_ok': 'Cadence schedule applied',
+    'settings.telegram.updated': 'Telegram settings saved',
+    'telegram.notify.sent': 'Telegram notification sent',
+    'telegram.notify.error': 'Telegram notification failed',
+    'telegram.notify.disabled': 'Telegram notify disabled for filter',
+    'telegram.notify_all.sent': 'Telegram notify-all sent',
+    'telegram.notify_all.error': 'Telegram notify-all failed',
+    'telegram.test.sent': 'Telegram test sent',
+    'telegram.test.error': 'Telegram test failed',
   };
 
   function normalizePriorityKeywords(value: string): string[] {
@@ -207,6 +313,7 @@
       alert_sound_enabled: true,
       alert_sound_type: DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
       alert_sound_volume: DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
+      telegram_notify: true,
       minimum_reward_major: MIN_PRIORITY_FILTER_MIN_REWARD,
       minimum_hourly_reward_major: MIN_PRIORITY_FILTER_MIN_HOURLY_REWARD,
       maximum_estimated_minutes: MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
@@ -251,6 +358,7 @@
     if (f.maximum_estimated_minutes < MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES) badges.push({ label: `\u2264${f.maximum_estimated_minutes}m` });
     if (f.always_open_keywords.length) badges.push({ label: `${f.always_open_keywords.length} kw` });
     if (f.auto_open_in_new_tab) badges.push({ label: 'auto-open' });
+    if (f.telegram_notify && tg.enabled) badges.push({ label: 'telegram' });
     if (f.alert_sound_type !== SOUND_TYPE_NONE && f.alert_sound_enabled) {
       const soundLabel = soundLabelByType.get(f.alert_sound_type) ?? f.alert_sound_type;
       badges.push({ label: soundLabel });
@@ -700,6 +808,21 @@
                     onchange={() => handleFilterInput(filter)}
                   />
                 </div>
+                <label for="priorityTelegramToggle-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Telegram</label>
+                <div class="flex items-center gap-2">
+                  <input
+                    id="priorityTelegramToggle-{idx}"
+                    type="checkbox"
+                    class="toggle toggle-primary toggle-xs"
+                    aria-label="Send Telegram notification"
+                    bind:checked={filter.telegram_notify}
+                    onchange={() => handleFilterInput(filter)}
+                    disabled={!tg.enabled || !tgConfigured}
+                  />
+                  {#if !tg.enabled || !tgConfigured}
+                    <span class="text-[10px] text-base-content/30">Configure Telegram below</span>
+                  {/if}
+                </div>
                 <label for="priorityAlertSoundTypeSelect-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Alert sound</label>
                 <div class="flex items-center gap-2">
                   <select
@@ -739,6 +862,146 @@
           </div>
         {/each}
       </div>
+    </div>
+
+    <!-- Telegram notifications card -->
+    <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 mb-2.5">
+      <div class="flex items-center justify-between gap-2.5 mb-0.5">
+        <div class="text-sm font-semibold text-base-content">Telegram notifications</div>
+        <input
+          id="telegramEnabledToggle"
+          type="checkbox"
+          class="toggle toggle-primary toggle-sm"
+          aria-label="Enable Telegram notifications"
+          bind:checked={tg.enabled}
+          onchange={debounceTelegramSave}
+          disabled={!tgConfigured}
+        />
+      </div>
+      <div class="text-xs text-base-content/50 leading-snug mb-2">Get notified on Telegram when studies match your filters.</div>
+
+      <button
+        class="btn btn-ghost btn-xs text-xs text-base-content/50 p-0 mb-1"
+        type="button"
+        onclick={() => tgExpanded = !tgExpanded}
+      >
+        <span class="inline-block transition-transform text-[9px]" class:rotate-90={tgExpanded}>&#9654;</span>
+        {tgExpanded ? 'Hide settings' : 'Show settings'}
+      </button>
+
+      {#if tgExpanded}
+      <div class="flex flex-col gap-2 mt-1">
+        <div class="grid grid-cols-[90px_1fr] items-center gap-x-2 gap-y-1.5">
+          <label for="tgBotTokenInput" class="text-[12.5px] text-base-content/50 font-medium">Bot token</label>
+          <input
+            id="tgBotTokenInput"
+            type="password"
+            class="input input-xs w-full font-mono text-[11px]"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="123456789:ABCdefGHIjklmno..."
+            bind:value={tg.bot_token}
+            oninput={handleBotTokenInput}
+          />
+          <label for="tgChatIdInput" class="text-[12.5px] text-base-content/50 font-medium">Chat ID</label>
+          <input
+            id="tgChatIdInput"
+            type="text"
+            class="input input-xs w-full font-mono text-[11px]"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="987654321"
+            bind:value={tg.chat_id}
+            oninput={debounceTelegramSave}
+          />
+        </div>
+
+        <div class="text-[10px] text-base-content/40 leading-snug mt-0.5">
+          Create a bot via <span class="font-semibold">@BotFather</span> on Telegram, then message <span class="font-semibold">@userinfobot</span> to get your chat ID.
+        </div>
+
+        {#if tgBotStatus === 'verifying'}
+          <div class="text-[10px] text-base-content/40 mt-1">Verifying bot…</div>
+        {:else if tgBotStatus === 'valid' && tgBotName}
+          <div class="text-[10px] text-success mt-1 font-medium">Connected to {tgBotName}</div>
+        {:else if tgBotStatus === 'invalid'}
+          <div class="text-[10px] text-error mt-1">{tgBotError}</div>
+        {/if}
+
+
+        <div class="flex items-center gap-2 mt-0.5">
+          <button
+            id="tgTestButton"
+            class="btn btn-outline btn-xs {tgTestStatus === 'success' ? 'btn-success' : tgTestStatus === 'error' ? 'btn-error' : ''}"
+            type="button"
+            disabled={!tgConfigured || tgTestStatus === 'sending'}
+            onclick={handleTgTestClick}
+          >
+            {#if tgTestStatus === 'sending'}
+              Sending…
+            {:else if tgTestStatus === 'success'}
+              Sent ✓
+            {:else if tgTestStatus === 'error'}
+              Failed
+            {:else}
+              Send test message
+            {/if}
+          </button>
+          {#if tgTestStatus === 'error' && tgTestError}
+            <span class="text-[10px] text-error truncate max-w-[260px]" title={tgTestError}>{tgTestError}</span>
+          {/if}
+        </div>
+
+
+        <div class="flex items-center justify-between gap-2 mt-1 pt-2 border-t border-base-300">
+          <div>
+            <div class="text-[12.5px] text-base-content/70 font-medium">Notify for all new studies</div>
+            <div class="text-[10px] text-base-content/40 leading-snug">Send a Telegram message for every newly detected study, regardless of filters.</div>
+          </div>
+          <input
+            id="tgNotifyAllToggle"
+            type="checkbox"
+            class="toggle toggle-primary toggle-xs flex-shrink-0"
+            aria-label="Notify for all studies"
+            bind:checked={tg.notify_all_studies}
+            onchange={debounceTelegramSave}
+          />
+        </div>
+
+
+        <div class="flex items-center justify-between gap-2 mt-1.5">
+          <div>
+            <div class="text-[12.5px] text-base-content/70 font-medium">Silent notifications</div>
+            <div class="text-[10px] text-base-content/40 leading-snug">Deliver without sound or vibration on your device.</div>
+          </div>
+          <input
+            id="tgSilentToggle"
+            type="checkbox"
+            class="toggle toggle-primary toggle-xs flex-shrink-0"
+            aria-label="Silent Telegram notifications"
+            bind:checked={tg.silent_notifications}
+            onchange={debounceTelegramSave}
+          />
+        </div>
+
+
+        <div class="mt-1 pt-2 border-t border-base-300">
+          <div class="text-[12.5px] text-base-content/70 font-medium mb-1.5">Message includes</div>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+            {#each tgFormatOptions as opt (opt.key)}
+              <label class="flex items-center gap-1.5 text-[11px] text-base-content/60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-xs checkbox-primary"
+                  checked={tg.message_format[opt.key]}
+                  onchange={(e: Event) => { tg.message_format[opt.key] = (e.target as HTMLInputElement).checked; debounceTelegramSave(); }}
+                /> {opt.label}
+              </label>
+            {/each}
+          </div>
+        </div>
+      </div>
+      {/if}
     </div>
 
     <!-- Refresh cadence card -->

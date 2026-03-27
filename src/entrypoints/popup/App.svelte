@@ -10,6 +10,7 @@
     PriorityFilter,
     NormalizedRefreshPolicy,
     Settings,
+    TelegramSettings,
   } from '../../lib/types';
   import {
     AUTH_REQUIRED_MESSAGE,
@@ -31,6 +32,7 @@
     DASHBOARD_DEFAULT_STUDIES_LIMIT,
     DASHBOARD_DEFAULT_EVENTS_LIMIT,
     DASHBOARD_DEFAULT_SUBMISSIONS_LIMIT,
+    DEFAULT_TELEGRAM_SETTINGS,
   } from '../../lib/constants';
   import * as store from '../../lib/store';
   import {
@@ -39,6 +41,7 @@
     toUserErrorMessage,
     isAuthRequiredState,
     normalizeRefreshPolicy,
+    cloneTelegramSettings,
   } from '../../lib/format';
 
   import StatusBar from './components/StatusBar.svelte';
@@ -61,6 +64,7 @@
   let settingsLoaded = $state(false);
 
   let priorityFilters: PriorityFilter[] = $state([]);
+  let telegramSettings: TelegramSettings = $state(cloneTelegramSettings(DEFAULT_TELEGRAM_SETTINGS));
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
@@ -312,9 +316,16 @@
 
   async function refreshSettings() {
     try {
-      const [settings, filters] = await Promise.all([getSettings(), loadPriorityFilters()]);
+      const [settings, filters, tgResponse] = await Promise.all([
+        getSettings(),
+        loadPriorityFilters(),
+        sendRuntimeMessage('getTelegramSettings').catch(() => null),
+      ]);
       autoOpenEnabled = settings.auto_open_prolific_tab !== false;
       priorityFilters = filters;
+      if (tgResponse?.settings) {
+        telegramSettings = tgResponse.settings as TelegramSettings;
+      }
       const rp = normalizeRefreshPolicy(
         settings.studies_refresh_min_delay_seconds,
         settings.studies_refresh_average_delay_seconds,
@@ -472,6 +483,33 @@
     }
   }
 
+  async function handleTelegramSettingsChange(settings: TelegramSettings) {
+    try {
+      const response = await sendRuntimeMessage('setTelegramSettings', { settings });
+      if (response?.settings) {
+        telegramSettings = response.settings as TelegramSettings;
+      }
+    } catch (err) {
+      errorMessage = toUserErrorMessage(err);
+    }
+  }
+
+  async function handleTelegramTest(settings: TelegramSettings): Promise<{ ok: boolean; error?: string; description?: string }> {
+    try {
+      return await sendRuntimeMessage('testTelegramMessage', { settings });
+    } catch (err) {
+      return { ok: false, error: toUserErrorMessage(err) };
+    }
+  }
+
+  async function handleTelegramVerifyBot(botToken: string): Promise<{ ok: boolean; bot_name?: string; bot_username?: string; error?: string }> {
+    try {
+      return await sendRuntimeMessage('verifyTelegramBot', { bot_token: botToken });
+    } catch (err) {
+      return { ok: false, error: toUserErrorMessage(err) };
+    }
+  }
+
   function handleStudyClick(url: string) {
     if (!url) return;
     browser.tabs.create({ url, active: true }).then(() => {
@@ -523,11 +561,15 @@
     active={activeTab === 'settings'}
     {autoOpenEnabled}
     bind:priorityFilters
+    {telegramSettings}
     {savedRefreshPolicy}
     {extensionState}
     refreshState={refreshStateData}
     onAutoOpenChange={handleAutoOpenChange}
     onPriorityFiltersChange={handlePriorityFiltersChange}
+    onTelegramSettingsChange={handleTelegramSettingsChange}
+    onTelegramTest={handleTelegramTest}
+    onTelegramVerifyBot={handleTelegramVerifyBot}
     onRefreshPolicySave={handleRefreshPolicySave}
     onRefreshDebug={handleRefreshDebug}
     onClearDebugLogs={handleClearDebugLogs}

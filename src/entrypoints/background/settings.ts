@@ -110,6 +110,7 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
       alert_sound_enabled: r.alert_sound_enabled !== false,
       alert_sound_type: normalizedAlertSoundType,
       alert_sound_volume: alertSoundVolume,
+      telegram_notify: r.telegram_notify !== false,
       minimum_reward_major: Math.round(minimumRewardMajor * 100) / 100,
       minimum_hourly_reward_major: Math.round(minimumHourlyRewardMajor * 100) / 100,
       maximum_estimated_minutes: maximumEstimatedMinutes,
