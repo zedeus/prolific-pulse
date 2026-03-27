@@ -1,0 +1,25 @@
+.github/workflows/release.yml
+  b92abff77369041e 56,58-66,75
+README.md
+  b92abff77369041e 26-28,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "5bbf6123d3216cc9e28cfd0e4b1432758af67781",
+  "prompts": {
+    "b92abff77369041e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f1e239f-f356-432a-bc08-e2e38e72caad",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 19,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    }
+  }
+}
