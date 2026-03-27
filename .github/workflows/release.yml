@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.1.0)'
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || '' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+
+      - run: npm ci
+
+      - name: Resolve version
+        working-directory: .
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Validate version matches wxt.config.ts
+        run: |
+          CONFIG_VERSION=$(grep -oP "version:\s*'\K[^']+" wxt.config.ts)
+          if [ "$CONFIG_VERSION" != "$VERSION" ]; then
+            echo "::error::Tag version ($VERSION) does not match wxt.config.ts version ($CONFIG_VERSION)"
+            exit 1
+          fi
+
+      - run: npx wxt zip -b chrome
+
+      - run: npx wxt zip -b firefox
+
+      - name: Create GitHub Release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" \
+            "src/.output/prolific-pulse-extension-${VERSION}-chrome.zip" \
+            "src/.output/prolific-pulse-extension-${VERSION}-firefox.zip" \
+            --title "Prolific Pulse $TAG" \
+            --generate-notes
