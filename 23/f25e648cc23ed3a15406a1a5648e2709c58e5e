@@ -1,0 +1,25 @@
+.github/workflows/release.yml
+  b92abff77369041e 59-60,76-82
+.github/workflows/sign-firefox.yml
+  b92abff77369041e 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "23f25e648cc23ed3a15406a1a5648e2709c58e5e",
+  "prompts": {
+    "b92abff77369041e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f1e239f-f356-432a-bc08-e2e38e72caad",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 119,
+      "total_deletions": 54,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}
