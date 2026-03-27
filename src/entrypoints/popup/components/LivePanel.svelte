@@ -9,6 +9,7 @@
     parseDate,
     studyUrlFromId,
     rateColorClass,
+    formatStudyLabel,
   } from '../../../lib/format';
   import { studyMatchesPriorityFilter, studyKeywordBlob } from '../../background/domain';
 
@@ -63,6 +64,7 @@
         {@const placesLow = Number.isFinite(placesAvailable) && placesAvailable <= 5}
         {@const firstSeenText = study.first_seen_at ? formatRelative(study.first_seen_at) : ''}
         {@const hourlyClass = rateColorClass(perHourAmount)}
+        {@const studyTypeLabel = formatStudyLabel(study.study_labels, study.ai_inferred_study_labels)}
 
         <!-- svelte-ignore a11y_no_static_element_interactions -->
           <a
@@ -85,6 +87,9 @@
                 <span class="text-xs text-base-content/55">{eta}</span>
                 <span class="text-base-content/20 select-none">·</span>
                 <span class="text-xs {placesLow ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-base-content/55'}">{placesLabel}</span>
+                {#if studyTypeLabel}
+                  <span class="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-[1px] rounded bg-base-300 text-base-content/60">{studyTypeLabel}</span>
+                {/if}
                 {#if isPriority}
                   <span class="ml-0.5 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-[1px] rounded bg-purple-700 text-purple-100 dark:bg-purple-500 dark:text-white">priority</span>
                 {/if}

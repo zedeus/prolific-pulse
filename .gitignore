@@ -15,7 +15,7 @@ Thumbs.db
 # WXT build output and dependencies
 src/.output/
 .wxt/
-src/node_modules/
+node_modules/
 
 # Test artifacts
 tests/profiles/

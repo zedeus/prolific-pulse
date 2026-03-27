@@ -66,6 +66,7 @@ export const MAX_PRIORITY_KNOWN_STUDIES = 3000;
 export const PRIORITY_ACTION_SEEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
 export const MAX_PRIORITY_ACTION_SEEN_STUDIES = 1000;
 export const PRIORITY_ALERT_COOLDOWN_MS = 7000;
+export const TELEGRAM_NOTIFY_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
 export const SOUND_TYPE_NONE = 'none';
 export const DEFAULT_PRIORITY_ALERT_SOUND_TYPE = 'pay';
@@ -111,7 +112,6 @@ export const AUTH_REQUIRED_PANEL_MESSAGE = 'Waiting for login.';
 export const TELEGRAM_API_BASE_URL = 'https://api.telegram.org/bot';
 export const TELEGRAM_SETTINGS_PERSIST_DEBOUNCE_MS = 400;
 export const TELEGRAM_VERIFY_DEBOUNCE_MS = 800;
-export const TELEGRAM_MESSAGE_MAX_STUDIES = 10;
 
 export const DEFAULT_TELEGRAM_SETTINGS = Object.freeze({
   enabled: false,
@@ -125,6 +125,7 @@ export const DEFAULT_TELEGRAM_SETTINGS = Object.freeze({
     include_duration: true,
     include_places: true,
     include_researcher: true,
+    include_tags: true,
     include_description: false,
     include_link: true,
   }),

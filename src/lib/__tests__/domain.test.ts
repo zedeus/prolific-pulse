@@ -32,6 +32,7 @@ function makeStudy(overrides: Partial<Study> = {}): Study {
     is_confidential: false,
     is_ongoing_study: false,
     pii_enabled: false,
+    is_custom_screening: false,
     study_labels: [],
     ai_inferred_study_labels: [],
     previous_submission_count: 0,

@@ -8,6 +8,7 @@ export interface PriorityStateLimits {
   maxKnownStudies: number;
   actionSeenTTLMS: number;
   maxActionSeenStudies: number;
+  telegramSeenTTLMS: number;
 }
 
 export interface CreatePriorityStateOptions {
@@ -33,6 +34,8 @@ export interface PriorityState {
   markAlertSeen: (studies: Study[], seenAtMS?: number) => void;
   selectAutoOpenCandidates: (studies: Study[], nowMS?: number) => Study[];
   markAutoOpenSeen: (studies: Study[], seenAtMS?: number) => void;
+  selectTelegramCandidates: (studies: Study[], nowMS?: number) => Study[];
+  markTelegramSeen: (studies: Study[], seenAtMS?: number) => void;
   markAttempted: (studyID: string) => void;
   clearSeenForAttemptedStudies: (removedStudyIDs: string[]) => void;
   resetActionSeen: () => void;
@@ -55,6 +58,7 @@ export function createPriorityState(options: CreatePriorityStateOptions): Priori
   let snapshotQueue: Promise<void> = Promise.resolve();
   let alertSeenStudyIDs = new Map<string, number>();
   let autoOpenSeenStudyIDs = new Map<string, number>();
+  let telegramSeenStudyIDs = new Map<string, number>();
   let attemptedStudyIDs = new Map<string, number>(); // studyID -> attemptedAtMS
 
   function normalizeSnapshotFromStorage(rawSnapshot: StorageSnapshot | null | undefined): SnapshotState {
@@ -145,9 +149,9 @@ export function createPriorityState(options: CreatePriorityStateOptions): Priori
     }
   }
 
-  function pruneSeenMap(seenStudyIDs: Map<string, number>, nowMS: number): void {
+  function pruneSeenMap(seenStudyIDs: Map<string, number>, nowMS: number, ttlMS: number = limits.actionSeenTTLMS): void {
     for (const [studyID, seenAtMS] of seenStudyIDs.entries()) {
-      if (nowMS - seenAtMS > limits.actionSeenTTLMS) {
+      if (nowMS - seenAtMS > ttlMS) {
         seenStudyIDs.delete(studyID);
       }
     }
@@ -163,8 +167,8 @@ export function createPriorityState(options: CreatePriorityStateOptions): Priori
     }
   }
 
-  function selectActionStudies(studies: Study[], seenStudyIDs: Map<string, number>, nowMS: number = Date.now()): Study[] {
-    pruneSeenMap(seenStudyIDs, nowMS);
+  function selectActionStudies(studies: Study[], seenStudyIDs: Map<string, number>, nowMS: number = Date.now(), ttlMS?: number): Study[] {
+    pruneSeenMap(seenStudyIDs, nowMS, ttlMS);
     const selected: Study[] = [];
     for (const study of studies) {
       const studyID = study && typeof study.id === 'string' ? study.id.trim() : '';
@@ -176,7 +180,7 @@ export function createPriorityState(options: CreatePriorityStateOptions): Priori
     return selected;
   }
 
-  function markActionStudiesSeen(studies: Study[], seenStudyIDs: Map<string, number>, seenAtMS: number = Date.now()): void {
+  function markActionStudiesSeen(studies: Study[], seenStudyIDs: Map<string, number>, seenAtMS: number = Date.now(), ttlMS?: number): void {
     for (const study of studies) {
       const studyID = study && typeof study.id === 'string' ? study.id.trim() : '';
       if (!studyID) {
@@ -184,7 +188,7 @@ export function createPriorityState(options: CreatePriorityStateOptions): Priori
       }
       seenStudyIDs.set(studyID, seenAtMS);
     }
-    pruneSeenMap(seenStudyIDs, seenAtMS);
+    pruneSeenMap(seenStudyIDs, seenAtMS, ttlMS);
   }
 
   function queueEvent(rawEvent: unknown, processor: (event: NormalizedSnapshotEvent) => Promise<void>): void {
@@ -228,11 +232,14 @@ export function createPriorityState(options: CreatePriorityStateOptions): Priori
     markAlertSeen: (studies: Study[], seenAtMS?: number): void => markActionStudiesSeen(studies, alertSeenStudyIDs, seenAtMS),
     selectAutoOpenCandidates: (studies: Study[], nowMS?: number): Study[] => selectActionStudies(studies, autoOpenSeenStudyIDs, nowMS),
     markAutoOpenSeen: (studies: Study[], seenAtMS?: number): void => markActionStudiesSeen(studies, autoOpenSeenStudyIDs, seenAtMS),
+    selectTelegramCandidates: (studies: Study[], nowMS?: number): Study[] => selectActionStudies(studies, telegramSeenStudyIDs, nowMS, limits.telegramSeenTTLMS),
+    markTelegramSeen: (studies: Study[], seenAtMS?: number): void => markActionStudiesSeen(studies, telegramSeenStudyIDs, seenAtMS, limits.telegramSeenTTLMS),
     markAttempted,
     clearSeenForAttemptedStudies,
     resetActionSeen: (): void => {
       alertSeenStudyIDs = new Map();
       autoOpenSeenStudyIDs = new Map();
+      telegramSeenStudyIDs = new Map();
       attemptedStudyIDs = new Map();
     },
     getQueuePromise: (): Promise<void> => snapshotQueue,

@@ -32,6 +32,7 @@ export interface Study {
   is_ongoing_study: boolean;
   submission_started_at?: string | null;
   pii_enabled: boolean;
+  is_custom_screening: boolean;
   study_labels: string[];
   ai_inferred_study_labels: string[];
   previous_submission_count: number;
@@ -93,6 +94,7 @@ export interface TelegramMessageFormatOptions {
   include_duration: boolean;
   include_places: boolean;
   include_researcher: boolean;
+  include_tags: boolean;
   include_description: boolean;
   include_link: boolean;
 }
@@ -190,8 +192,6 @@ export interface SyncState {
   telegram_enabled: boolean;
   telegram_notify_last_at: string;
   telegram_notify_last_trigger: string;
-  telegram_notify_last_study_count: number;
-
   // Auto-open
   priority_study_auto_open_last_at: string;
   priority_study_auto_open_last_trigger: string;

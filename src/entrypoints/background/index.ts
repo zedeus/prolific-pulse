@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { nowIso, toUserErrorMessage } from '../../lib/format';
+import { normalizeStudy } from '../../lib/normalize';
 import type { PriorityFilter, Study, TelegramSettings } from '../../lib/types';
 import type { SoundType } from '../../lib/constants';
 import {
@@ -52,6 +53,7 @@ import {
   PRIORITY_ACTION_SEEN_TTL_MS,
   MAX_PRIORITY_ACTION_SEEN_STUDIES,
   PRIORITY_ALERT_COOLDOWN_MS,
+  TELEGRAM_NOTIFY_COOLDOWN_MS,
   DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
   DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
   MIN_PRIORITY_ALERT_SOUND_VOLUME,
@@ -77,6 +79,7 @@ import {
   sendTelegramTestMessage,
   verifyTelegramBot,
   formatTelegramMessage,
+  buildStudyReplyMarkup,
 } from './telegram';
 
 export default defineBackground({
@@ -156,6 +159,7 @@ export default defineBackground({
         maxKnownStudies: MAX_PRIORITY_KNOWN_STUDIES,
         actionSeenTTLMS: PRIORITY_ACTION_SEEN_TTL_MS,
         maxActionSeenStudies: MAX_PRIORITY_ACTION_SEEN_STUDIES,
+        telegramSeenTTLMS: TELEGRAM_NOTIFY_COOLDOWN_MS,
       },
       onQueueError: (error: unknown, event: NormalizedSnapshotEvent) => {
         pushDebugLog('tab.priority_auto_open.error', {
@@ -1127,32 +1131,25 @@ export default defineBackground({
       return cachedTelegramSettings;
     }
 
-    async function sendTelegramNotification(
-      studies: Study[],
+    async function sendStudyTelegramMessage(
+      rawStudy: Study,
       filter: PriorityFilter | null,
-      trigger: string,
       settings: TelegramSettings,
-      logPrefix: string,
-    ): Promise<void> {
-      const message = formatTelegramMessage(studies, filter, settings.message_format);
-      if (!message) return;
-
-      const result = await sendTelegramMessage(settings.bot_token, settings.chat_id, message, settings.silent_notifications);
-      const logDetails: Record<string, unknown> = { trigger, study_count: studies.length };
-      if (filter) logDetails.filter = filter.name;
-
+    ): Promise<boolean> {
+      // Studies from the priority pipeline are raw API objects (not normalized).
+      const study = normalizeStudy(rawStudy as unknown as Record<string, unknown>);
+      const result = await sendTelegramMessage(
+        settings.bot_token, settings.chat_id,
+        formatTelegramMessage(study, filter, settings.message_format),
+        settings.silent_notifications,
+        buildStudyReplyMarkup(study, settings.message_format),
+      );
       if (result.ok) {
-        await updateState((prev) => ({
-          priority_telegram_notify_count: (Number(prev.priority_telegram_notify_count) || 0) + 1,
-          telegram_notify_last_at: nowIso(),
-          telegram_notify_last_trigger: trigger,
-          telegram_notify_last_study_count: studies.length,
-        }));
-        pushDebugLog(`${logPrefix}.sent`, logDetails);
+        pushDebugLog('telegram.notify.sent', { study: study.name || study.id, filter: filter?.name });
       } else {
-        logDetails.error = result.description || result.error || 'unknown';
-        pushDebugLog(`${logPrefix}.error`, logDetails);
+        pushDebugLog('telegram.notify.error', { study: study.name || study.id, filter: filter?.name, error: result.description || result.error });
       }
+      return result.ok;
     }
 
     function queuePrioritySnapshotEvent(rawEvent: unknown): void {
@@ -1189,40 +1186,72 @@ export default defineBackground({
       const telegramSettings = cachedTelegramSettings;
       const tgActive = telegramSettings && isTelegramConfigured(telegramSettings);
 
-      if (tgActive && telegramSettings.notify_all_studies) {
-        sendTelegramNotification(evaluation.newlySeenStudies, null, evaluation.event.trigger, telegramSettings, 'telegram.notify_all')
-          .catch((err) => pushDebugLog('telegram.notify_all.error', { error: toUserErrorMessage(err) }));
+      // Single pass: build per-study filter map, collect telegram studies,
+      // and gather priority action promises.
+      const studyFilterMap = new Map<string, PriorityFilter>();
+      let anyFilterNotify = false;
+      const tgNotifyStudies: Study[] = [];
+      const priorityActionPromises: Promise<void>[] = [];
+      for (const { filter } of evaluation.enabledFilters) {
+        const matched = evaluation.matchesByFilterId.get(filter.id);
+        if (!matched?.length) continue;
+        for (const study of matched) studyFilterMap.set(study.id, filter);
+        if (filter.telegram_notify) {
+          anyFilterNotify = true;
+          tgNotifyStudies.push(...matched);
+        }
+        priorityActionPromises.push(
+          handlePriorityAlertAction(filter, matched, evaluation.event.trigger),
+          handlePriorityAutoOpenAction(filter, matched, evaluation.event.trigger),
+        );
       }
-
       if (!evaluation.enabledFilters.length) {
         pushDebugLog('tab.priority_auto_open.disabled', {
           trigger: evaluation.event.trigger,
           candidate_count: evaluation.newlySeenStudies.length,
         });
-        return;
       }
 
-      if (!evaluation.matchesByFilterId.size) {
-        return;
-      }
+      const priorityActionsTask = Promise.all(priorityActionPromises);
 
-      // Each study is assigned to exactly one winning filter (by importance score).
-      // Process each filter's exclusive study set and fire its configured actions.
-      for (const { filter } of evaluation.enabledFilters) {
-        const matched = evaluation.matchesByFilterId.get(filter.id);
-        if (!matched || !matched.length) continue;
+      const telegramTask = (async () => {
+        if (!tgActive) return;
+        const shouldNotify = telegramSettings.notify_all_studies || anyFilterNotify;
+        if (!shouldNotify) return;
 
-        const actions: Promise<void>[] = [
-          handlePriorityAlertAction(filter, matched, evaluation.event.trigger),
-          handlePriorityAutoOpenAction(filter, matched, evaluation.event.trigger),
-        ];
-
-        if (tgActive && !telegramSettings.notify_all_studies && filter.telegram_notify) {
-          actions.push(sendTelegramNotification(matched, filter, evaluation.event.trigger, telegramSettings, 'telegram.notify'));
+        // Filter-matched studies always notify. Non-filter studies (notify_all)
+        // are subject to a 1-hour cooldown to avoid spam from studies that
+        // briefly disappear and reappear.
+        let tgStudies: Study[];
+        if (telegramSettings.notify_all_studies) {
+          const filterMatchedIDs = new Set(tgNotifyStudies.map((s) => s.id));
+          const nonFilterStudies = evaluation.newlySeenStudies.filter((s) => !filterMatchedIDs.has(s.id));
+          const dedupedNonFilter = priorityStateRuntime.selectTelegramCandidates(nonFilterStudies);
+          tgStudies = [...tgNotifyStudies, ...dedupedNonFilter];
+        } else {
+          tgStudies = tgNotifyStudies;
         }
+        if (!tgStudies.length) return;
 
-        await Promise.all(actions);
-      }
+        priorityStateRuntime.markTelegramSeen(tgStudies);
+
+        const results = await Promise.all(
+          tgStudies.map((study) =>
+            sendStudyTelegramMessage(study, studyFilterMap.get(study.id) ?? null, telegramSettings)
+              .catch((err: unknown) => { pushDebugLog('telegram.notify.error', { error: toUserErrorMessage(err) }); return false as const; }),
+          ),
+        );
+        const sentCount = results.filter(Boolean).length;
+        if (sentCount) {
+          await updateState((prev) => ({
+            priority_telegram_notify_count: (Number(prev.priority_telegram_notify_count) || 0) + sentCount,
+            telegram_notify_last_at: nowIso(),
+            telegram_notify_last_trigger: evaluation.event.trigger,
+          }));
+        }
+      })();
+
+      await Promise.all([priorityActionsTask, telegramTask]);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -2296,7 +2325,7 @@ export default defineBackground({
             sendResponse({ ok: false, error: 'Bot token and chat ID are required' });
             return;
           }
-          const result = await sendTelegramTestMessage(settings.bot_token, settings.chat_id);
+          const result = await sendTelegramTestMessage(settings.bot_token, settings.chat_id, settings.message_format);
           if (result.ok) {
             pushDebugLog('telegram.test.sent', {});
           } else {

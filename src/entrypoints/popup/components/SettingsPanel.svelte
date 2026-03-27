@@ -178,8 +178,9 @@
     { key: 'include_duration', label: 'Duration' },
     { key: 'include_places', label: 'Places available' },
     { key: 'include_researcher', label: 'Researcher' },
+    { key: 'include_tags', label: 'Study tags' },
     { key: 'include_description', label: 'Description' },
-    { key: 'include_link', label: 'Study link' },
+    { key: 'include_link', label: 'Open study button' },
   ];
 
   function snapshotTelegramSettings(): TelegramSettings {
@@ -262,9 +263,6 @@
     'settings.telegram.updated': 'Telegram settings saved',
     'telegram.notify.sent': 'Telegram notification sent',
     'telegram.notify.error': 'Telegram notification failed',
-    'telegram.notify.disabled': 'Telegram notify disabled for filter',
-    'telegram.notify_all.sent': 'Telegram notify-all sent',
-    'telegram.notify_all.error': 'Telegram notify-all failed',
     'telegram.test.sent': 'Telegram test sent',
     'telegram.test.error': 'Telegram test failed',
   };
@@ -916,8 +914,8 @@
           />
         </div>
 
-        <div class="text-[10px] text-base-content/40 leading-snug mt-0.5">
-          Create a bot via <span class="font-semibold">@BotFather</span> on Telegram, then message <span class="font-semibold">@userinfobot</span> to get your chat ID.
+        <div class="text-xs text-base-content/50 leading-snug mt-1">
+          Create a bot via <span class="font-semibold">@BotFather</span>, open your bot and tap <span class="font-semibold">Start</span>, then message <span class="font-semibold">@userinfobot</span> to get your chat ID.
         </div>
 
         {#if tgBotStatus === 'verifying'}
@@ -944,7 +942,7 @@
             {:else if tgTestStatus === 'error'}
               Failed
             {:else}
-              Send test message
+              Send test preview
             {/if}
           </button>
           {#if tgTestStatus === 'error' && tgTestError}

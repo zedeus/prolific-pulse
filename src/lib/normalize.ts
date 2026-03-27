@@ -85,6 +85,7 @@ export function normalizeStudy(raw: Record<string, unknown>): Study {
     pii_enabled: typeof pii?.enabled === 'boolean'
       ? pii.enabled
       : (typeof raw.pii_enabled === 'boolean' ? raw.pii_enabled : false),
+    is_custom_screening: raw.is_custom_screening === true,
     study_labels: extractStringArray(raw.study_labels),
     ai_inferred_study_labels: extractStringArray(raw.ai_inferred_study_labels),
     previous_submission_count: typeof raw.previous_submission_count === 'number' ? raw.previous_submission_count : 0,

@@ -27,6 +27,7 @@ function makeStudy(id: string, name: string, overrides: Partial<Study> = {}): St
     is_ongoing_study: false,
     submission_started_at: null,
     pii_enabled: false,
+    is_custom_screening: false,
     study_labels: [],
     ai_inferred_study_labels: [],
     previous_submission_count: 0,

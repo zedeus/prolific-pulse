@@ -235,6 +235,41 @@ export function escapeHTML(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
+const STUDY_LABEL_DISPLAY: Record<string, string> = {
+  'ai_evaluation': 'AI Training',
+  'ai_training': 'AI Training',
+  'survey': 'Survey',
+  'interview': 'Interview',
+  'experiment': 'Experiment',
+  'longitudinal': 'Longitudinal',
+  'decision_making_task': 'Decision Making',
+  'data_collection': 'Data Collection',
+};
+
+export function formatStudyLabel(studyLabels: string[], aiLabels: string[] = []): string {
+  const raw = ((studyLabels[0] || aiLabels[0]) ?? '').trim();
+  if (!raw) return '';
+  const mapped = STUDY_LABEL_DISPLAY[raw];
+  if (mapped) return mapped;
+  // Strip trailing _task, convert underscores to spaces, title-case
+  return raw
+    .replace(/_task$/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function stripHTML(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&#?\w+;/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function cloneTelegramSettings<T extends { message_format: Record<string, unknown> }>(settings: T): T {
   return { ...settings, message_format: { ...settings.message_format } };
 }
