@@ -182,7 +182,6 @@
 
   $effect(() => {
     return () => {
-      if (retryCountdownTimer) clearInterval(retryCountdownTimer);
       if (retryRefreshTimer) clearTimeout(retryRefreshTimer);
       if (reactiveRefreshTimer) clearTimeout(reactiveRefreshTimer);
       if (priorityFilterPersistTimer) clearTimeout(priorityFilterPersistTimer);

@@ -45,7 +45,7 @@ jobs:
 
       - name: Validate version matches wxt.config.ts
         run: |
-          CONFIG_VERSION=$(grep -oP "version:\s*'\K[^']+" wxt.config.ts)
+          CONFIG_VERSION=$(grep -oP "^\s+version:\s*'\K[^']+" wxt.config.ts | head -1)
           if [ "$CONFIG_VERSION" != "$VERSION" ]; then
             echo "::error::Tag version ($VERSION) does not match wxt.config.ts version ($CONFIG_VERSION)"
             exit 1

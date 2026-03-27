@@ -30,6 +30,7 @@ export default ts.config(
         HTMLDetailsElement: 'readonly',
         HTMLInputElement: 'readonly',
         HTMLSelectElement: 'readonly',
+        crypto: 'readonly',
       },
     },
   },
