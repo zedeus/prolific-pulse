@@ -53,7 +53,17 @@ jobs:
 
       - run: npx wxt zip -b chrome
 
-      - run: npx wxt zip -b firefox
+      - run: npx wxt build -b firefox
+
+      - name: Sign Firefox extension
+        run: |
+          npx web-ext sign \
+            --source-dir .output/firefox-mv2 \
+            --api-key "${{ secrets.AMO_JWT_ISSUER }}" \
+            --api-secret "${{ secrets.AMO_JWT_SECRET }}" \
+            --channel unlisted \
+            --artifacts-dir .output/signed
+          mv .output/signed/*.xpi ".output/prolific-pulse-extension-${VERSION}-firefox.xpi"
 
       - name: Create GitHub Release
         working-directory: .
@@ -62,6 +72,6 @@ jobs:
         run: |
           gh release create "$TAG" \
             "src/.output/prolific-pulse-extension-${VERSION}-chrome.zip" \
-            "src/.output/prolific-pulse-extension-${VERSION}-firefox.zip" \
+            "src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi" \
             --title "Prolific Pulse $TAG" \
             --generate-notes
