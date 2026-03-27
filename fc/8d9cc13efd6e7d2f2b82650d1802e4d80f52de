@@ -1,0 +1,23 @@
+README.md
+  b92abff77369041e 17-23,26-29,31-33,35,37-41,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "fc8d9cc13efd6e7d2f2b82650d1802e4d80f52de",
+  "prompts": {
+    "b92abff77369041e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f1e239f-f356-432a-bc08-e2e38e72caad",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 10,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}
