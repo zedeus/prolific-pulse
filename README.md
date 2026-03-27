@@ -10,29 +10,29 @@ Real-time Prolific study monitoring browser extension (Firefox & Chrome).
 
 All data is stored locally in the browser using IndexedDB. No external server required.
 
-## Setup
+## Installation
 
-1. Build extension:
+Download the latest release for your browser from the [Releases page](https://github.com/zedeus/prolific-pulse/releases/latest).
 
-```bash
-cd src && npm install && npx wxt build -b firefox   # Firefox
-cd src && npm install && npx wxt build -b chrome    # Chrome
-```
+### Firefox
 
-2. Load extension:
+1. Download `prolific-pulse-extension-...-firefox.zip` from the latest release.
+2. Open Firefox and go to `about:addons`.
+3. Click the gear icon (⚙) at the top right and select **Install Add-on From File...**.
+4. Select the downloaded `.zip` file.
 
-   **Firefox:**
-   - Open `about:debugging#/runtime/this-firefox`
-   - Click `Load Temporary Add-on...`
-   - Select any file in `src/.output/firefox-mv2/`
+### Chrome
 
-   **Chrome:**
-   - Open `chrome://extensions`
-   - Enable Developer mode (top right)
-   - Click `Load unpacked` and select `src/.output/chrome-mv3/`
+1. Download `prolific-pulse-extension-...-chrome.zip` from the latest release.
+2. Unzip the downloaded file into a folder.
+3. Open Chrome and go to `chrome://extensions`.
+4. Enable **Developer mode** using the toggle at the top right.
+5. Click **Load unpacked** and select the unzipped folder.
 
-3. Open Prolific and stay logged in.
-4. Open the extension popup.
+### After installing
+
+1. Open [Prolific](https://app.prolific.com) and make sure you are logged in.
+2. Click the Prolific Pulse extension icon in the toolbar to open the popup.
 
 ## Daily Use
 
@@ -55,5 +55,5 @@ Options: per-filter notifications, notify for all studies, silent mode, and conf
 ## Troubleshooting
 
 - If popup data stops updating, reload the Prolific tab.
-- Firefox: reload the extension from `about:debugging`.
+- Firefox: reload the extension from `about:addons`.
 - Chrome: reload from `chrome://extensions`.
