@@ -1,0 +1,43 @@
+src/lib/__tests__/domain.test.ts
+  fe63b4431e32e0ba 35
+src/entrypoints/popup/components/SettingsPanel.svelte
+  fe63b4431e32e0ba 181,183,917-918,945
+src/entrypoints/background/telegram.ts
+  fe63b4431e32e0ba 3-4,28,70-78,82,86-87,90-91,94-95,99,101-102,104-110,114-115,119,125-126,128-133,147,154-162,166,227,229-262
+src/lib/format.ts
+  fe63b4431e32e0ba 238-272
+src/lib/constants.ts
+  fe63b4431e32e0ba 69,128
+src/lib/types.ts
+  fe63b4431e32e0ba 35,97
+src/lib/normalize.ts
+  fe63b4431e32e0ba 88
+src/lib/__tests__/store.test.ts
+  fe63b4431e32e0ba 30
+src/entrypoints/background/index.ts
+  fe63b4431e32e0ba 3,56,82,162,1134-1135,1138-1146,1148,1150,1152,1189-1206,1215-1220,1222-1234,1236,1238-1250,1252,1254,2328
+src/entrypoints/popup/components/LivePanel.svelte
+  fe63b4431e32e0ba 12,67,90-92
+src/entrypoints/background/state.ts
+  fe63b4431e32e0ba 11,37-38,61,152,154,170-171,183,191,235-236,242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "13a7ae74c1328f3cedabc886203ba97853de83db",
+  "prompts": {
+    "fe63b4431e32e0ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c049ed28-9bd1-4c27-877f-35a605dcafaf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 484,
+      "total_deletions": 369,
+      "accepted_lines": 246,
+      "overriden_lines": 0
+    }
+  }
+}
