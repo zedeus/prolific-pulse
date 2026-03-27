@@ -227,7 +227,7 @@
     return raw
       .filter((f: unknown) => f && typeof f === 'object')
       .map((f: Record<string, unknown>) => {
-        const filter = { ...f } as PriorityFilter;
+        const filter = { ...f } as unknown as PriorityFilter;
         if (filter.alert_sound_enabled === false) {
           filter.alert_sound_type = SOUND_TYPE_NONE;
         }

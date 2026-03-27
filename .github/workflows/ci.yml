@@ -27,9 +27,7 @@ jobs:
 
       - run: npx eslint .
 
-      - name: Type-check
-        run: npx svelte-check
-        continue-on-error: true
+      - run: npx svelte-check
 
       - run: npx vitest run
 

@@ -75,14 +75,14 @@ export const MIN_PRIORITY_ALERT_SOUND_VOLUME = 0;
 export const MAX_PRIORITY_ALERT_SOUND_VOLUME = 100;
 
 export const PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH = Object.freeze({
-  pay: 'sounds/pay.base64',
-  metal_gear: 'sounds/metal_gear.base64',
-  twitch: 'sounds/twitch.base64',
-  chime: 'sounds/chime.base64',
-  money: 'sounds/money.base64',
-  samsung: 'sounds/samsung.base64',
-  lbp: 'sounds/lbp.base64',
-  taco: 'sounds/taco.base64',
+  pay: '/sounds/pay.base64',
+  metal_gear: '/sounds/metal_gear.base64',
+  twitch: '/sounds/twitch.base64',
+  chime: '/sounds/chime.base64',
+  money: '/sounds/money.base64',
+  samsung: '/sounds/samsung.base64',
+  lbp: '/sounds/lbp.base64',
+  taco: '/sounds/taco.base64',
 } as const);
 
 export type SoundType = keyof typeof PRIORITY_ALERT_SOUND_TYPE_TO_BASE64_PATH;

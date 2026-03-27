@@ -21,7 +21,7 @@
     onStudyClick: (url: string) => void;
   }>();
 
-  const enabledFilters = $derived(priorityFilters.filter((f) => f.enabled));
+  const enabledFilters = $derived(priorityFilters.filter((f: PriorityFilter) => f.enabled));
 
   const sortedStudies = $derived(
     [...studies].sort((a, b) => {
@@ -53,7 +53,7 @@
     {:else}
       {#each sortedStudies as study (study.id)}
         {@const blob = enabledFilters.length > 0 ? studyKeywordBlob(study) : ''}
-        {@const isPriority = enabledFilters.length > 0 && enabledFilters.some((f) => studyMatchesPriorityFilter(study, f, blob))}
+        {@const isPriority = enabledFilters.length > 0 && enabledFilters.some((f: PriorityFilter) => studyMatchesPriorityFilter(study, f, blob))}
         {@const url = studyUrlFromId(study.id)}
         {@const reward = formatMoneyFromMinorUnits(study.reward)}
         {@const perHourAmount = moneyMajorValue(study.average_reward_per_hour)}

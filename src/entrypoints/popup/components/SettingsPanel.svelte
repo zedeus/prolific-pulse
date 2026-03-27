@@ -88,7 +88,7 @@
     }
   }
 
-  const filterIds = $derived(priorityFilters.map((f) => f.id).join(','));
+  const filterIds = $derived(priorityFilters.map((f: PriorityFilter) => f.id).join(','));
 
   $effect(() => {
     void filterIds;
@@ -337,7 +337,7 @@
     }
     if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
     deleteConfirmId = '';
-    priorityFilters = priorityFilters.filter((f) => f.id !== filterId);
+    priorityFilters = priorityFilters.filter((f: PriorityFilter) => f.id !== filterId);
     keywordTextMap.delete(filterId);
     if (expandedFilterId === filterId) expandedFilterId = '';
     onPriorityFiltersChange();
