@@ -62,7 +62,8 @@ jobs:
             --api-key "${{ secrets.AMO_JWT_ISSUER }}" \
             --api-secret "${{ secrets.AMO_JWT_SECRET }}" \
             --channel unlisted \
-            --artifacts-dir .output/signed
+            --artifacts-dir .output/signed \
+            --approval-timeout 1800000
           mv .output/signed/*.xpi ".output/prolific-pulse-extension-${VERSION}-firefox.xpi"
 
       - name: Create GitHub Release
