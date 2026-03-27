@@ -1,0 +1,31 @@
+src/entrypoints/popup/components/LivePanel.svelte
+  b92abff77369041e 24,56
+src/lib/constants.ts
+  b92abff77369041e 78-85
+src/entrypoints/popup/App.svelte
+  b92abff77369041e 230
+.github/workflows/ci.yml
+  b92abff77369041e 30
+src/entrypoints/popup/components/SettingsPanel.svelte
+  b92abff77369041e 91,340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "9066c6a8fde136107d4d76f8a9412c4c3dc51678",
+  "prompts": {
+    "b92abff77369041e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f1e239f-f356-432a-bc08-e2e38e72caad",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 17,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}
