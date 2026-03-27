@@ -6,6 +6,7 @@ Real-time Prolific study monitoring browser extension (Firefox & Chrome).
 - Record recent availability events (appeared / disappeared)
 - Track submission state across studies
 - Alert you with sound and auto-open when high-value studies appear
+- Send Telegram notifications when matching studies appear
 
 All data is stored locally in the browser using IndexedDB. No external server required.
 
@@ -37,8 +38,19 @@ cd src && npm install && npx wxt build -b chrome    # Chrome
 
 - Keep your browser open with Prolific logged in.
 - Open the popup to monitor studies, feed activity, and submissions.
-- Configure the priority filter in settings to get alerts for studies matching your criteria.
+- Configure priority filters in settings to get alerts for studies matching your criteria.
 - If a study you tried to take was full but later reopens, you'll get a fresh alert automatically.
+
+### Telegram Notifications
+
+Get notified on your phone when studies appear:
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram.
+2. Message [@userinfobot](https://t.me/userinfobot) to get your chat ID.
+3. Open extension settings, expand Telegram, paste your bot token and chat ID.
+4. Click "Send test message" to verify.
+
+Options: per-filter notifications, notify for all studies, silent mode, and configurable message format (reward, hourly rate, duration, places, researcher, description, study link).
 
 ## Troubleshooting
 
