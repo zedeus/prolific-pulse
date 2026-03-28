@@ -1,0 +1,27 @@
+src/wxt.config.ts
+  b92abff77369041e 9,39
+.github/workflows/release.yml
+  b92abff77369041e 64
+.github/scripts/amo-sign.mjs
+  b92abff77369041e 71-72,74,89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "0d04e0832fb3b98027addcd4ae66fc16e64ee54a",
+  "prompts": {
+    "b92abff77369041e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f1e239f-f356-432a-bc08-e2e38e72caad",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed <zedeus@pm.me>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 5,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}
