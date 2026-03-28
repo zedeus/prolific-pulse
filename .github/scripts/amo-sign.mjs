@@ -68,9 +68,10 @@ async function downloadFile(url, dest) {
 
 async function pollForSigned() {
   const urlPath = `/addons/addon/${encodeURIComponent(addonId)}/versions/${version}/`;
-  console.log(`Polling AMO for ${addonId} v${version}...`);
+  const maxPolls = parseInt(process.env.AMO_POLL_MAX || '120', 10); // 120 * 15s = 30min default
+  console.log(`Polling AMO for ${addonId} v${version} (max ${maxPolls * 15}s)...`);
 
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < maxPolls; i++) {
     const { status, data } = await api(urlPath);
     if (status === 404) {
       return false; // version not on AMO yet
@@ -85,7 +86,7 @@ async function pollForSigned() {
     console.log(`  Status: ${fileStatus || 'pending'}, waiting 15s...`);
     await new Promise((r) => setTimeout(r, 15000));
   }
-  throw new Error('Timed out waiting for AMO signing (30 minutes)');
+  throw new Error(`Timed out waiting for AMO signing (${maxPolls * 15}s)`);
 }
 
 async function main() {
