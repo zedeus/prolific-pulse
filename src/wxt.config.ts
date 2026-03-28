@@ -6,7 +6,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-svelte'],
   manifest: ({ browser }) => ({
     name: 'Prolific Pulse',
-    version: '1.1.2',
+    version: '1.1.3',
     description:
       'Real-time study monitoring for Prolific. Get instant alerts when studies matching your criteria become available.',
     icons: {
@@ -36,7 +36,7 @@ export default defineConfig({
     },
     browser_specific_settings:
       browser === 'firefox'
-        ? { gecko: { id: 'prolific-pulse@prolific-pulse', strict_min_version: '110.0' } }
+        ? { gecko: { id: 'prolific-pulse@prolific-pulse', strict_min_version: '110.0', data_collection_permissions: { required: ['none'] } } }
         : undefined,
     web_accessible_resources: browser === 'chrome' ? [
       { resources: ['intercept-main.js'], matches: ['*://app.prolific.com/*', '*://auth.prolific.com/*'] },
