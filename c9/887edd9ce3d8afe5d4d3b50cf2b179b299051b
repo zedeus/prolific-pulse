@@ -1,0 +1,27 @@
+.github/scripts/amo-api.mjs
+  fd28ddf6aa5e18b3 9
+.github/scripts/amo-sign.mjs
+  fd28ddf6aa5e18b3 16-17
+.github/scripts/amo-check-status.mjs
+  fd28ddf6aa5e18b3 46-49,51-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "c9887edd9ce3d8afe5d4d3b50cf2b179b299051b",
+  "prompts": {
+    "fd28ddf6aa5e18b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46d5ffca-8896-476c-8bfc-13d2d62fed08",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 9,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
