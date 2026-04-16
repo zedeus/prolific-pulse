@@ -12,20 +12,23 @@ All data is stored locally in the browser using IndexedDB. No external server re
 
 ## Installation
 
-Download the latest release for your browser from the [Releases page](https://github.com/zedeus/prolific-pulse/releases/latest).
+Download the latest release from the [Releases page](https://github.com/zedeus/prolific-pulse/releases/latest).
 
 ### Chrome
 
-1. Download `prolific-pulse-extension-...-chrome.zip` from the latest release.
-2. Open Chrome and go to `chrome://extensions`.
-3. Enable **Developer mode** using the toggle at the top right.
-4. Drag the downloaded `.zip` file onto the extensions page.
+1. Download the `-chrome.zip` file.
+2. Open `chrome://extensions` and enable **Developer mode**.
+3. Drag the `.zip` onto the page.
 
 ### Firefox
 
-1. Download `prolific-pulse-extension-...-firefox.xpi` from the latest release.
-2. Open the downloaded `.xpi` file with Firefox (or drag it onto a Firefox window).
-3. Click **Add** when prompted.
+**Signed (recommended):** If a signed `-firefox.xpi` file is available in the release, download it and open it in Firefox. Click **Add** when prompted.
+
+**Temporary install:** If only the unsigned `-firefox-unsigned.zip` is available:
+1. Download the `-firefox-unsigned.zip` file.
+2. Open `about:debugging#/runtime/this-firefox` in Firefox.
+3. Click **Load Temporary Add-on** and select the downloaded `.zip`.
+4. The extension works normally but is removed when Firefox restarts. Repeat these steps after each restart.
 
 ### After installing
 

@@ -53,7 +53,10 @@ jobs:
 
       - run: npx wxt zip -b chrome
 
-      - run: npx wxt build -b firefox
+      - name: Build and zip Firefox extension
+        run: |
+          npx wxt build -b firefox
+          cd .output && zip -r "prolific-pulse-extension-${VERSION}-firefox-unsigned.zip" firefox-mv2/
 
       - name: Sign Firefox extension
         id: sign
@@ -69,12 +72,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ASSETS=("src/.output/prolific-pulse-extension-${VERSION}-chrome.zip")
+          ASSETS=(
+            "src/.output/prolific-pulse-extension-${VERSION}-chrome.zip"
+            "src/.output/prolific-pulse-extension-${VERSION}-firefox-unsigned.zip"
+          )
+          BODY="## Installation
+
+          ### Chrome
+          1. Download \`prolific-pulse-extension-${VERSION}-chrome.zip\`.
+          2. Go to \`chrome://extensions\`, enable **Developer mode**.
+          3. Drag the \`.zip\` onto the page.
+
+          ### Firefox (signed — recommended)
+          Install from [AMO](https://addons.mozilla.org/firefox/addon/prolific-pulse/) once approved.
+
+          ### Firefox (unsigned — temporary)
+          1. Download \`prolific-pulse-extension-${VERSION}-firefox-unsigned.zip\`.
+          2. Open \`about:debugging#/runtime/this-firefox\`.
+          3. Click **Load Temporary Add-on** and select the \`.zip\` file.
+          4. Note: the extension is removed when Firefox restarts."
+
           if [ -f "src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi" ]; then
             ASSETS+=("src/.output/prolific-pulse-extension-${VERSION}-firefox.xpi")
-          else
-            echo "::warning::Firefox XPI not ready — AMO signing timed out. Run the 'Sign Firefox addon' workflow to attach it later."
+            BODY+="
+
+          ### Firefox (signed XPI)
+          Download \`prolific-pulse-extension-${VERSION}-firefox.xpi\` and open it in Firefox to install permanently."
           fi
+
           gh release create "$TAG" "${ASSETS[@]}" \
             --title "Prolific Pulse $TAG" \
-            --generate-notes
+            --notes "$BODY"
