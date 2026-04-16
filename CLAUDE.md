@@ -112,7 +112,7 @@ HEADLESS=1 npx wdio run wdio.conf.js
 ```
 
 ### Extension Loading
-The extension has `browser_specific_settings.gecko.id` set to `prolific-pulse@prolific-pulse`.
+The extension has `browser_specific_settings.gecko.id` set to `{fae5de21-ec2a-4a34-92ba-d1d2dc76553e}`.
 Tests use WebdriverIO Firefox with a persistent profile at `tests/profiles/prolific/`.
 The extension is zipped at runtime from WXT output and installed via `browser.installAddOn()`.
 The extension UUID is pre-seeded via `extensions.webextensions.uuids` Firefox preference for deterministic popup URLs.

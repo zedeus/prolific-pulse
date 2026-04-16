@@ -10,7 +10,7 @@ if (!AMO_JWT_ISSUER || !AMO_JWT_SECRET) {
   process.exit(1);
 }
 
-const ADDON_ID = process.env.ADDON_ID || 'prolific-pulse@prolific-pulse';
+const ADDON_ID = process.env.ADDON_ID || '{fae5de21-ec2a-4a34-92ba-d1d2dc76553e}';
 const API = 'https://addons.mozilla.org/api/v5';
 
 function makeJWT() {
