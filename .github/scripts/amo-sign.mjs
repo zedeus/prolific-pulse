@@ -2,10 +2,10 @@
 // Usage: node amo-sign.mjs <source-dir> <output-xpi-path>
 // Env: AMO_JWT_ISSUER, AMO_JWT_SECRET
 
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { api, downloadFile, requireCredentials } from './amo-api.mjs';
 
 const [sourceDir, outputPath] = process.argv.slice(2);
 if (!sourceDir || !outputPath) {
@@ -13,11 +13,7 @@ if (!sourceDir || !outputPath) {
   process.exit(1);
 }
 
-const { AMO_JWT_ISSUER, AMO_JWT_SECRET } = process.env;
-if (!AMO_JWT_ISSUER || !AMO_JWT_SECRET) {
-  console.error('Missing AMO_JWT_ISSUER or AMO_JWT_SECRET');
-  process.exit(1);
-}
+const { AMO_JWT_ISSUER, AMO_JWT_SECRET } = requireCredentials();
 
 const manifest = JSON.parse(
   fs.readFileSync(path.join(sourceDir, 'manifest.json'), 'utf8'),
@@ -29,52 +25,18 @@ if (!addonId || !version) {
   process.exit(1);
 }
 
-const API = 'https://addons.mozilla.org/api/v5';
-
-function makeJWT() {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-    .toString('base64url');
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(JSON.stringify({
-    iss: AMO_JWT_ISSUER,
-    jti: crypto.randomUUID(),
-    iat: now,
-    exp: now + 300,
-  })).toString('base64url');
-  const sig = crypto
-    .createHmac('sha256', AMO_JWT_SECRET)
-    .update(`${header}.${payload}`)
-    .digest('base64url');
-  return `${header}.${payload}.${sig}`;
-}
-
-async function api(urlPath) {
-  const res = await fetch(`${API}${urlPath}`, {
-    headers: { Authorization: `JWT ${makeJWT()}` },
-  });
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`AMO API ${res.status}: ${await res.text()}`);
-  }
-  return { status: res.status, data: res.status !== 404 ? await res.json() : null };
-}
-
-async function downloadFile(url, dest) {
-  const res = await fetch(url, {
-    headers: { Authorization: `JWT ${makeJWT()}` },
-  });
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-  fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
-}
-
 async function pollForSigned() {
   const urlPath = `/addons/addon/${encodeURIComponent(addonId)}/versions/${version}/`;
   const maxPolls = parseInt(process.env.AMO_POLL_MAX || '120', 10); // 120 * 15s = 30min default
   console.log(`Polling AMO for ${addonId} v${version} (max ${maxPolls * 15}s)...`);
 
   for (let i = 0; i < maxPolls; i++) {
-    const { status, data } = await api(urlPath);
+    const { status, ok, data } = await api(urlPath);
     if (status === 404) {
       return false; // version not on AMO yet
+    }
+    if (!ok) {
+      throw new Error(`AMO API ${status}: ${data}`);
     }
     const fileUrl = data?.file?.url;
     const fileStatus = data?.file?.status;
@@ -90,14 +52,12 @@ async function pollForSigned() {
 }
 
 async function main() {
-  // Check if already signed on AMO
   const alreadySigned = await pollForSigned();
   if (alreadySigned) {
     console.log(`Signed XPI saved to ${outputPath}`);
     return;
   }
 
-  // Not on AMO yet — submit via web-ext sign
   console.log('Version not found on AMO, submitting via web-ext sign...');
   const tmpDir = fs.mkdtempSync('/tmp/amo-sign-');
   try {
@@ -112,10 +72,9 @@ async function main() {
       { stdio: 'inherit' },
     );
   } catch {
-    // web-ext may exit non-zero if approval-timeout is 0 — that's expected
+    // web-ext exits non-zero with --approval-timeout 0; expected.
   }
 
-  // Now poll for the signed file
   const signed = await pollForSigned();
   if (!signed) {
     throw new Error('Failed to sign extension');
