@@ -13,7 +13,8 @@ if (!sourceDir || !outputPath) {
   process.exit(1);
 }
 
-const { AMO_JWT_ISSUER, AMO_JWT_SECRET } = requireCredentials();
+requireCredentials();
+const { AMO_JWT_ISSUER, AMO_JWT_SECRET } = process.env;
 
 const manifest = JSON.parse(
   fs.readFileSync(path.join(sourceDir, 'manifest.json'), 'utf8'),

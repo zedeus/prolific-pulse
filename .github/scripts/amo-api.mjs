@@ -6,12 +6,10 @@ import fs from 'node:fs';
 export const API = 'https://addons.mozilla.org/api/v5';
 
 export function requireCredentials() {
-  const { AMO_JWT_ISSUER, AMO_JWT_SECRET } = process.env;
-  if (!AMO_JWT_ISSUER || !AMO_JWT_SECRET) {
+  if (!process.env.AMO_JWT_ISSUER || !process.env.AMO_JWT_SECRET) {
     console.error('Missing AMO_JWT_ISSUER or AMO_JWT_SECRET');
     process.exit(1);
   }
-  return { AMO_JWT_ISSUER, AMO_JWT_SECRET };
 }
 
 // AMO requires a unique jti per request, so JWTs are minted per call.

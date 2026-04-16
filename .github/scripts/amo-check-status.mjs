@@ -43,12 +43,15 @@ async function main() {
     .map((v) => v.trim())
     .filter((v) => v && !results.some((r) => r.version === v));
   const direct = await Promise.all(
-    knownVersions.map((v) => api(`/addons/addon/${encodedId}/versions/${v}/`)),
+    knownVersions.map(async (version) => ({
+      version,
+      res: await api(`/addons/addon/${encodedId}/versions/${version}/`),
+    })),
   );
-  for (const [i, r] of direct.entries()) {
-    if (r.ok) {
-      console.log(`(Found unlisted version ${knownVersions[i]} via direct query)`);
-      results.push(r.data);
+  for (const { version, res } of direct) {
+    if (res.ok) {
+      console.log(`(Found unlisted version ${version} via direct query)`);
+      results.push(res.data);
     }
   }
 
