@@ -1,0 +1,27 @@
+README.md
+  fd28ddf6aa5e18b3 15,19-21,25-31
+src/wxt.config.ts
+  fd28ddf6aa5e18b3 9
+.github/workflows/release.yml
+  fd28ddf6aa5e18b3 56-59,75-94,97-100,102,105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "a4ac5dea74c8e916d74fb43f5f4ff87835ab4ebf",
+  "prompts": {
+    "fd28ddf6aa5e18b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46d5ffca-8896-476c-8bfc-13d2d62fed08",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 42,
+      "total_deletions": 14,
+      "accepted_lines": 42,
+      "overriden_lines": 0
+    }
+  }
+}
