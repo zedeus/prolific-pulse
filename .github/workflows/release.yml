@@ -56,7 +56,7 @@ jobs:
       - name: Build and zip Firefox extension
         run: |
           npx wxt build -b firefox
-          cd .output && zip -r "prolific-pulse-extension-${VERSION}-firefox-unsigned.zip" firefox-mv2/
+          cd .output/firefox-mv2 && zip -r "../prolific-pulse-extension-${VERSION}-firefox-unsigned.zip" .
 
       - name: Sign Firefox extension
         id: sign
