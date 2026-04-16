@@ -1,5 +1,17 @@
 name: Check AMO addon status
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      check_versions:
+        description: 'Comma-separated versions to check directly (e.g. 1.1.4,1.1.3)'
+        default: '1.1.4'
+      delete_version:
+        description: 'Version to delete from AMO (leave empty to skip)'
+        default: ''
+      verbose:
+        description: 'Show full API response'
+        type: boolean
+        default: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -12,4 +24,7 @@ jobs:
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          CHECK_VERSIONS: ${{ inputs.check_versions }}
+          DELETE_VERSION: ${{ inputs.delete_version }}
+          VERBOSE: ${{ inputs.verbose && '1' || '' }}
         run: node .github/scripts/amo-check-status.mjs

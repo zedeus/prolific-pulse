@@ -56,14 +56,30 @@ async function main() {
   console.log(`URL: ${addon.data.url || 'N/A'}`);
   console.log();
 
-  // List versions
-  const versions = await api(`/addons/addon/${encodeURIComponent(ADDON_ID)}/versions/`);
+  // List versions (include unlisted via filter param)
+  const versions = await api(`/addons/addon/${encodeURIComponent(ADDON_ID)}/versions/?filter=all_with_unlisted`);
   if (versions.status !== 200) {
     console.error(`Versions lookup failed (${versions.status}):`, versions.data);
     return;
   }
 
   const results = versions.data.results || [];
+
+  // Also try querying specific known versions directly (unlisted may be hidden from list)
+  const knownVersions = process.env.CHECK_VERSIONS?.split(',') || [];
+  for (const ver of knownVersions) {
+    const v = ver.trim();
+    if (!v) continue;
+    const exists = results.some(r => r.version === v);
+    if (!exists) {
+      const direct = await api(`/addons/addon/${encodeURIComponent(ADDON_ID)}/versions/${v}/`);
+      if (direct.status === 200) {
+        console.log(`(Found unlisted version ${v} via direct query)`);
+        results.push(direct.data);
+      }
+    }
+  }
+
   if (results.length === 0) {
     console.log('No versions found.');
     return;
@@ -93,6 +109,28 @@ async function main() {
   console.log(`Signed (public): ${signed.length} — ${signed.map(v => v.version).join(', ') || 'none'}`);
   console.log(`Unreviewed:      ${unreviewed.length} — ${unreviewed.map(v => v.version).join(', ') || 'none'}`);
   console.log(`Disabled:        ${disabled.length} — ${disabled.map(v => v.version).join(', ') || 'none'}`);
+
+  // If DELETE_VERSION is set, delete that version
+  const deleteVersion = process.env.DELETE_VERSION;
+  if (deleteVersion) {
+    console.log(`\nDeleting version ${deleteVersion}...`);
+    const delUrl = `/addons/addon/${encodeURIComponent(ADDON_ID)}/versions/${deleteVersion}/`;
+    const res = await fetch(`${API}${delUrl}`, {
+      method: 'DELETE',
+      headers: { Authorization: `JWT ${makeJWT()}` },
+    });
+    if (res.status === 204) {
+      console.log(`Successfully deleted version ${deleteVersion}`);
+    } else {
+      console.error(`Delete failed (${res.status}):`, await res.text());
+    }
+  }
+
+  // If VERBOSE is set, dump full API responses
+  if (process.env.VERBOSE) {
+    console.log('\n--- Full Version Data ---');
+    console.log(JSON.stringify(results, null, 2));
+  }
 }
 
 main().catch((err) => {
