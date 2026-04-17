@@ -6,7 +6,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-svelte'],
   manifest: ({ browser }) => ({
     name: 'Prolific Pulse',
-    version: '1.1.9',
+    version: '1.2.0',
     description:
       'Real-time study monitoring for Prolific. Get instant alerts when studies matching your criteria become available.',
     icons: {
