@@ -1,0 +1,87 @@
+src/lib/import-csv.ts
+  f7f73f4cc25f7b0c 1-207
+src/lib/__dev__/dev-helpers.ts
+  f7f73f4cc25f7b0c 1-18
+src/assets/app.css
+  f7f73f4cc25f7b0c 6-8
+src/entrypoints/app/index.html
+  f7f73f4cc25f7b0c 1-12
+src/lib/__tests__/import-csv.test.ts
+  f7f73f4cc25f7b0c 1-153
+tests-wdio/specs/visual-earnings.js
+  f7f73f4cc25f7b0c 1-136
+src/entrypoints/popup/components/EarningsPanel.svelte
+  f7f73f4cc25f7b0c 1-280
+scripts/gen-fake-csv.mjs
+  f7f73f4cc25f7b0c 1-144
+src/entrypoints/app/App.svelte
+  f7f73f4cc25f7b0c 1-119
+src/lib/__tests__/fx-rates.test.ts
+  f7f73f4cc25f7b0c 1-114
+src/entrypoints/popup/components/EarningsStrip.svelte
+  f7f73f4cc25f7b0c 1-117
+src/lib/fx-rates.ts
+  f7f73f4cc25f7b0c 1-125
+src/entrypoints/app/views/EarningsView.svelte
+  f7f73f4cc25f7b0c 1-1678
+src/lib/earnings.ts
+  f7f73f4cc25f7b0c 1-822
+src/lib/__tests__/store.test.ts
+  f7f73f4cc25f7b0c 382-459,510-640
+src/entrypoints/popup/App.svelte
+  f7f73f4cc25f7b0c 15-20,52,59,76-77,96-98,118,120-124,128-129,131,179-197,199-200,253,261,266,268,318,322,326,371,376,380,393,514-550,584-585,588-595,606-607,616
+tests-wdio/wdio.visual.conf.js
+  f7f73f4cc25f7b0c 1-53
+src/entrypoints/popup/components/TabBar.svelte
+  f7f73f4cc25f7b0c 7
+src/wxt.config.ts
+  f7f73f4cc25f7b0c 32,36
+src/lib/__tests__/fake-submissions.test.ts
+  f7f73f4cc25f7b0c 1-55
+src/entrypoints/app/components/AppShell.svelte
+  f7f73f4cc25f7b0c 1-38
+.gitignore
+  f7f73f4cc25f7b0c 35-37
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  f7f73f4cc25f7b0c 2-4,17-24,26-34,37-38,41,57-60,66-68,79-86,100,102-103,105
+src/entrypoints/app/main.ts
+  f7f73f4cc25f7b0c 1-11
+src/lib/constants.ts
+  f7f73f4cc25f7b0c 137-145
+src/entrypoints/popup/main.ts
+  f7f73f4cc25f7b0c 5
+src/lib/earnings-prefs.ts
+  f7f73f4cc25f7b0c 1-69
+src/entrypoints/popup/components/SettingsPanel.svelte
+  f7f73f4cc25f7b0c 5-9,48-49,58,67-68,77,80-126,693-758
+src/package.json
+  f7f73f4cc25f7b0c 6,8,14
+src/lib/__tests__/earnings.test.ts
+  f7f73f4cc25f7b0c 1-629
+src/lib/theme.ts
+  f7f73f4cc25f7b0c 1-31
+src/lib/__dev__/fake-submissions.ts
+  f7f73f4cc25f7b0c 1-160
+src/lib/store.ts
+  f7f73f4cc25f7b0c 2,4,251-256,307-406
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "1bf17a9b6558c4baf3e5fdcd5d9c69ec359257bd",
+  "prompts": {
+    "f7f73f4cc25f7b0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61398a16-33fb-422e-8382-5a1ed3e6209f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 13667,
+      "total_deletions": 10947,
+      "accepted_lines": 10581,
+      "overriden_lines": 0
+    }
+  }
+}
