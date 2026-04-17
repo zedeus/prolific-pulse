@@ -32,3 +32,6 @@ dist/
 
 # Third-party extensions
 prolific-assistant/
+
+# Submission-history CSV exports (personal data) and generated test CSVs
+*.csv

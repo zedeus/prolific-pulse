@@ -3,7 +3,9 @@
   themes: light --default, dark --prefersdark;
 }
 
-html, body { background: oklch(var(--b2)); margin: 0; overflow: hidden; }
+html, body { background: oklch(var(--b2)); margin: 0; }
+/* Popup has a fixed viewport that must never scroll. Full-page app scrolls normally. */
+body.no-scroll { overflow: hidden; }
 
 /*
  * Minimal scrollbar: always present (no layout shift) but nearly invisible.

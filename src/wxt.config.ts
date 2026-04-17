@@ -29,10 +29,11 @@ export default defineConfig({
     host_permissions: [
       '*://*.prolific.com/*',
       'https://api.telegram.org/*',
+      'https://api.frankfurter.dev/*',
     ],
     content_security_policy: {
       extension_pages:
-        "script-src 'self'; object-src 'self'; connect-src 'self' https://*.prolific.com https://api.telegram.org;",
+        "script-src 'self'; object-src 'self'; connect-src 'self' https://*.prolific.com https://api.telegram.org https://api.frankfurter.dev;",
     },
     browser_specific_settings:
       browser === 'firefox'

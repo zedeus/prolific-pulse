@@ -4,7 +4,7 @@
     onTabChange: (tab: string) => void;
   }>();
 
-  const tabs = ['live', 'feed', 'submissions', 'settings'] as const;
+  const tabs = ['live', 'feed', 'submissions', 'earnings', 'settings'] as const;
 
   function tabLabel(tab: string): string {
     return tab.charAt(0).toUpperCase() + tab.slice(1);

@@ -134,3 +134,12 @@ export const DEFAULT_TELEGRAM_SETTINGS = Object.freeze({
 export const DEFAULT_REFRESH_INTERVAL_MS = 60_000;
 export const REACTIVE_REFRESH_DEBOUNCE_MS = 150;
 export const PRIORITY_FILTER_PERSIST_DEBOUNCE_MS = 250;
+
+// ─── Earnings analytics ──────────────────────────────────────
+export const EARNINGS_PREFS_KEY = 'earningsPrefs';
+export const DEFAULT_EARNINGS_INCLUDE_PENDING = true;
+/**
+ * Common currencies always shown in the settings picker so users can
+ * configure FX pre-emptively (before Prolific gives them rewards in one).
+ */
+export const SEED_CURRENCIES = Object.freeze(['USD', 'GBP', 'EUR', 'CAD', 'AUD']) as readonly string[];

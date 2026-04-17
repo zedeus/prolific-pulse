@@ -379,6 +379,84 @@ describe('upsertSubmission', () => {
   it('throws on empty status', async () => {
     await expect(store.upsertSubmission(makeSnapshot('sub1', ''), 't1')).rejects.toThrow('missing status');
   });
+
+  it('replaces a codeless CSV stub by signature (name + started_at + reward)', async () => {
+    // Prolific RETURNED rows in the CSV export have no Completion Code.
+    await db.submissions.add({
+      submission_id: 'csv:image-matching-study:2026-01-01T10:00:00.000Z',
+      study_id: 'csv:image-matching-study',
+      study_name: 'Image Matching Study',
+      participant_id: 'csv-import',
+      status: 'RETURNED',
+      phase: 'submitted',
+      payload: {
+        started_at: '2026-01-01T10:00:00.000Z',
+        submission_reward: { amount: 267, currency: 'GBP' },
+      },
+      observed_at: '2026-01-01T10:00:00.000Z',
+      updated_at: '2026-01-01T10:00:00.000Z',
+    });
+    await store.upsertSubmission(makeSnapshot('live-id-x', 'RETURNED', {
+      study_id: 'real-uuid-2',
+      study_name: 'Image Matching Study',
+      // Live payload uses microsecond precision; signature rounds to seconds.
+      payload: {
+        started_at: '2026-01-01T10:00:00.123000Z',
+        submission_reward: { amount: 267, currency: 'GBP' },
+      },
+    }), '2026-01-02T00:00:00Z');
+
+    expect(await db.submissions.get('csv:image-matching-study:2026-01-01T10:00:00.000Z')).toBeUndefined();
+    expect(await db.submissions.get('live-id-x')).toBeDefined();
+  });
+
+  it('does not delete unrelated CSV rows when signatures differ', async () => {
+    await db.submissions.add({
+      submission_id: 'csv:other-study:2026-01-01T10:00:00.000Z',
+      study_id: 'csv:other-study',
+      study_name: 'Other Study',
+      participant_id: 'csv-import',
+      status: 'APPROVED',
+      phase: 'submitted',
+      payload: {
+        started_at: '2026-01-01T10:00:00.000Z',
+        submission_reward: { amount: 500, currency: 'GBP' },
+      },
+      observed_at: '2026-01-01T10:00:00.000Z',
+      updated_at: '2026-01-01T10:00:00.000Z',
+    });
+    await store.upsertSubmission(makeSnapshot('live-id-y', 'APPROVED', {
+      study_name: 'Different Study',
+      payload: {
+        started_at: '2026-01-01T10:00:00.000Z',
+        submission_reward: { amount: 500, currency: 'GBP' },
+      },
+    }), '2026-01-02T00:00:00Z');
+    expect(await db.submissions.get('csv:other-study:2026-01-01T10:00:00.000Z')).toBeDefined();
+  });
+
+  it('replaces a CSV-imported stub when the matching live response arrives', async () => {
+    await db.submissions.add({
+      submission_id: 'csv:CABC1234',
+      study_id: 'csv:image-matching-study',
+      study_name: 'Image Matching Study',
+      participant_id: 'csv-import',
+      status: 'APPROVED',
+      phase: 'submitted',
+      payload: { completion_code: 'CABC1234', started_at: '2026-01-01T10:00:00Z' },
+      observed_at: '2026-01-01T10:05:00Z',
+      updated_at: '2026-01-01T10:05:00Z',
+    });
+    await store.upsertSubmission(makeSnapshot('live-id-1', 'APPROVED', {
+      study_id: 'real-uuid-1',
+      study_name: 'Image Matching Study',
+      payload: { study_code: 'CABC1234', started_at: '2026-01-01T10:00:00Z', completed_at: '2026-01-01T10:05:00Z' },
+    }), '2026-01-02T00:00:00Z');
+
+    expect(await db.submissions.get('csv:CABC1234')).toBeUndefined();
+    const live = await db.submissions.get('live-id-1');
+    expect(live?.study_id).toBe('real-uuid-1');
+  });
 });
 
 describe('getCurrentSubmissions', () => {
@@ -427,5 +505,136 @@ describe('getCurrentSubmissions', () => {
   it('returns empty array when no submissions', async () => {
     const results = await store.getCurrentSubmissions(100, 'all');
     expect(results).toEqual([]);
+  });
+});
+
+describe('importSubmissions', () => {
+  function makeRecord(id: string) {
+    return {
+      submission_id: id,
+      study_id: `study-${id}`,
+      study_name: `Study ${id}`,
+      participant_id: 'csv-import',
+      status: 'APPROVED',
+      phase: 'submitted' as const,
+      payload: { started_at: '2026-01-01T10:00:00Z', completed_at: '2026-01-01T10:05:00Z' },
+      observed_at: '2026-01-01T10:05:00Z',
+      updated_at: '2026-01-01T10:05:00Z',
+    };
+  }
+
+  it('adds all records when DB is empty', async () => {
+    const summary = await store.importSubmissions([makeRecord('a'), makeRecord('b')]);
+    expect(summary).toEqual({ added: 2, skipped_existing: 0, total: 2 });
+    expect(await db.submissions.count()).toBe(2);
+  });
+
+  it('skips records whose submission_id already exists', async () => {
+    await store.importSubmissions([makeRecord('a'), makeRecord('b')]);
+    const summary = await store.importSubmissions([makeRecord('a'), makeRecord('c')]);
+    expect(summary).toEqual({ added: 1, skipped_existing: 1, total: 2 });
+    expect(await db.submissions.count()).toBe(3);
+  });
+
+  it('is a no-op on empty input', async () => {
+    expect(await store.importSubmissions([])).toEqual({ added: 0, skipped_existing: 0, total: 0 });
+  });
+
+  it('does not overwrite an existing record when the same id re-appears', async () => {
+    const original = { ...makeRecord('a'), study_name: 'Original' };
+    await db.submissions.add(original);
+    const changed = { ...makeRecord('a'), study_name: 'Changed in CSV' };
+    await store.importSubmissions([changed]);
+    const kept = await db.submissions.get('a');
+    expect(kept?.study_name).toBe('Original');
+  });
+
+  it('skips CSV rows whose completion_code matches an existing submission', async () => {
+    await db.submissions.add({
+      ...makeRecord('live-1'),
+      study_id: 'real-uuid-1',
+      study_name: 'Widgets',
+      payload: { started_at: '2026-01-01T10:00:00Z', completion_code: 'CABC1234' },
+    });
+    const csvDupe = {
+      ...makeRecord('csv:CABC1234'),
+      study_id: 'csv:widgets',
+      study_name: 'Widgets',
+      payload: { started_at: '2026-01-01T10:00:00Z', completion_code: 'CABC1234' },
+    };
+    const csvNew = {
+      ...makeRecord('csv:CXYZ9999'),
+      study_id: 'csv:other',
+      study_name: 'Other',
+      payload: { started_at: '2026-01-02T10:00:00Z', completion_code: 'CXYZ9999' },
+    };
+    const summary = await store.importSubmissions([csvDupe, csvNew]);
+    expect(summary).toEqual({ added: 1, skipped_existing: 1, total: 2 });
+    expect(await db.submissions.count()).toBe(2);
+  });
+
+  it('skips CSV rows whose completion_code matches a live submission\'s study_code', async () => {
+    await db.submissions.add({
+      ...makeRecord('live-1'),
+      study_id: 'real-uuid-1',
+      study_name: 'Widgets',
+      payload: { started_at: '2026-01-01T10:00:00Z', study_code: 'CLIVECODE' },
+    });
+    const csvRow = {
+      ...makeRecord('csv:CLIVECODE'),
+      study_id: 'csv:widgets',
+      study_name: 'Widgets',
+      payload: { started_at: '2026-01-01T10:00:00Z', completion_code: 'CLIVECODE' },
+    };
+    const summary = await store.importSubmissions([csvRow]);
+    expect(summary).toEqual({ added: 0, skipped_existing: 1, total: 1 });
+    expect(await db.submissions.count()).toBe(1);
+  });
+
+  it('signature-dedupes a codeless CSV row against an existing live submission', async () => {
+    await db.submissions.add({
+      submission_id: 'live-1',
+      study_id: 'real-uuid',
+      study_name: 'Some Study',
+      participant_id: 'p',
+      status: 'RETURNED',
+      phase: 'submitted',
+      // Live payload — no study_code, microsecond timestamp.
+      payload: {
+        started_at: '2026-02-25T08:42:19.447000Z',
+        submission_reward: { amount: 234, currency: 'USD' },
+      },
+      observed_at: '2026-02-25T08:42:19.447Z',
+      updated_at: '2026-02-25T08:42:19.447Z',
+    });
+    const csvRow = {
+      submission_id: 'csv:some-study:2026-02-25T08:42:19.447Z',
+      study_id: 'csv:some-study',
+      study_name: 'Some Study',
+      participant_id: 'csv-import',
+      status: 'RETURNED',
+      phase: 'submitted' as const,
+      payload: {
+        started_at: '2026-02-25T08:42:19.447Z',
+        submission_reward: { amount: 234, currency: 'USD' },
+      },
+      observed_at: '2026-02-25T08:42:19.447Z',
+      updated_at: '2026-04-17T01:00:00.000Z',
+    };
+    const summary = await store.importSubmissions([csvRow]);
+    expect(summary).toEqual({ added: 0, skipped_existing: 1, total: 1 });
+  });
+
+  it('dedupes duplicate completion_codes within a single import batch', async () => {
+    const a = {
+      ...makeRecord('csv:DUPE1'),
+      payload: { started_at: '2026-01-01T10:00:00Z', completion_code: 'DUPE1' },
+    };
+    const b = {
+      ...makeRecord('csv:DUPE1-other'),
+      payload: { started_at: '2026-01-02T10:00:00Z', completion_code: 'DUPE1' },
+    };
+    const summary = await store.importSubmissions([a, b]);
+    expect(summary).toEqual({ added: 1, skipped_existing: 1, total: 2 });
   });
 });

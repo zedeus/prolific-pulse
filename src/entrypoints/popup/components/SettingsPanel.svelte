@@ -2,6 +2,11 @@
   import { untrack } from 'svelte';
   import { browser } from 'wxt/browser';
   import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry, TelegramSettings } from '../../../lib/types';
+  import type { SubmissionRecord } from '../../../lib/db';
+  import type { EarningsPrefs } from '../../../lib/earnings-prefs';
+  import { listCurrencies } from '../../../lib/earnings';
+  import { cacheKey as fxCacheKey } from '../../../lib/fx-rates';
+  import { SEED_CURRENCIES } from '../../../lib/constants';
   import {
     formatRelative,
     compactText,
@@ -40,6 +45,8 @@
     savedRefreshPolicy,
     extensionState,
     refreshState,
+    earningsPrefs,
+    allSubmissions,
     onAutoOpenChange,
     onPriorityFiltersChange,
     onTelegramSettingsChange,
@@ -48,6 +55,7 @@
     onRefreshPolicySave,
     onRefreshDebug,
     onClearDebugLogs,
+    onEarningsPrefsChange,
   } = $props<{
     active: boolean;
     autoOpenEnabled: boolean;
@@ -56,6 +64,8 @@
     savedRefreshPolicy: NormalizedRefreshPolicy;
     extensionState: SyncState | null;
     refreshState: StudiesRefreshState | null;
+    earningsPrefs: EarningsPrefs;
+    allSubmissions: SubmissionRecord[];
     onAutoOpenChange: (enabled: boolean) => void;
     onPriorityFiltersChange: () => void;
     onTelegramSettingsChange: (settings: TelegramSettings) => void;
@@ -64,7 +74,55 @@
     onRefreshPolicySave: (minDelay: number, avgDelay: number, spread: number) => void;
     onRefreshDebug: () => void;
     onClearDebugLogs: () => void;
+    onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
   }>();
+
+  // Always show common currencies in the picker even with no data, so users
+  // can configure FX pre-emptively. Detected currencies show submission counts.
+  const detectedCurrencies = $derived(listCurrencies(allSubmissions));
+  const topDetectedCurrency = $derived(detectedCurrencies[0]?.currency ?? 'USD');
+  const activeCurrency = $derived(earningsPrefs.primary_currency ?? topDetectedCurrency);
+
+  const currencyOptions = $derived.by(() => {
+    const seen = new Map<string, number>();
+    for (const c of detectedCurrencies) seen.set(c.currency, c.count);
+    for (const code of SEED_CURRENCIES) if (!seen.has(code)) seen.set(code, 0);
+    if (!seen.has(activeCurrency) && activeCurrency) seen.set(activeCurrency, 0);
+    return [...seen.entries()]
+      .map(([currency, count]) => ({ currency, count }))
+      .sort((a, b) => b.count - a.count || a.currency.localeCompare(b.currency));
+  });
+  const otherCurrencies = $derived(currencyOptions.filter((c) => c.currency !== activeCurrency));
+
+  function setPrimaryCurrency(code: string) {
+    const normalized = code.trim().toUpperCase();
+    onEarningsPrefsChange({
+      ...earningsPrefs,
+      primary_currency: normalized || null,
+    });
+  }
+
+  function setFxRate(fromCurrency: string, rateStr: string) {
+    const parsed = parseFloat(rateStr);
+    const fx = { ...earningsPrefs.fx_rates };
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      delete fx[fromCurrency];
+    } else {
+      fx[fromCurrency] = parsed;
+    }
+    onEarningsPrefsChange({ ...earningsPrefs, fx_rates: fx });
+  }
+
+  function fxAgeLabel(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const diffMs = Date.now() - d.getTime();
+    const hours = Math.round(diffMs / 3_600_000);
+    if (hours < 1) return 'just now';
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    return `${days}d ago`;
+  }
 
   // Track which filter is expanded (by id), empty string = none
   let expandedFilterId = $state('');
@@ -630,6 +688,72 @@
         aria-label="Auto-open Prolific tab"
         onchange={(e) => onAutoOpenChange((e.target as HTMLInputElement).checked)}
       />
+    </div>
+
+    <!-- Earnings card -->
+    <div class="setting-card bg-base-100 shadow-sm border border-base-300 rounded-lg p-4 mb-2.5">
+      <div class="text-sm font-semibold text-base-content">Earnings</div>
+      <div class="text-xs text-base-content/50 mt-0.5 leading-snug mb-3">Pick the currency your totals are shown in. Other currencies are converted using the rates you enter below.</div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <label class="text-xs text-base-content/70 font-medium" for="earningsDefaultCurrency">Default currency</label>
+        <select
+          id="earningsDefaultCurrency"
+          class="select select-bordered select-sm"
+          value={activeCurrency}
+          onchange={(e) => setPrimaryCurrency((e.target as HTMLSelectElement).value)}
+        >
+          {#each currencyOptions as c (c.currency)}
+            <option value={c.currency}>
+              {c.currency}{c.count > 0 ? ` · ${c.count} submission${c.count === 1 ? '' : 's'}` : ''}
+            </option>
+          {/each}
+        </select>
+      </div>
+
+      {#if otherCurrencies.length > 0}
+        <div class="mt-3 pt-3 border-t border-base-300">
+          <div class="text-[11.5px] font-semibold text-base-content/70 mb-1.5">Conversion rates</div>
+          <div class="flex flex-col gap-1.5">
+            {#each otherCurrencies as c (c.currency)}
+              {@const manualRate = earningsPrefs.fx_rates[c.currency]}
+              {@const cached = earningsPrefs.fx_rates_cache[fxCacheKey(c.currency, activeCurrency)]}
+              {@const isManual = Number.isFinite(manualRate) && manualRate > 0}
+              {@const displayRate = isManual ? manualRate : (cached?.rate ?? '')}
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-base-content/55 w-20">1 {c.currency} =</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  class="input input-bordered input-xs w-24 text-right"
+                  placeholder={cached ? cached.rate.toFixed(4) : 'fetching…'}
+                  value={isManual ? manualRate : ''}
+                  onchange={(e) => setFxRate(c.currency, (e.target as HTMLInputElement).value)}
+                />
+                <span class="text-base-content/55">{activeCurrency}</span>
+                {#if isManual}
+                  <span class="badge badge-xs badge-warning text-[9.5px] font-semibold">manual</span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs px-1 h-5 min-h-0 text-[10px] text-base-content/55"
+                    onclick={() => setFxRate(c.currency, '')}
+                    title="Clear override, use auto rate"
+                  >reset</button>
+                {:else if cached}
+                  <span class="badge badge-xs badge-ghost text-[9.5px]" title={`Fetched ${new Date(cached.fetched_at).toLocaleString()} · ECB via Frankfurter`}>auto · {fxAgeLabel(cached.fetched_at)}</span>
+                {:else}
+                  <span class="badge badge-xs badge-error text-[9.5px]" title="Auto-fetch pending or failed; enter a rate to override">—</span>
+                {/if}
+                <span class="text-[10.5px] text-base-content/40 ml-auto">{c.count > 0 ? `${c.count} sub${c.count === 1 ? '' : 's'}` : ''}</span>
+              </div>
+            {/each}
+          </div>
+          <div class="text-[10.5px] text-base-content/45 mt-1.5 leading-snug">
+            Rates update automatically. Enter a value to override.
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Priority filters -->

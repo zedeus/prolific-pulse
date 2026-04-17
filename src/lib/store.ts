@@ -1,5 +1,7 @@
 import { db } from './db';
+import { extractSubmissionReward, extractStartedAt } from './earnings';
 import { nowIso } from './format';
+import { CSV_SUBMISSION_ID_PREFIX } from './import-csv';
 import type {
   StudyLatestRecord,
   StudyActiveSnapshotRecord,
@@ -246,6 +248,12 @@ export async function upsertSubmission(snapshot: SubmissionSnapshot, observedAt:
     const existing = await db.submissions.get(snapshot.submission_id);
 
     if (!existing) {
+      // First time seeing this submission id live → drop any CSV-imported stub
+      // that represents the same submission. The stub id may be either
+      // csv:{study_code} (when the CSV had a completion code) or
+      // csv:{slug}:{timestamp} (when it didn't — Prolific omits the code for
+      // some RETURNED rows), so we match by both.
+      await deleteCsvDupes({ study_name: studyName, payload }, phase);
       const record: SubmissionRecord = {
         submission_id: snapshot.submission_id,
         study_id: studyID,
@@ -293,6 +301,106 @@ export async function upsertSubmission(snapshot: SubmissionSnapshot, observedAt:
       observed_at: mergedObservedAt,
       updated_at: updatedAt,
     });
+  });
+}
+
+/**
+ * Return every submitted submission for analytics. No limit; caller should
+ * tolerate large arrays (thousands).
+ */
+export async function getSubmissionsForAnalytics(): Promise<SubmissionRecord[]> {
+  return db.submissions.where('phase').equals('submitted').toArray();
+}
+
+export interface ImportSummary {
+  added: number;
+  skipped_existing: number;
+  total: number;
+}
+
+// Prolific calls this `study_code` on live responses and "Completion Code" in
+// the CSV export. Treated as the primary cross-source dedup key.
+function extractSubmissionCode(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const p = payload as Record<string, unknown>;
+  const raw = p.completion_code ?? p.study_code;
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
+// Fallback dedup key for submissions Prolific exports without a completion
+// code (some RETURNED rows). Collisions require the same user starting two
+// same-named studies with identical reward in the same second.
+function submissionSignature(row: { study_name?: string; payload: unknown }): string | null {
+  const carrier = { payload: row.payload };
+  const reward = extractSubmissionReward(carrier);
+  const started = extractStartedAt(carrier);
+  const name = (row.study_name ?? '').trim().toLowerCase();
+  if (!reward || !started || !name) return null;
+  const second = Math.floor(started.getTime() / 1000);
+  return `${name}|${second}|${reward.amount}|${reward.currency}`;
+}
+
+async function deleteCsvDupes(
+  incoming: { study_name: string; payload: unknown },
+  phase: 'submitting' | 'submitted',
+): Promise<void> {
+  const code = extractSubmissionCode(incoming.payload);
+  if (code) await db.submissions.delete(`${CSV_SUBMISSION_ID_PREFIX}${code}`);
+  if (phase !== 'submitted') return;
+  const sig = submissionSignature(incoming);
+  if (!sig) return;
+  const csvRows = await db.submissions
+    .where('submission_id')
+    .startsWith(CSV_SUBMISSION_ID_PREFIX)
+    .toArray();
+  const dupeIds = csvRows
+    .filter((row) => submissionSignature(row) === sig)
+    .map((row) => row.submission_id);
+  if (dupeIds.length > 0) await db.submissions.bulkDelete(dupeIds);
+}
+
+// Merge externally-sourced submission records (e.g. CSV import) into the DB.
+// Dedups against existing rows by completion code, falling back to signature
+// when a code isn't available. Never overwrites existing records.
+export async function importSubmissions(records: SubmissionRecord[]): Promise<ImportSummary> {
+  if (records.length === 0) return { added: 0, skipped_existing: 0, total: 0 };
+  return db.transaction('rw', db.submissions, async () => {
+    const existingRows = await db.submissions.toArray();
+    const existingIds = new Set(existingRows.map((r) => r.submission_id));
+    const existingCodes = new Set<string>();
+    const existingSigs = new Set<string>();
+    for (const row of existingRows) {
+      const code = extractSubmissionCode(row.payload);
+      if (code) existingCodes.add(code);
+      const sig = submissionSignature(row);
+      if (sig) existingSigs.add(sig);
+    }
+
+    const fresh: SubmissionRecord[] = [];
+    const seenCodes = new Set<string>();
+    const seenSigs = new Set<string>();
+    for (const r of records) {
+      if (existingIds.has(r.submission_id)) continue;
+      const code = extractSubmissionCode(r.payload);
+      if (code) {
+        if (existingCodes.has(code) || seenCodes.has(code)) continue;
+        seenCodes.add(code);
+      } else {
+        const sig = submissionSignature(r);
+        if (sig) {
+          if (existingSigs.has(sig) || seenSigs.has(sig)) continue;
+          seenSigs.add(sig);
+        }
+      }
+      fresh.push(r);
+    }
+
+    if (fresh.length > 0) await db.submissions.bulkAdd(fresh);
+    return {
+      added: fresh.length,
+      skipped_existing: records.length - fresh.length,
+      total: records.length,
+    };
   });
 }
 

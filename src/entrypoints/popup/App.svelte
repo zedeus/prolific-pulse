@@ -12,6 +12,12 @@
     Settings,
     TelegramSettings,
   } from '../../lib/types';
+  import type { SubmissionRecord } from '../../lib/db';
+  import type { EarningsPrefs } from '../../lib/earnings-prefs';
+  import { loadEarningsPrefs, saveEarningsPrefs, DEFAULT_EARNINGS_PREFS } from '../../lib/earnings-prefs';
+  import { listCurrencies, detectDefaultCurrency } from '../../lib/earnings';
+  import { maybeRefreshFxRatesForPrefs } from '../../lib/fx-rates';
+  import { SEED_CURRENCIES } from '../../lib/constants';
   import {
     AUTH_REQUIRED_MESSAGE,
     AUTH_REQUIRED_PANEL_MESSAGE,
@@ -43,12 +49,14 @@
     normalizeRefreshPolicy,
     cloneTelegramSettings,
   } from '../../lib/format';
+  import { applyThemeAttr, readInitialTheme, watchSystemTheme, writeThemePref } from '../../lib/theme';
 
   import StatusBar from './components/StatusBar.svelte';
   import TabBar from './components/TabBar.svelte';
   import LivePanel from './components/LivePanel.svelte';
   import FeedPanel from './components/FeedPanel.svelte';
   import SubmissionsPanel from './components/SubmissionsPanel.svelte';
+  import EarningsPanel from './components/EarningsPanel.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
 
   let activeTab = $state('live');
@@ -65,6 +73,8 @@
 
   let priorityFilters: PriorityFilter[] = $state([]);
   let telegramSettings: TelegramSettings = $state(cloneTelegramSettings(DEFAULT_TELEGRAM_SETTINGS));
+  let allSubmissions: SubmissionRecord[] = $state([]);
+  let earningsPrefs: EarningsPrefs = $state({ ...DEFAULT_EARNINGS_PREFS, fx_rates: {}, fx_rates_cache: {} });
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
@@ -73,7 +83,6 @@
   ));
 
   let latestRefreshDate: Date | null = $state(null);
-  let latestRefreshOffline = $state(false);
   let isRefreshingView = $state(false);
   let retryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let reactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -84,22 +93,18 @@
   let priorityFilterPersistInFlight = false;
   let tick = $state(0);
 
-  const refreshPrefix = $derived.by(() => {
-    if (latestRefreshOffline) return '';
-    if (isAuthRequired && !latestRefreshDate) return '';
-    return 'Updated ';
-  });
+  const refreshPrefix = $derived(
+    isAuthRequired && !latestRefreshDate ? '' : 'Updated ',
+  );
 
   const latestRefreshText = $derived.by(() => {
     void tick;
-    if (latestRefreshOffline) return 'Offline';
     if (isAuthRequired && !latestRefreshDate) return 'Signed out';
     if (!latestRefreshDate) return 'never';
     return formatRelative(latestRefreshDate);
   });
 
   const latestRefreshTitle = $derived.by(() => {
-    if (latestRefreshOffline) return 'Local service unavailable';
     if (isAuthRequired && !latestRefreshDate) return AUTH_REQUIRED_MESSAGE;
     if (!latestRefreshDate) return '';
     return latestRefreshDate.toLocaleString();
@@ -110,43 +115,21 @@
     isAuthRequired ? AUTH_REQUIRED_PANEL_MESSAGE : '',
   );
 
-  function applyTheme(dark: boolean) {
+  function setDark(dark: boolean) {
     darkMode = dark;
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    applyThemeAttr(dark);
   }
-
-  // Load theme preference: stored override > system preference
-  $effect(() => {
-    untrack(() => {
-      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      browser.storage.local.get('themePreference').then((data: Record<string, unknown>) => {
-        const pref = data.themePreference as string | undefined;
-        if (pref === 'dark') applyTheme(true);
-        else if (pref === 'light') applyTheme(false);
-        else applyTheme(systemDark);
-      });
-    });
-  });
-
-  // Follow system preference changes (only when no manual override is stored)
-  $effect(() => {
-    const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-      browser.storage.local.get('themePreference').then((data: Record<string, unknown>) => {
-        if (!data.themePreference) applyTheme(e.matches);
-      });
-    };
-    darkQuery.addEventListener('change', handler);
-    return () => darkQuery.removeEventListener('change', handler);
-  });
-
   function toggleDarkMode() {
-    const next = !darkMode;
-    applyTheme(next);
-    // Cycle: light → dark → system (clear preference)
-    // For simplicity: just toggle and store
-    browser.storage.local.set({ themePreference: next ? 'dark' : 'light' });
+    setDark(!darkMode);
+    void writeThemePref(darkMode);
   }
+
+  $effect(() => {
+    untrack(async () => {
+      setDark((await readInitialTheme()) === 'dark');
+    });
+    return watchSystemTheme(setDark);
+  });
 
   $effect(() => {
     latestRefreshTicker = setInterval(() => {
@@ -193,11 +176,28 @@
     return JSON.stringify(a) === JSON.stringify(b);
   }
 
-  async function sendRuntimeMessage(action: string, payload: Record<string, unknown> = {}) {
-    const response = await browser.runtime.sendMessage({ action, ...payload });
+  // Cheap identity check for the analytics list: same length and same
+  // (submission_id, updated_at) across the same positions. Avoids
+  // JSON.stringify on a potentially large array.
+  function analyticsListEqual(a: SubmissionRecord[], b: SubmissionRecord[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i].submission_id !== b[i].submission_id) return false;
+      if (a[i].updated_at !== b[i].updated_at) return false;
+    }
+    return true;
+  }
+
+  interface RuntimeMessageResponse {
+    ok: boolean;
+    error?: string;
+    [key: string]: unknown;
+  }
+  async function sendRuntimeMessage(action: string, payload: Record<string, unknown> = {}): Promise<RuntimeMessageResponse> {
+    const response = (await browser.runtime.sendMessage({ action, ...payload })) as RuntimeMessageResponse | undefined;
     if (!response) throw new Error(`No response from background for ${action}`);
-    if (!(response as any).ok) throw new Error((response as any).error || `Failed: ${action}`);
-    return response as any;
+    if (!response.ok) throw new Error(response.error || `Failed: ${action}`);
+    return response;
   }
 
   async function getSyncState(): Promise<SyncState | null> {
@@ -250,7 +250,7 @@
       average_delay_seconds: avgDelay,
       spread_seconds: spread,
     });
-    return response.settings || {};
+    return (response.settings as Settings | undefined) ?? ({} as Settings);
   }
 
   async function clearDebugLogs() {
@@ -258,13 +258,14 @@
   }
 
   async function getDashboardData(liveLimit = 50, eventsLimit = 25, submissionsLimit = 100) {
-    const [refreshState, studiesList, eventsList, submissionsList] = await Promise.all([
+    const [refreshState, studiesList, eventsList, submissionsList, analyticsList] = await Promise.all([
       store.getStudiesRefresh(),
       store.getCurrentAvailableStudies(liveLimit),
       store.getRecentAvailabilityEvents(eventsLimit),
       store.getCurrentSubmissions(submissionsLimit, 'all'),
+      store.getSubmissionsForAnalytics(),
     ]);
-    return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList };
+    return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList, analyticsSubmissions: analyticsList };
   }
 
 
@@ -295,7 +296,6 @@
     const date = parseDate(observedAt);
     if (!date) return;
     latestRefreshDate = date;
-    latestRefreshOffline = false;
   }
 
   function deriveErrorMessage(state: SyncState | null, sourceError: string): string {
@@ -315,13 +315,15 @@
 
   async function refreshSettings() {
     try {
-      const [settings, filters, tgResponse] = await Promise.all([
+      const [settings, filters, tgResponse, prefs] = await Promise.all([
         getSettings(),
         loadPriorityFilters(),
         sendRuntimeMessage('getTelegramSettings').catch(() => null),
+        loadEarningsPrefs(),
       ]);
       autoOpenEnabled = settings.auto_open_prolific_tab !== false;
       priorityFilters = filters;
+      earningsPrefs = prefs;
       if (tgResponse?.settings) {
         telegramSettings = tgResponse.settings as TelegramSettings;
       }
@@ -366,13 +368,16 @@
         if (studies.length) studies = [];
         if (events.length) events = [];
         if (submissions.length) submissions = [];
+        if (allSubmissions.length) allSubmissions = [];
       } else if (dashboard) {
         const newStudies = dashboard.studies ?? [];
         const newEvents = dashboard.events ?? [];
         const newSubmissions = dashboard.submissions ?? [];
+        const newAnalytics = dashboard.analyticsSubmissions ?? [];
         if (!jsonEqual(studies, newStudies)) studies = newStudies;
         if (!jsonEqual(events, newEvents)) events = newEvents;
         if (!jsonEqual(submissions, newSubmissions)) submissions = newSubmissions;
+        if (!analyticsListEqual(allSubmissions, newAnalytics)) allSubmissions = newAnalytics;
       }
 
       let firstErrorMessage = '';
@@ -385,20 +390,7 @@
       let healthMessage = deriveErrorMessage(extState, firstErrorMessage);
       if (authRequired) healthMessage = AUTH_REQUIRED_MESSAGE;
 
-      // Update refresh time display
-      if (authRequired) {
-        latestRefreshOffline = false;
-        latestRefreshDate = null;
-      } else {
-        const latest = parseDate(refreshSt?.last_studies_refresh_at);
-        if (latest) {
-          latestRefreshDate = latest;
-          latestRefreshOffline = false;
-        } else {
-          latestRefreshDate = null;
-          latestRefreshOffline = false;
-        }
-      }
+      latestRefreshDate = authRequired ? null : (parseDate(refreshSt?.last_studies_refresh_at) ?? null);
 
       errorMessage = healthMessage;
     } finally {
@@ -519,6 +511,43 @@
   function handleTabChange(tab: string) {
     activeTab = tab;
   }
+
+  async function handleEarningsPrefsChange(prefs: EarningsPrefs) {
+    earningsPrefs = prefs;
+    try {
+      await saveEarningsPrefs(prefs);
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  let fxRefreshInFlight = false;
+  let fxRefreshQueued = false;
+  async function maybeRefreshFxRates() {
+    if (fxRefreshInFlight) { fxRefreshQueued = true; return; }
+    fxRefreshInFlight = true;
+    fxRefreshQueued = false;
+    try {
+      await maybeRefreshFxRatesForPrefs({
+        submissions: allSubmissions,
+        primaryCurrency: earningsPrefs.primary_currency,
+        fxCache: earningsPrefs.fx_rates_cache,
+        seedCurrencies: SEED_CURRENCIES,
+        detectCurrency: detectDefaultCurrency,
+        listCurrencies,
+        onCacheUpdated: (cache) => handleEarningsPrefsChange({ ...earningsPrefs, fx_rates_cache: cache }),
+      });
+    } finally {
+      fxRefreshInFlight = false;
+      if (fxRefreshQueued) void maybeRefreshFxRates();
+    }
+  }
+
+  $effect(() => {
+    void allSubmissions;
+    void earningsPrefs.primary_currency;
+    void maybeRefreshFxRates();
+  });
 </script>
 
 <main class="w-[620px] p-3 bg-base-200 text-base-content">
@@ -552,8 +581,18 @@
   <SubmissionsPanel
     active={activeTab === 'submissions'}
     {submissions}
+    {allSubmissions}
+    {earningsPrefs}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
+    onEarningsPrefsChange={handleEarningsPrefsChange}
+  />
+  <EarningsPanel
+    active={activeTab === 'earnings'}
+    {allSubmissions}
+    {earningsPrefs}
+    onEarningsPrefsChange={handleEarningsPrefsChange}
+    overrideMessage={showPanelOverride ? panelOverrideText : ''}
   />
   {#if settingsLoaded}
   <SettingsPanel
@@ -564,6 +603,8 @@
     {savedRefreshPolicy}
     {extensionState}
     refreshState={refreshStateData}
+    {earningsPrefs}
+    {allSubmissions}
     onAutoOpenChange={handleAutoOpenChange}
     onPriorityFiltersChange={handlePriorityFiltersChange}
     onTelegramSettingsChange={handleTelegramSettingsChange}
@@ -572,6 +613,7 @@
     onRefreshPolicySave={handleRefreshPolicySave}
     onRefreshDebug={handleRefreshDebug}
     onClearDebugLogs={handleClearDebugLogs}
+    onEarningsPrefsChange={handleEarningsPrefsChange}
   />
   {:else}
     <div id="panelSettings" class="panel" class:active={activeTab === 'settings'}></div>
