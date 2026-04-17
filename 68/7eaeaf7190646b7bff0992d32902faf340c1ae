@@ -1,0 +1,23 @@
+src/entrypoints/app/views/EarningsView.svelte
+  f7f73f4cc25f7b0c 1331-1333,1539,1545
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "687eaeaf7190646b7bff0992d32902faf340c1ae",
+  "prompts": {
+    "f7f73f4cc25f7b0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61398a16-33fb-422e-8382-5a1ed3e6209f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 1683,
+      "accepted_lines": 5006,
+      "overriden_lines": 0
+    }
+  }
+}
