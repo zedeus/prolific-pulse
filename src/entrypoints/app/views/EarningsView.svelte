@@ -1328,9 +1328,9 @@
                       cy={context.yScale?.(Math.min(p.hourly, scatterYMax))}
                       r={scatterRadius(p.reward, scatterMaxReward)}
                       class={`${cls} scatter-dot-interactive`}
-                      onpointerenter={(e: PointerEvent) => { e.stopPropagation(); context.tooltip.show(e, p); }}
-                      onpointermove={(e: PointerEvent) => { e.stopPropagation(); context.tooltip.show(e, p); }}
-                      onpointerleave={(e: PointerEvent) => { e.stopPropagation(); context.tooltip.hide(); }}
+                      onpointerenter={(e) => { e.stopPropagation(); context.tooltip.show(e, p); }}
+                      onpointermove={(e) => { e.stopPropagation(); context.tooltip.show(e, p); }}
+                      onpointerleave={(e) => { e.stopPropagation(); context.tooltip.hide(); }}
                     />
                   {/each}
                   {#if scatterTrend.length >= 3}
@@ -1536,13 +1536,13 @@
         <div class="heatmap relative" style="display: grid; grid-template-columns: 36px repeat(24, minmax(0, 1fr)); gap: 2px;">
           <!-- Hour labels row -->
           <div></div>
-          {#each Array(24) as _, h}
+          {#each Array(24) as _, h (h)}
             <div class="text-[9.5px] text-base-content/50 text-center">{h % 3 === 0 ? h : ''}</div>
           {/each}
           <!-- Data rows: Mon..Sun (reordered so weekend is last) -->
           {#each [1, 2, 3, 4, 5, 6, 0] as dow (dow)}
             <div class="text-[10.5px] text-base-content/65 pr-1 font-medium flex items-center justify-end">{DOW_LABELS[dow]}</div>
-            {#each Array(24) as _, h}
+            {#each Array(24) as _, h (h)}
               {@const cell = heatmapCell(dow, h)}
               {@const alpha = heatmapAlpha(cell.submission_count)}
               {@const isHovered = heatHover?.dow === dow && heatHover?.hour === h}
