@@ -1,0 +1,23 @@
+src/wxt.config.ts
+  f7f73f4cc25f7b0c 9,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "a4453aabaaf1274910461e483291556a259a2deb",
+  "prompts": {
+    "f7f73f4cc25f7b0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61398a16-33fb-422e-8382-5a1ed3e6209f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 52,
+      "accepted_lines": 5003,
+      "overriden_lines": 0
+    }
+  }
+}
