@@ -1,0 +1,36 @@
+src/lib/format.ts
+  b9f1d34dc1d0da90 137-144,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "a136309438f69e38ec4f6861001b9715e1f79da6",
+  "prompts": {
+    "b9f1d34dc1d0da90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e36bffa5-2312-4a4d-8212-4dd9138b12cb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 4956,
+      "total_deletions": 774,
+      "accepted_lines": 2319,
+      "overriden_lines": 0
+    },
+    "f7f73f4cc25f7b0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61398a16-33fb-422e-8382-5a1ed3e6209f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Zed",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5001,
+      "overriden_lines": 0
+    }
+  }
+}
