@@ -88,20 +88,24 @@ function getTabStates() {
   });
 }
 
-function getSettingsState() {
-  return exec(() => {
-    // Create a filter if none exist
+async function getSettingsState() {
+  // Ensure a filter exists and is expanded before reading the inputs inside
+  // the expanded body. The expand click has to happen in a separate exec so
+  // Svelte has time to render the expanded section before we read from it.
+  await exec(() => {
     if (document.querySelectorAll('[data-filter-id]').length === 0) {
-      const addBtn = document.getElementById('addFilterButton');
-      if (addBtn) addBtn.click();
+      document.getElementById('addFilterButton')?.click();
     }
-    // Expand first filter if it exists and is collapsed
-    const card = document.querySelector('[data-filter-id]');
-    if (card) {
-      const expandBtn = card.querySelector('button[aria-label="Expand filter"]');
-      if (expandBtn) expandBtn.click();
-    }
-
+  });
+  await browser.pause(500);
+  const isExpanded = await exec(() => !!document.getElementById('priorityMinRewardInput-0'));
+  if (!isExpanded) {
+    await exec(() => {
+      document.querySelector('[data-filter-id] button[aria-label="Expand filter"]')?.click();
+    });
+    await browser.pause(350);
+  }
+  return exec(() => {
     const get = (id) => document.getElementById(id);
     return {
       autoOpen: get('autoOpenToggle')?.checked ?? null,
@@ -186,13 +190,14 @@ describe('Popup Panels', () => {
 
   // ── Tab bar ───────────────────────────────────────────────────
 
-  it('tab bar has all four tabs with correct labels', async () => {
+  it('tab bar has all tabs with correct labels', async () => {
     await navigateToPopup();
     const tabs = await getTabStates();
-    expect(Object.keys(tabs).sort()).toEqual(['feed', 'live', 'settings', 'submissions']);
+    expect(Object.keys(tabs).sort()).toEqual(['earnings', 'feed', 'live', 'settings', 'submissions']);
     expect(tabs.live.text).toBe('Live');
     expect(tabs.feed.text).toBe('Feed');
     expect(tabs.submissions.text).toBe('Submissions');
+    expect(tabs.earnings.text).toBe('Earnings');
     expect(tabs.settings.text).toBe('Settings');
   });
 
@@ -237,6 +242,15 @@ describe('Popup Panels', () => {
 
   it('refresh text shows relative time, not error', async () => {
     await navigateToPopup();
+    // refreshView() populates latestRefreshDate asynchronously on mount.
+    // Poll briefly so we don't race the first IndexedDB read.
+    await browser.waitUntil(
+      async () => {
+        const { refresh_text } = await getPopupStatus();
+        return refresh_text && refresh_text !== 'never';
+      },
+      { timeout: 5000, interval: 200, timeoutMsg: 'refresh text stayed "never"' },
+    );
     const status = await getPopupStatus();
     expect(status.refresh_text).not.toBe('');
     expect(status.refresh_text).not.toBe('Offline');

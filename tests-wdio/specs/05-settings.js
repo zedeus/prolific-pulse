@@ -97,13 +97,13 @@ async function ensureFilterExists() {
     });
     await browser.pause(500);
   }
-  // Expand first filter if collapsed
+  // Expand first filter if collapsed. The enable-toggle lives in the
+  // always-visible header, so probe for an input that only renders in the
+  // expanded body (priorityMinRewardInput-0).
   const isExpanded = await browser.execute(() => {
-    const toggle = document.getElementById('priorityFilterEnabledToggle-0');
-    return !!toggle;
+    return !!document.getElementById('priorityMinRewardInput-0');
   });
   if (!isExpanded) {
-    // Click the expand arrow of the first filter
     await expandFirstFilter();
   }
 }
@@ -286,11 +286,13 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    await setRangeValue('refreshAverageDelayInput', '15');
+    // MIN_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS is 25, so use a value
+    // comfortably above the floor that won't get normalized.
+    await setRangeValue('refreshAverageDelayInput', '40');
     await browser.pause(300);
 
     const label = await getLabelText('refreshAverageDelayValue');
-    expect(label).toBe('15s');
+    expect(label).toBe('40s');
   });
 
   it('should show save/revert buttons after slider change', async () => {
@@ -298,9 +300,11 @@ describe('Settings', () => {
     await switchToSettings();
     await browser.pause(300);
 
-    // Read current value and change to something different
+    // Read current value and change to something different. Stay above the
+    // MIN_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS=25 floor to avoid normalizing
+    // to the saved value (which would hide the save/revert buttons).
     const currentAvg = await getInputValue('refreshAverageDelayInput');
-    const newAvg = parseInt(currentAvg) === 20 ? '40' : '20';
+    const newAvg = parseInt(currentAvg) === 45 ? '30' : '45';
     await setRangeValue('refreshAverageDelayInput', newAvg);
     await browser.pause(500);
 
@@ -381,8 +385,9 @@ describe('Settings', () => {
     // Read current average delay
     const originalVal = await getInputValue('refreshAverageDelayInput');
 
-    // Change it
-    const newVal = parseInt(originalVal) === 15 ? '20' : '15';
+    // Change it — stay above MIN_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS=25
+    // so normalization doesn't snap local back to saved and hide the revert button.
+    const newVal = parseInt(originalVal) === 50 ? '35' : '50';
     await setRangeValue('refreshAverageDelayInput', newVal);
     await browser.pause(500);
 
@@ -423,7 +428,7 @@ describe('Settings', () => {
     await browser.execute(() => {
       const select = document.getElementById('priorityAlertSoundTypeSelect-0');
       if (select) {
-        (select as HTMLSelectElement).value = 'chime';
+        select.value = 'chime';
         select.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
