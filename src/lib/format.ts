@@ -134,8 +134,16 @@ export function formatRelative(value: unknown, includeClock = false): string {
   return text;
 }
 
+/**
+ * Coerce any unknown value to a trimmed string, returning '' for non-strings.
+ * Common guard for data coming off the network / storage / postMessage.
+ */
+export function trimString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function errorMessageFromUnknown(error: unknown): string {
-  if (error instanceof Error) return typeof error.message === 'string' ? error.message.trim() : '';
+  if (error instanceof Error) return trimString(error.message);
   if (typeof error === 'string') return error.trim();
   if (error == null) return '';
   return String(error);
