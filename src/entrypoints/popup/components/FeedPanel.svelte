@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StudyEvent } from '../../../lib/types';
+  import StudyTitle from './StudyTitle.svelte';
   import {
     formatMoneyFromMinorUnits,
     moneyMajorValue,
@@ -60,7 +61,9 @@
           >
             <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 {type === 'available' ? 'bg-base-100 shadow-sm' : 'bg-base-200/60'} border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
               <div class="event-top flex items-start justify-between gap-2.5">
-                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
+                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
+                  <StudyTitle {name} researcherName={evt.researcher_name} />
+                </div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
               </div>
               <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">

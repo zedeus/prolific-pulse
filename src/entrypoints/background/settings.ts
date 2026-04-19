@@ -1,11 +1,12 @@
 import { browser } from 'wxt/browser';
-import type { PriorityFilter } from '../../lib/types';
+import type { PriorityFilter, ResearcherRef } from '../../lib/types';
 import type { SoundType } from '../../lib/constants';
 import { clampNumber, clampInt } from '../../lib/format';
 import {
   PRIORITY_ALERT_SOUND_TYPES,
   PRIORITY_FILTERS_KEY,
   MAX_PRIORITY_FILTERS,
+  MAX_PRIORITY_FILTER_RESEARCHERS,
   LEGACY_PRIORITY_FILTER_ENABLED_KEY,
   LEGACY_PRIORITY_FILTER_AUTO_OPEN_NEW_TAB_KEY,
   LEGACY_PRIORITY_FILTER_ALERT_SOUND_ENABLED_KEY,
@@ -81,6 +82,23 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
     return normalized;
   }
 
+  function normalizePriorityResearcherList(raw: unknown): ResearcherRef[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const out: ResearcherRef[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const r = item as Record<string, unknown>;
+      const id = String(r.id ?? '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const name = String(r.name ?? '').trim();
+      out.push({ id, name });
+      if (out.length >= MAX_PRIORITY_FILTER_RESEARCHERS) break;
+    }
+    return out;
+  }
+
   function canonicalPriorityAlertSoundType(value: unknown): SoundType {
     const raw = String(value || '').trim();
     if (PRIORITY_ALERT_SOUND_TYPES.has(raw as SoundType)) {
@@ -115,8 +133,10 @@ export function createPrioritySettings(options: CreatePrioritySettingsOptions): 
       minimum_hourly_reward_major: Math.round(minimumHourlyRewardMajor * 100) / 100,
       maximum_estimated_minutes: maximumEstimatedMinutes,
       minimum_places_available: minimumPlacesAvailable,
-      always_open_keywords: normalizePriorityKeywordList(r.always_open_keywords),
+      match_keywords: normalizePriorityKeywordList(r.match_keywords ?? r.always_open_keywords),
       ignore_keywords: normalizePriorityKeywordList(r.ignore_keywords),
+      match_researchers: normalizePriorityResearcherList(r.match_researchers ?? r.always_open_researchers),
+      ignore_researchers: normalizePriorityResearcherList(r.ignore_researchers),
     };
   }
 

@@ -2342,6 +2342,23 @@ export default defineBackground({
         });
       }
 
+      if (msg && msg.action === 'sendStudyToTelegram') {
+        return runMessageTask(sendResponse as (response: Record<string, unknown>) => void, async () => {
+          const settings = cachedTelegramSettings ?? await refreshTelegramSettingsCache();
+          if (!isTelegramConfigured(settings)) {
+            sendResponse({ ok: false, error: 'Telegram is not configured' });
+            return;
+          }
+          const study = msg.study as Study | undefined;
+          if (!study || typeof study !== 'object') {
+            sendResponse({ ok: false, error: 'Missing study payload' });
+            return;
+          }
+          const ok = await sendStudyTelegramMessage(study, null, settings);
+          sendResponse({ ok });
+        });
+      }
+
       return false;
     });
 

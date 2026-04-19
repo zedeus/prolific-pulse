@@ -139,17 +139,33 @@ describe('normalizePriorityFilter', () => {
   it('normalizes keywords: dedupes, lowercases, trims, caps at limit', () => {
     const { normalizePriorityFilter } = createTestSettings();
     const filter = normalizePriorityFilter({
-      always_open_keywords: ['AI', ' ai ', 'Survey', 'SURVEY', 'mobile'],
+      match_keywords: ['AI', ' ai ', 'Survey', 'SURVEY', 'mobile'],
     });
-    expect(filter.always_open_keywords).toEqual(['ai', 'survey', 'mobile']);
+    expect(filter.match_keywords).toEqual(['ai', 'survey', 'mobile']);
   });
 
   it('parses comma-separated keyword strings', () => {
     const { normalizePriorityFilter } = createTestSettings();
     const filter = normalizePriorityFilter({
-      always_open_keywords: 'ai, survey, mobile',
+      match_keywords: 'ai, survey, mobile',
     });
-    expect(filter.always_open_keywords).toEqual(['ai', 'survey', 'mobile']);
+    expect(filter.match_keywords).toEqual(['ai', 'survey', 'mobile']);
+  });
+
+  it('migrates legacy always_open_keywords field name', () => {
+    const { normalizePriorityFilter } = createTestSettings();
+    const filter = normalizePriorityFilter({
+      always_open_keywords: ['ai', 'survey'],
+    });
+    expect(filter.match_keywords).toEqual(['ai', 'survey']);
+  });
+
+  it('migrates legacy always_open_researchers field name', () => {
+    const { normalizePriorityFilter } = createTestSettings();
+    const filter = normalizePriorityFilter({
+      always_open_researchers: [{ id: 'r-1', name: 'Lab' }],
+    });
+    expect(filter.match_researchers).toEqual([{ id: 'r-1', name: 'Lab' }]);
   });
 
   it('uses defaults for NaN/undefined numeric fields', () => {
@@ -281,7 +297,7 @@ describe('migrateLegacyPriorityFilter', () => {
     expect(filters[0].minimum_places_available).toBe(2);
     expect(filters[0].alert_sound_type).toBe('chime');
     expect(filters[0].alert_sound_volume).toBe(75);
-    expect(filters[0].always_open_keywords).toEqual(['ai', 'survey']);
+    expect(filters[0].match_keywords).toEqual(['ai', 'survey']);
   });
 
   it('removes legacy keys after migration', async () => {

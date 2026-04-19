@@ -54,8 +54,10 @@ function makeFilter(overrides: Partial<PriorityFilter> = {}): PriorityFilter {
     minimum_hourly_reward_major: 0,
     maximum_estimated_minutes: 240,
     minimum_places_available: 1,
-    always_open_keywords: [],
+    match_keywords: [],
     ignore_keywords: [],
+    match_researchers: [],
+    ignore_researchers: [],
     ...overrides,
   };
 }
@@ -103,10 +105,18 @@ describe('studyMatchesPriorityFilter', () => {
     expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
   });
 
-  it('matches via always_open_keywords regardless of numeric criteria', () => {
-    const study = makeStudy({ name: 'AI Research Survey', reward: { amount: 50, currency: 'GBP' } });
-    const filter = makeFilter({ minimum_reward_major: 100, always_open_keywords: ['ai research'] });
-    expect(studyMatchesPriorityFilter(study, filter)).toBe(true);
+  it('match_keywords scope the filter to studies containing at least one', () => {
+    const matching = makeStudy({ name: 'AI Research Survey' });
+    const other = makeStudy({ name: 'Generic Study' });
+    const filter = makeFilter({ match_keywords: ['ai research'] });
+    expect(studyMatchesPriorityFilter(matching, filter)).toBe(true);
+    expect(studyMatchesPriorityFilter(other, filter)).toBe(false);
+  });
+
+  it('match_keywords scoping still enforces numeric criteria', () => {
+    const lowPay = makeStudy({ name: 'AI Research Survey', reward: { amount: 50, currency: 'GBP' } });
+    const filter = makeFilter({ minimum_reward_major: 100, match_keywords: ['ai research'] });
+    expect(studyMatchesPriorityFilter(lowPay, filter)).toBe(false);
   });
 
   it('rejects via ignore_keywords even if numerics match', () => {
@@ -115,28 +125,28 @@ describe('studyMatchesPriorityFilter', () => {
     expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
   });
 
-  it('ignore_keywords take precedence over always_open_keywords', () => {
+  it('ignore_keywords take precedence over match_keywords', () => {
     const study = makeStudy({ name: 'AI Webcam Study' });
-    const filter = makeFilter({ always_open_keywords: ['ai'], ignore_keywords: ['webcam'] });
+    const filter = makeFilter({ match_keywords: ['ai'], ignore_keywords: ['webcam'] });
     expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
   });
 
   it('matches keywords in description', () => {
     const study = makeStudy({ name: 'Generic', description: 'This study involves mobile testing' });
-    const filter = makeFilter({ always_open_keywords: ['mobile'] });
+    const filter = makeFilter({ match_keywords: ['mobile'] });
     expect(studyMatchesPriorityFilter(study, filter)).toBe(true);
   });
 
   it('matches keywords in study_labels', () => {
     const study = makeStudy({ study_labels: ['Psychology', 'Cognition'] });
-    const filter = makeFilter({ always_open_keywords: ['cognition'] });
+    const filter = makeFilter({ match_keywords: ['cognition'] });
     expect(studyMatchesPriorityFilter(study, filter)).toBe(true);
   });
 
   it('accepts precomputedBlob parameter', () => {
     const study = makeStudy({ name: 'Special Study' });
     const blob = studyKeywordBlob(study);
-    const filter = makeFilter({ always_open_keywords: ['special'] });
+    const filter = makeFilter({ match_keywords: ['special'] });
     expect(studyMatchesPriorityFilter(study, filter, blob)).toBe(true);
   });
 
@@ -155,6 +165,118 @@ describe('studyMatchesPriorityFilter', () => {
     delete raw.places_available;
     const filter = makeFilter({ minimum_places_available: 5 });
     expect(studyMatchesPriorityFilter(raw as Study, filter)).toBe(true);
+  });
+
+  it('match_researchers scope the filter to matching researchers', () => {
+    const matching = makeStudy({ researcher: { id: 'r-42', name: 'Oxford Lab', country: 'GB' } });
+    const other = makeStudy({ researcher: { id: 'r-other', name: 'Some Other Lab', country: 'GB' } });
+    const filter = makeFilter({ match_researchers: [{ id: 'r-42', name: 'Oxford Lab' }] });
+    expect(studyMatchesPriorityFilter(matching, filter)).toBe(true);
+    expect(studyMatchesPriorityFilter(other, filter)).toBe(false);
+  });
+
+  it('match_researchers scoping still enforces numeric criteria', () => {
+    const lowPay = makeStudy({
+      researcher: { id: 'r-42', name: 'Oxford Lab', country: 'GB' },
+      reward: { amount: 50, currency: 'GBP' },
+    });
+    const filter = makeFilter({
+      minimum_reward_major: 100,
+      match_researchers: [{ id: 'r-42', name: 'Oxford Lab' }],
+    });
+    expect(studyMatchesPriorityFilter(lowPay, filter)).toBe(false);
+  });
+
+  it('match lists combine as OR: researcher match alone is enough', () => {
+    const study = makeStudy({
+      name: 'Generic',
+      researcher: { id: 'r-42', name: 'Oxford Lab', country: 'GB' },
+    });
+    const filter = makeFilter({
+      match_keywords: ['ai'],
+      match_researchers: [{ id: 'r-42', name: 'Oxford Lab' }],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(true);
+  });
+
+  it('match lists combine as OR: keyword match alone is enough', () => {
+    const study = makeStudy({
+      name: 'AI Survey',
+      researcher: { id: 'r-other', name: 'Other Lab', country: 'GB' },
+    });
+    const filter = makeFilter({
+      match_keywords: ['ai'],
+      match_researchers: [{ id: 'r-42', name: 'Oxford Lab' }],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(true);
+  });
+
+  it('rejects when match lists are non-empty and neither matches', () => {
+    const study = makeStudy({
+      name: 'Generic',
+      researcher: { id: 'r-other', name: 'Other Lab', country: 'GB' },
+    });
+    const filter = makeFilter({
+      match_keywords: ['ai'],
+      match_researchers: [{ id: 'r-42', name: 'Oxford Lab' }],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
+  });
+
+  it('rejects via ignore_researchers even if numerics match', () => {
+    const study = makeStudy({
+      researcher: { id: 'r-bad', name: 'Spammy', country: 'GB' },
+      reward: { amount: 5000, currency: 'GBP' },
+    });
+    const filter = makeFilter({
+      ignore_researchers: [{ id: 'r-bad', name: 'Spammy' }],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
+  });
+
+  it('ignore_researchers take precedence over match_keywords', () => {
+    const study = makeStudy({
+      name: 'AI Survey',
+      researcher: { id: 'r-bad', name: 'Spammy', country: 'GB' },
+    });
+    const filter = makeFilter({
+      match_keywords: ['ai'],
+      ignore_researchers: [{ id: 'r-bad', name: 'Spammy' }],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
+  });
+
+  it('ignore_keywords take precedence over match_researchers', () => {
+    const study = makeStudy({
+      name: 'Webcam Study',
+      researcher: { id: 'r-good', name: 'Good Lab', country: 'GB' },
+    });
+    const filter = makeFilter({
+      match_researchers: [{ id: 'r-good', name: 'Good Lab' }],
+      ignore_keywords: ['webcam'],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
+  });
+
+  it('researcher match uses id only, ignoring stored name mismatches', () => {
+    const study = makeStudy({
+      researcher: { id: 'r-1', name: 'Current Name', country: 'GB' },
+    });
+    const filter = makeFilter({
+      match_researchers: [{ id: 'r-1', name: 'Old Stored Name' }],
+    });
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(true);
+  });
+
+  it('empty-id researcher entries do not match a study with an empty id', () => {
+    const study = makeStudy({
+      researcher: { id: '', name: 'Nameless', country: '' },
+    });
+    const filter = makeFilter({
+      match_researchers: [{ id: '', name: 'Nameless' }],
+    });
+    // Non-empty match_researchers list + no matching id → filter rejects.
+    expect(studyMatchesPriorityFilter(study, filter)).toBe(false);
   });
 });
 
@@ -255,7 +377,7 @@ describe('evaluatePrioritySnapshotEvent', () => {
     const keywordFilter = makeFilter({
       id: 'keyword',
       enabled: true,
-      always_open_keywords: ['dr. smith'],
+      match_keywords: ['dr. smith'],
       alert_sound_volume: 50,
       auto_open_in_new_tab: false,
     });
@@ -337,15 +459,22 @@ describe('evaluatePrioritySnapshotEvent', () => {
   });
 
   it('different studies can go to different filters', () => {
-    const aiStudy = makeStudy({ id: 'ai', name: 'AI Research' });
-    const highPayStudy = makeStudy({ id: 'pay', name: 'Generic', reward: { amount: 2000, currency: 'GBP' }, average_reward_per_hour: { amount: 3000, currency: 'GBP' } });
+    const aiStudy = makeStudy({
+      id: 'ai', name: 'AI Research',
+      reward: { amount: 500, currency: 'GBP' }, average_reward_per_hour: { amount: 1200, currency: 'GBP' },
+    });
+    const highPayStudy = makeStudy({
+      id: 'pay', name: 'Generic',
+      reward: { amount: 2000, currency: 'GBP' }, average_reward_per_hour: { amount: 3000, currency: 'GBP' },
+    });
 
+    // Scoped filter: only matches AI studies (and permissive numerics).
     const keywordFilter = makeFilter({
       id: 'kw',
       enabled: true,
-      always_open_keywords: ['ai research'],
-      minimum_reward_major: 100, // Too high for highPayStudy's 20
+      match_keywords: ['ai research'],
     });
+    // Open filter: matches everything ≥ $10 reward.
     const numericFilter = makeFilter({
       id: 'num',
       enabled: true,
@@ -355,10 +484,36 @@ describe('evaluatePrioritySnapshotEvent', () => {
     const r1 = evaluatePrioritySnapshotEvent(null, makeFullEvent([makeStudy({ id: 's0' })]), [keywordFilter, numericFilter]);
     const r2 = evaluatePrioritySnapshotEvent(r1.nextSnapshot, makeFullEvent([makeStudy({ id: 's0' }), aiStudy, highPayStudy]), [keywordFilter, numericFilter]);
 
-    // AI study → keyword filter (matched by keyword, not by numeric since min_reward=100)
+    // AI study → keyword filter (scoped filters beat open filters in score).
     expect(r2.matchesByFilterId.get('kw')?.map((s) => s.id)).toEqual(['ai']);
-    // High-pay study → numeric filter (didn't match keyword filter's high min_reward, matched numeric's)
+    // High-pay study doesn't match kw's scope; falls through to numeric filter.
     expect(r2.matchesByFilterId.get('num')?.map((s) => s.id)).toEqual(['pay']);
+  });
+
+  it('researcher always-open filter wins over numeric-only filter', () => {
+    const study = makeStudy({
+      id: 's2',
+      researcher: { id: 'r-fav', name: 'Favourite Lab', country: 'GB' },
+    });
+    const numericFilter = makeFilter({
+      id: 'numeric',
+      enabled: true,
+      alert_sound_volume: 100,
+      auto_open_in_new_tab: true,
+    });
+    const researcherFilter = makeFilter({
+      id: 'researcher',
+      enabled: true,
+      match_researchers: [{ id: 'r-fav', name: 'Favourite Lab' }],
+      alert_sound_volume: 50,
+      auto_open_in_new_tab: false,
+    });
+
+    const r1 = evaluatePrioritySnapshotEvent(null, makeFullEvent([makeStudy({ id: 's1' })]), [numericFilter, researcherFilter]);
+    const r2 = evaluatePrioritySnapshotEvent(r1.nextSnapshot, makeFullEvent([makeStudy({ id: 's1' }), study]), [numericFilter, researcherFilter]);
+
+    expect(r2.matchesByFilterId.has('researcher')).toBe(true);
+    expect(r2.matchesByFilterId.has('numeric')).toBe(false);
   });
 
   it('enabledFilters is returned in result', () => {

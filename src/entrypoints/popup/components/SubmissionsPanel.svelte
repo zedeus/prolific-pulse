@@ -2,6 +2,7 @@
   import type { Submission } from '../../../lib/types';
   import type { SubmissionRecord } from '../../../lib/db';
   import type { EarningsPrefs } from '../../../lib/earnings-prefs';
+  import { extractResearcherFromSubmissionPayload } from '../../../lib/store';
   import {
     formatMoneyFromMinorUnits,
     formatMoneyFromMajorUnits,
@@ -22,6 +23,7 @@
     extractDurationSeconds,
   } from '../../../lib/earnings';
   import EarningsStrip from './EarningsStrip.svelte';
+  import StudyTitle from './StudyTitle.svelte';
 
   let {
     active,
@@ -95,6 +97,7 @@
     {:else}
       {#each sorted as entry (entry.submission_id)}
         {@const name = entry.study_name || '(unknown study)'}
+        {@const researcherName = extractResearcherFromSubmissionPayload(entry.payload)?.name ?? ''}
         {@const observedAt = formatRelative(entry.observed_at, true)}
         {@const studyURL = studyUrlFromId(entry.study_id)}
         {@const rewardMoney = extractSubmissionReward(entry)}
@@ -118,7 +121,9 @@
           >
             <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 shadow-sm bg-base-100 border-l-[3px] {borderClass}">
               <div class="event-top flex items-start justify-between gap-2.5">
-                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{name}</div>
+                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
+                  <StudyTitle {name} {researcherName} />
+                </div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
               </div>
               <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">

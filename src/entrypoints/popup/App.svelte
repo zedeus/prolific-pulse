@@ -11,8 +11,10 @@
     NormalizedRefreshPolicy,
     Settings,
     TelegramSettings,
+    ResearcherRef,
+    FilterListField,
   } from '../../lib/types';
-  import type { SubmissionRecord } from '../../lib/db';
+  import type { SubmissionRecord, ResearcherRecord } from '../../lib/db';
   import type { EarningsPrefs } from '../../lib/earnings-prefs';
   import { loadEarningsPrefs, saveEarningsPrefs, DEFAULT_EARNINGS_PREFS } from '../../lib/earnings-prefs';
   import { listCurrencies, detectDefaultCurrency } from '../../lib/earnings';
@@ -28,6 +30,7 @@
     DEFAULT_STUDIES_REFRESH_AVERAGE_DELAY_SECONDS,
     DEFAULT_STUDIES_REFRESH_SPREAD_SECONDS,
     DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
+    MAX_PRIORITY_FILTERS,
     SOUND_TYPE_NONE,
     STATE_KEY,
     AUTO_OPEN_PROLIFIC_TAB_KEY,
@@ -41,6 +44,7 @@
     DEFAULT_TELEGRAM_SETTINGS,
   } from '../../lib/constants';
   import * as store from '../../lib/store';
+  import { createDefaultPriorityFilter } from '../../lib/priority-filter';
   import {
     parseDate,
     formatRelative,
@@ -56,8 +60,19 @@
   import LivePanel from './components/LivePanel.svelte';
   import FeedPanel from './components/FeedPanel.svelte';
   import SubmissionsPanel from './components/SubmissionsPanel.svelte';
-  import EarningsPanel from './components/EarningsPanel.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
+
+  // EarningsPanel pulls in ~600 kB of layerchart + d3-scale. Lazy-load it on
+  // first visit to the Earnings tab so the initial popup paint stays cheap.
+  let EarningsPanelComponent: typeof import('./components/EarningsPanel.svelte').default | null = $state(null);
+  let earningsLoadStarted = false;
+  function loadEarningsPanel() {
+    if (earningsLoadStarted) return;
+    earningsLoadStarted = true;
+    import('./components/EarningsPanel.svelte').then((mod) => {
+      EarningsPanelComponent = mod.default;
+    });
+  }
 
   let activeTab = $state('live');
   let darkMode = $state(false);
@@ -75,6 +90,8 @@
   let telegramSettings: TelegramSettings = $state(cloneTelegramSettings(DEFAULT_TELEGRAM_SETTINGS));
   let allSubmissions: SubmissionRecord[] = $state([]);
   let earningsPrefs: EarningsPrefs = $state({ ...DEFAULT_EARNINGS_PREFS, fx_rates: {}, fx_rates_cache: {} });
+  let knownResearchers: ResearcherRecord[] = $state([]);
+  let focusFilterId = $state('');
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
@@ -226,11 +243,23 @@
     if (!Array.isArray(raw)) return [];
     return raw
       .filter((f: unknown) => f && typeof f === 'object')
-      .map((f: Record<string, unknown>) => {
-        const filter = { ...f } as unknown as PriorityFilter;
+      .map((raw: Record<string, unknown>) => {
+        const filter = { ...raw } as unknown as PriorityFilter;
+        const bag = filter as unknown as Record<string, unknown>;
         if (filter.alert_sound_enabled === false) {
           filter.alert_sound_type = SOUND_TYPE_NONE;
         }
+        // Rename: always_open_* → match_* (whitelist semantics). Accept the
+        // legacy names for one-time migration on popup load.
+        if (!Array.isArray(filter.match_keywords)) {
+          filter.match_keywords = Array.isArray(bag.always_open_keywords) ? (bag.always_open_keywords as string[]) : [];
+        }
+        if (!Array.isArray(filter.match_researchers)) {
+          filter.match_researchers = Array.isArray(bag.always_open_researchers) ? (bag.always_open_researchers as ResearcherRef[]) : [];
+        }
+        delete bag.always_open_keywords;
+        delete bag.always_open_researchers;
+        if (!Array.isArray(filter.ignore_researchers)) filter.ignore_researchers = [];
         return filter;
       });
   }
@@ -258,14 +287,16 @@
   }
 
   async function getDashboardData(liveLimit = 50, eventsLimit = 25, submissionsLimit = 100) {
-    const [refreshState, studiesList, eventsList, submissionsList, analyticsList] = await Promise.all([
+    const [refreshState, studiesList, eventsList, submissionsList, analyticsList, researcherList] = await Promise.all([
       store.getStudiesRefresh(),
       store.getCurrentAvailableStudies(liveLimit),
       store.getRecentAvailabilityEvents(eventsLimit),
       store.getCurrentSubmissions(submissionsLimit, 'all'),
       store.getSubmissionsForAnalytics(),
+      store.listKnownResearchers(),
     ]);
-    return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList, analyticsSubmissions: analyticsList };
+    const researchers = store.annotateResearcherCounts(researcherList, studiesList, analyticsList);
+    return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList, analyticsSubmissions: analyticsList, researchers };
   }
 
 
@@ -374,10 +405,12 @@
         const newEvents = dashboard.events ?? [];
         const newSubmissions = dashboard.submissions ?? [];
         const newAnalytics = dashboard.analyticsSubmissions ?? [];
+        const newResearchers = dashboard.researchers ?? [];
         if (!jsonEqual(studies, newStudies)) studies = newStudies;
         if (!jsonEqual(events, newEvents)) events = newEvents;
         if (!jsonEqual(submissions, newSubmissions)) submissions = newSubmissions;
         if (!analyticsListEqual(allSubmissions, newAnalytics)) allSubmissions = newAnalytics;
+        if (!jsonEqual(knownResearchers, newResearchers)) knownResearchers = newResearchers;
       }
 
       let firstErrorMessage = '';
@@ -508,8 +541,73 @@
     });
   }
 
+  function researcherRefFromStudy(study: Study): ResearcherRef | null {
+    const id = study?.researcher?.id?.trim();
+    if (!id) return null;
+    return { id, name: study.researcher?.name?.trim() || id };
+  }
+
+  function addResearcherToExistingFilter(study: Study, filterId: string, field: FilterListField) {
+    const ref = researcherRefFromStudy(study);
+    if (!ref) return;
+    const target = priorityFilters.find((f) => f.id === filterId);
+    if (!target) return;
+    const list = field === 'match' ? (target.match_researchers || []) : (target.ignore_researchers || []);
+    if (list.some((r) => r.id === ref.id)) return;
+    if (field === 'match') {
+      target.match_researchers = [...list, ref];
+    } else {
+      target.ignore_researchers = [...list, ref];
+    }
+    handlePriorityFiltersChange();
+  }
+
+  function addResearcherToNewFilter(study: Study, field: FilterListField) {
+    const ref = researcherRefFromStudy(study);
+    if (!ref) return;
+    if (priorityFilters.length >= MAX_PRIORITY_FILTERS) {
+      errorMessage = `Filter limit reached (${MAX_PRIORITY_FILTERS}).`;
+      return;
+    }
+    const isMatch = field === 'match';
+    const newFilter = createDefaultPriorityFilter({
+      name: isMatch ? `${ref.name} - prioritize` : `${ref.name} - blacklist`,
+      auto_open_in_new_tab: isMatch,
+      alert_sound_enabled: isMatch,
+      alert_sound_type: isMatch ? DEFAULT_PRIORITY_ALERT_SOUND_TYPE : SOUND_TYPE_NONE,
+      telegram_notify: isMatch,
+      match_researchers: isMatch ? [ref] : [],
+      ignore_researchers: isMatch ? [] : [ref],
+    });
+    priorityFilters = [...priorityFilters, newFilter];
+    handlePriorityFiltersChange();
+    focusFilterId = newFilter.id;
+    activeTab = 'settings';
+  }
+
+  async function copyStudyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (err) {
+      errorMessage = toUserErrorMessage(err);
+    }
+  }
+
+  async function sendStudyToTelegram(study: Study) {
+    try {
+      await sendRuntimeMessage('sendStudyToTelegram', { study });
+    } catch (err) {
+      errorMessage = toUserErrorMessage(err);
+    }
+  }
+
+  function clearFocusFilter() {
+    focusFilterId = '';
+  }
+
   function handleTabChange(tab: string) {
     activeTab = tab;
+    if (tab === 'earnings') loadEarningsPanel();
   }
 
   async function handleEarningsPrefsChange(prefs: EarningsPrefs) {
@@ -569,8 +667,13 @@
     active={activeTab === 'live'}
     {studies}
     {priorityFilters}
+    {telegramSettings}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
+    onAddResearcherToFilter={addResearcherToExistingFilter}
+    onAddResearcherToNewFilter={addResearcherToNewFilter}
+    onCopyLink={copyStudyLink}
+    onSendStudyToTelegram={sendStudyToTelegram}
   />
   <FeedPanel
     active={activeTab === 'feed'}
@@ -587,13 +690,18 @@
     onStudyClick={handleStudyClick}
     onEarningsPrefsChange={handleEarningsPrefsChange}
   />
-  <EarningsPanel
-    active={activeTab === 'earnings'}
-    {allSubmissions}
-    {earningsPrefs}
-    onEarningsPrefsChange={handleEarningsPrefsChange}
-    overrideMessage={showPanelOverride ? panelOverrideText : ''}
-  />
+  {#if EarningsPanelComponent}
+    {@const Earnings = EarningsPanelComponent}
+    <Earnings
+      active={activeTab === 'earnings'}
+      {allSubmissions}
+      {earningsPrefs}
+      onEarningsPrefsChange={handleEarningsPrefsChange}
+      overrideMessage={showPanelOverride ? panelOverrideText : ''}
+    />
+  {:else}
+    <div id="panelEarnings" class="panel" class:active={activeTab === 'earnings'}></div>
+  {/if}
   {#if settingsLoaded}
   <SettingsPanel
     active={activeTab === 'settings'}
@@ -605,6 +713,8 @@
     refreshState={refreshStateData}
     {earningsPrefs}
     {allSubmissions}
+    {knownResearchers}
+    {focusFilterId}
     onAutoOpenChange={handleAutoOpenChange}
     onPriorityFiltersChange={handlePriorityFiltersChange}
     onTelegramSettingsChange={handleTelegramSettingsChange}
@@ -614,6 +724,7 @@
     onRefreshDebug={handleRefreshDebug}
     onClearDebugLogs={handleClearDebugLogs}
     onEarningsPrefsChange={handleEarningsPrefsChange}
+    onFilterFocused={clearFocusFilter}
   />
   {:else}
     <div id="panelSettings" class="panel" class:active={activeTab === 'settings'}></div>

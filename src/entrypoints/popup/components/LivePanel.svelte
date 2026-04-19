@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Study, PriorityFilter } from '../../../lib/types';
+  import type { Study, PriorityFilter, TelegramSettings, FilterListField } from '../../../lib/types';
   import {
     formatMoneyFromMinorUnits,
     moneyMajorValue,
@@ -12,13 +12,31 @@
     formatStudyLabel,
   } from '../../../lib/format';
   import { studyMatchesPriorityFilter, studyKeywordBlob } from '../../background/domain';
+  import StudyActionMenu from './StudyActionMenu.svelte';
+  import StudyTitle from './StudyTitle.svelte';
 
-  let { active, studies, priorityFilters, overrideMessage, onStudyClick } = $props<{
+  let {
+    active,
+    studies,
+    priorityFilters,
+    telegramSettings,
+    overrideMessage,
+    onStudyClick,
+    onAddResearcherToFilter,
+    onAddResearcherToNewFilter,
+    onCopyLink,
+    onSendStudyToTelegram,
+  } = $props<{
     active: boolean;
     studies: Study[];
     priorityFilters: PriorityFilter[];
+    telegramSettings: TelegramSettings;
     overrideMessage: string;
     onStudyClick: (url: string) => void;
+    onAddResearcherToFilter: (study: Study, filterId: string, field: FilterListField) => void;
+    onAddResearcherToNewFilter: (study: Study, field: FilterListField) => void;
+    onCopyLink: (url: string) => void;
+    onSendStudyToTelegram: (study: Study) => void;
   }>();
 
   const enabledFilters = $derived(priorityFilters.filter((f: PriorityFilter) => f.enabled));
@@ -66,6 +84,7 @@
         {@const hourlyClass = rateColorClass(perHourAmount)}
         {@const studyTypeLabel = formatStudyLabel(study.study_labels, study.ai_inferred_study_labels)}
 
+        {@const researcherName = study.researcher?.name?.trim() || ''}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
           <a
             class="event-link block no-underline text-inherit rounded-lg outline-none"
@@ -75,10 +94,24 @@
           >
             <div class="event live {isPriority ? 'priority' : ''} p-3.5 rounded-lg mb-2.5 text-[12.5px] shadow-sm border border-base-300 bg-base-100 {isPriority ? 'priority-card' : ''}">
               <div class="event-top flex items-start justify-between gap-2.5">
-                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">{study.name || '(unnamed study)'}</div>
-                {#if firstSeenText}
-                  <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{firstSeenText}</div>
-                {/if}
+                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
+                  <StudyTitle name={study.name || '(unnamed study)'} {researcherName} />
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  {#if firstSeenText}
+                    <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{firstSeenText}</div>
+                  {/if}
+                  <StudyActionMenu
+                    {study}
+                    studyUrl={url}
+                    {priorityFilters}
+                    {telegramSettings}
+                    onAddToFilter={(filterId, field) => onAddResearcherToFilter(study, filterId, field)}
+                    onAddToNewFilter={(field) => onAddResearcherToNewFilter(study, field)}
+                    onCopyLink={() => onCopyLink(url)}
+                    onSendTelegram={() => onSendStudyToTelegram(study)}
+                  />
+                </div>
               </div>
               <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">
                 <span class="text-[15px] font-bold text-primary">{reward}</span>

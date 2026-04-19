@@ -1,8 +1,10 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { browser } from 'wxt/browser';
-  import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry, TelegramSettings } from '../../../lib/types';
-  import type { SubmissionRecord } from '../../../lib/db';
+  import type { PriorityFilter, NormalizedRefreshPolicy, SyncState, StudiesRefreshState, DebugLogEntry, TelegramSettings, ResearcherRef, FilterListField } from '../../../lib/types';
+  import type { SubmissionRecord, ResearcherRecord } from '../../../lib/db';
+  import { createDefaultPriorityFilter } from '../../../lib/priority-filter';
+  import ResearcherPicker from './ResearcherPicker.svelte';
   import type { EarningsPrefs } from '../../../lib/earnings-prefs';
   import { listCurrencies } from '../../../lib/earnings';
   import { cacheKey as fxCacheKey } from '../../../lib/fx-rates';
@@ -47,6 +49,8 @@
     refreshState,
     earningsPrefs,
     allSubmissions,
+    knownResearchers,
+    focusFilterId,
     onAutoOpenChange,
     onPriorityFiltersChange,
     onTelegramSettingsChange,
@@ -56,6 +60,7 @@
     onRefreshDebug,
     onClearDebugLogs,
     onEarningsPrefsChange,
+    onFilterFocused,
   } = $props<{
     active: boolean;
     autoOpenEnabled: boolean;
@@ -66,6 +71,8 @@
     refreshState: StudiesRefreshState | null;
     earningsPrefs: EarningsPrefs;
     allSubmissions: SubmissionRecord[];
+    knownResearchers: ResearcherRecord[];
+    focusFilterId: string;
     onAutoOpenChange: (enabled: boolean) => void;
     onPriorityFiltersChange: () => void;
     onTelegramSettingsChange: (settings: TelegramSettings) => void;
@@ -75,6 +82,7 @@
     onRefreshDebug: () => void;
     onClearDebugLogs: () => void;
     onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
+    onFilterFocused: () => void;
   }>();
 
   // Always show common currencies in the picker even with no data, so users
@@ -127,8 +135,30 @@
   // Track which filter is expanded (by id), empty string = none
   let expandedFilterId = $state('');
 
+  $effect(() => {
+    if (focusFilterId) {
+      expandedFilterId = focusFilterId;
+      untrack(() => {
+        setTimeout(() => {
+          const el = document.querySelector(`[data-filter-id="${focusFilterId}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          onFilterFocused();
+        }, 20);
+      });
+    }
+  });
+
+  function handleResearchersChange(filter: PriorityFilter, field: FilterListField, next: ResearcherRef[]) {
+    if (field === 'match') {
+      filter.match_researchers = next;
+    } else {
+      filter.ignore_researchers = next;
+    }
+    onPriorityFiltersChange();
+  }
+
   // Local keyword text per filter — keeps text inputs editable without normalizing on every keystroke
-  let keywordTextMap = $state(new Map<string, { always: string; ignore: string }>());
+  let keywordTextMap = $state(new Map<string, { match: string; ignore: string }>());
 
   function syncKeywordMaps(filters: PriorityFilter[]) {
     const activeIds = new Set<string>();
@@ -136,7 +166,7 @@
       activeIds.add(f.id);
       if (!keywordTextMap.has(f.id)) {
         keywordTextMap.set(f.id, {
-          always: Array.isArray(f.always_open_keywords) ? f.always_open_keywords.join(', ') : '',
+          match: Array.isArray(f.match_keywords) ? f.match_keywords.join(', ') : '',
           ignore: Array.isArray(f.ignore_keywords) ? f.ignore_keywords.join(', ') : '',
         });
       }
@@ -341,13 +371,13 @@
 
   function handleFilterInput(filter: PriorityFilter) {
     const kw = keywordTextMap.get(filter.id);
-    filter.always_open_keywords = normalizePriorityKeywords(kw?.always || '');
+    filter.match_keywords = normalizePriorityKeywords(kw?.match || '');
     filter.ignore_keywords = normalizePriorityKeywords(kw?.ignore || '');
     onPriorityFiltersChange();
   }
 
-  function handleKeywordInput(filter: PriorityFilter, field: 'always' | 'ignore', value: string) {
-    const kw = keywordTextMap.get(filter.id) || { always: '', ignore: '' };
+  function handleKeywordInput(filter: PriorityFilter, field: FilterListField, value: string) {
+    const kw = keywordTextMap.get(filter.id) || { match: '', ignore: '' };
     kw[field] = value;
     keywordTextMap.set(filter.id, kw);
     handleFilterInput(filter);
@@ -361,23 +391,8 @@
 
   function handleAddFilter() {
     if (priorityFilters.length >= MAX_PRIORITY_FILTERS) return;
-    const newFilter: PriorityFilter = {
-      id: crypto.randomUUID(),
-      name: `Filter ${priorityFilters.length + 1}`,
-      enabled: true,
-      auto_open_in_new_tab: true,
-      alert_sound_enabled: true,
-      alert_sound_type: DEFAULT_PRIORITY_ALERT_SOUND_TYPE,
-      alert_sound_volume: DEFAULT_PRIORITY_ALERT_SOUND_VOLUME,
-      telegram_notify: true,
-      minimum_reward_major: MIN_PRIORITY_FILTER_MIN_REWARD,
-      minimum_hourly_reward_major: MIN_PRIORITY_FILTER_MIN_HOURLY_REWARD,
-      maximum_estimated_minutes: MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES,
-      minimum_places_available: MIN_PRIORITY_FILTER_MIN_PLACES,
-      always_open_keywords: [],
-      ignore_keywords: [],
-    };
-    keywordTextMap.set(newFilter.id, { always: '', ignore: '' });
+    const newFilter = createDefaultPriorityFilter({ name: `Filter ${priorityFilters.length + 1}` });
+    keywordTextMap.set(newFilter.id, { match: '', ignore: '' });
     priorityFilters = [...priorityFilters, newFilter];
     expandedFilterId = newFilter.id;
     onPriorityFiltersChange();
@@ -412,7 +427,9 @@
     if (f.minimum_reward_major > 0) badges.push({ label: `$${f.minimum_reward_major}+` });
     if (f.minimum_hourly_reward_major > 0) badges.push({ label: `$${f.minimum_hourly_reward_major}/hr` });
     if (f.maximum_estimated_minutes < MAX_PRIORITY_FILTER_MAX_ESTIMATED_MINUTES) badges.push({ label: `\u2264${f.maximum_estimated_minutes}m` });
-    if (f.always_open_keywords.length) badges.push({ label: `${f.always_open_keywords.length} kw` });
+    if (f.match_keywords.length) badges.push({ label: `${f.match_keywords.length} kw` });
+    const researcherCount = (f.match_researchers?.length || 0) + (f.ignore_researchers?.length || 0);
+    if (researcherCount > 0) badges.push({ label: `${researcherCount} r` });
     if (f.auto_open_in_new_tab) badges.push({ label: 'auto-open' });
     if (f.telegram_notify && tg.enabled) badges.push({ label: 'telegram' });
     if (f.alert_sound_type !== SOUND_TYPE_NONE && f.alert_sound_enabled) {
@@ -770,7 +787,7 @@
           >+ Add</button>
         {/if}
       </div>
-      <div class="text-xs text-base-content/50 leading-snug mb-3">Alert and auto-open when new studies match these rules. If multiple filters match a study, the most specific one wins (keyword matches beat numeric criteria, then louder alerts take priority).</div>
+      <div class="text-xs text-base-content/50 leading-snug mb-3">Alert and auto-open when new studies match a filter. Adding a "match" keyword or researcher scopes a filter to only those studies. If multiple filters match, the most specific one wins (scoped filters beat open ones, louder alerts beat silent).</div>
 
       {#if !priorityFilters.length}
         <button
@@ -900,8 +917,8 @@
                     class="input input-xs w-full lowercase"
                     spellcheck="false"
                     placeholder="ai, survey"
-                    value={keywordTextMap.get(filter.id)?.always || ''}
-                    oninput={(e) => handleKeywordInput(filter, 'always', (e.target as HTMLInputElement).value)}
+                    value={keywordTextMap.get(filter.id)?.match || ''}
+                    oninput={(e) => handleKeywordInput(filter, 'match', (e.target as HTMLInputElement).value)}
                   />
                 </div>
                 <div>
@@ -917,6 +934,35 @@
                   />
                 </div>
               </div>
+
+              <div class="grid grid-cols-2 gap-x-2 gap-y-1">
+                <div>
+                  <div class="text-[12.5px] text-base-content/50 font-medium mb-0.5">Match researchers</div>
+                  <ResearcherPicker
+                    selected={filter.match_researchers ?? []}
+                    {knownResearchers}
+                    tone="positive"
+                    placeholder="Add researcher"
+                    onChange={(next) => handleResearchersChange(filter, 'match', next)}
+                  />
+                </div>
+                <div>
+                  <div class="text-[12.5px] text-base-content/50 font-medium mb-0.5">Ignore researchers</div>
+                  <ResearcherPicker
+                    selected={filter.ignore_researchers ?? []}
+                    {knownResearchers}
+                    tone="negative"
+                    placeholder="Add researcher"
+                    onChange={(next) => handleResearchersChange(filter, 'ignore', next)}
+                  />
+                </div>
+              </div>
+
+              {#if (filter.match_keywords?.length || 0) + (filter.match_researchers?.length || 0) > 0}
+                <div class="text-[10.5px] text-base-content/45 leading-snug -mt-0.5">
+                  This filter is scoped to studies matching a "match" entry. Other studies won't trigger it.
+                </div>
+              {/if}
 
               <div class="grid grid-cols-[100px_1fr] items-center gap-x-2 gap-y-1.5">
                 <label for="priorityAutoOpenInNewTabToggle-{idx}" class="text-[12.5px] text-base-content/50 font-medium">Auto-open tab</label>

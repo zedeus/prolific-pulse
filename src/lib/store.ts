@@ -1,17 +1,19 @@
 import { db } from './db';
 import { extractSubmissionReward, extractStartedAt } from './earnings';
-import { nowIso } from './format';
+import { nowIso, trimString } from './format';
 import { CSV_SUBMISSION_ID_PREFIX } from './import-csv';
 import type {
   StudyLatestRecord,
   StudyActiveSnapshotRecord,
   SubmissionRecord,
+  ResearcherRecord,
 } from './db';
 import type {
   Study,
   StudyEvent,
   Submission,
   StudiesRefreshState,
+  Researcher,
 } from './types';
 import type { SubmissionSnapshot } from './normalize';
 
@@ -51,22 +53,155 @@ export async function getStudiesRefresh(): Promise<StudiesRefreshState | null> {
 export async function storeNormalizedStudies(studies: Study[], observedAt: string): Promise<void> {
   if (studies.length === 0) return;
 
-  await db.transaction('rw', [db.studiesHistory, db.studiesLatest], async () => {
-    const historyRecords = studies.map((study) => ({
-      study_id: study.id,
-      observed_at: observedAt,
-      payload: study as unknown as Record<string, unknown>,
-    }));
-    await db.studiesHistory.bulkAdd(historyRecords);
+  // The studies/history/researcher tables are disjoint, so we run the
+  // researcher upsert in parallel with the studies+history transaction
+  // rather than after it — avoids an extra round-trip on the ingest hot path.
+  await Promise.all([
+    db.transaction('rw', [db.studiesHistory, db.studiesLatest], async () => {
+      const historyRecords = studies.map((study) => ({
+        study_id: study.id,
+        observed_at: observedAt,
+        payload: study as unknown as Record<string, unknown>,
+      }));
+      await db.studiesHistory.bulkAdd(historyRecords);
 
-    const latestRecords: StudyLatestRecord[] = studies.map((study) => ({
-      study_id: study.id,
-      name: study.name,
-      payload: study as unknown as Record<string, unknown>,
-      last_seen_at: observedAt,
-    }));
-    await db.studiesLatest.bulkPut(latestRecords);
+      const latestRecords: StudyLatestRecord[] = studies.map((study) => ({
+        study_id: study.id,
+        name: study.name,
+        payload: study as unknown as Record<string, unknown>,
+        last_seen_at: observedAt,
+      }));
+      await db.studiesLatest.bulkPut(latestRecords);
+    }),
+    upsertResearchersFromStudies(studies, observedAt),
+  ]);
+}
+
+// --- Researchers ---
+
+function dedupeResearchersById(researchers: (Researcher | null | undefined)[]): Map<string, Researcher> {
+  const map = new Map<string, Researcher>();
+  for (const r of researchers) {
+    if (!r || typeof r !== 'object') continue;
+    const id = trimString(r.id);
+    if (!id) continue;
+    const existing = map.get(id);
+    map.set(id, {
+      id,
+      name: trimString(r.name) || existing?.name || '',
+      country: trimString(r.country) || existing?.country || '',
+    });
+  }
+  return map;
+}
+
+// Counts on persisted researcher records are always 0. The picker computes the
+// live counts at read-time via annotateResearcherCounts() by joining against
+// in-memory studies + submissions — that way the numbers reflect reality
+// instead of per-observation increments (which over-counted every refresh).
+function mergedResearcherRecord(
+  id: string,
+  fresh: Researcher,
+  prior: ResearcherRecord | undefined,
+  observedAt: string,
+): ResearcherRecord | null {
+  const name = fresh.name || prior?.name || '';
+  const country = fresh.country || prior?.country || '';
+  const priorLast = prior?.last_seen_at ?? '';
+  const nextLast = observedAt > priorLast ? observedAt : priorLast;
+  // No-op guard: if nothing changed, skip the write entirely.
+  if (prior && prior.name === name && prior.country === country && prior.last_seen_at === nextLast) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    country,
+    first_seen_at: prior?.first_seen_at ?? observedAt,
+    last_seen_at: nextLast,
+    study_count: 0,
+    submission_count: 0,
+  };
+}
+
+export async function upsertResearchersFromStudies(studies: Study[], observedAt: string): Promise<void> {
+  const fresh = dedupeResearchersById(studies.map((s) => s?.researcher));
+  if (fresh.size === 0) return;
+
+  await db.transaction('rw', db.researchers, async () => {
+    const existing = await db.researchers.bulkGet([...fresh.keys()]);
+    const updates: ResearcherRecord[] = [];
+    let idx = 0;
+    for (const [id, researcher] of fresh) {
+      const merged = mergedResearcherRecord(id, researcher, existing[idx++], observedAt);
+      if (merged) updates.push(merged);
+    }
+    if (updates.length) await db.researchers.bulkPut(updates);
   });
+}
+
+export async function upsertResearcherFromSubmission(
+  rawPayload: unknown,
+  observedAt: string,
+): Promise<void> {
+  const researcher = extractResearcherFromSubmissionPayload(rawPayload);
+  if (!researcher) return;
+
+  await db.transaction('rw', db.researchers, async () => {
+    const prior = await db.researchers.get(researcher.id);
+    const merged = mergedResearcherRecord(researcher.id, researcher, prior, observedAt);
+    if (merged) await db.researchers.put(merged);
+  });
+}
+
+export function extractResearcherFromSubmissionPayload(rawPayload: unknown): Researcher | null {
+  if (!rawPayload || typeof rawPayload !== 'object') return null;
+  const p = rawPayload as Record<string, unknown>;
+  const study = p.study as Record<string, unknown> | undefined;
+  const raw = (study?.researcher ?? p.researcher) as Record<string, unknown> | undefined;
+  if (!raw || typeof raw !== 'object') return null;
+  const id = trimString(raw.id);
+  if (!id) return null;
+  return { id, name: trimString(raw.name), country: trimString(raw.country) };
+}
+
+export async function listKnownResearchers(): Promise<ResearcherRecord[]> {
+  const all = await db.researchers.toArray();
+  all.sort((a, b) => {
+    const cmp = (b.last_seen_at || '').localeCompare(a.last_seen_at || '');
+    if (cmp !== 0) return cmp;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+  return all;
+}
+
+/**
+ * Annotate researcher records with live study/submission counts computed from
+ * the arrays the caller already has. Avoids re-reading those tables on every
+ * popup refresh tick.
+ */
+export function annotateResearcherCounts(
+  researchers: ResearcherRecord[],
+  studies: Study[],
+  submissions: SubmissionRecord[],
+): ResearcherRecord[] {
+  const studyCounts = new Map<string, number>();
+  for (const s of studies) {
+    const id = trimString(s?.researcher?.id);
+    if (!id) continue;
+    studyCounts.set(id, (studyCounts.get(id) ?? 0) + 1);
+  }
+  const submissionCounts = new Map<string, number>();
+  for (const sub of submissions) {
+    const id = extractResearcherFromSubmissionPayload(sub.payload)?.id;
+    if (!id) continue;
+    submissionCounts.set(id, (submissionCounts.get(id) ?? 0) + 1);
+  }
+  return researchers.map((r) => ({
+    ...r,
+    study_count: studyCounts.get(r.id) ?? 0,
+    submission_count: submissionCounts.get(r.id) ?? 0,
+  }));
 }
 
 interface StudyChange {
@@ -181,6 +316,7 @@ export async function getRecentAvailabilityEvents(limit: number): Promise<StudyE
       estimated_completion_time: study?.estimated_completion_time ?? 0,
       total_available_places: study?.total_available_places ?? 0,
       places_available: study?.places_available ?? 0,
+      researcher_name: study?.researcher?.name?.trim() ?? '',
     };
   });
 }
@@ -244,7 +380,9 @@ export async function upsertSubmission(snapshot: SubmissionSnapshot, observedAt:
   const payload = snapshot.payload && typeof snapshot.payload === 'object' ? snapshot.payload : {};
   const updatedAt = nowIso();
 
-  await db.transaction('rw', db.submissions, async () => {
+  // Submissions and researchers are disjoint stores, so we can run the
+  // researcher upsert in parallel with the submissions transaction.
+  const submissionWrite = db.transaction('rw', db.submissions, async () => {
     const existing = await db.submissions.get(snapshot.submission_id);
 
     if (!existing) {
@@ -302,6 +440,8 @@ export async function upsertSubmission(snapshot: SubmissionSnapshot, observedAt:
       updated_at: updatedAt,
     });
   });
+
+  await Promise.all([submissionWrite, upsertResearcherFromSubmission(snapshot.payload, observedAt)]);
 }
 
 /**

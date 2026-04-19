@@ -50,6 +50,7 @@ export interface StudyEvent {
   estimated_completion_time: number;
   total_available_places: number;
   places_available: number;
+  researcher_name: string;
 }
 
 export interface Submission {
@@ -71,6 +72,14 @@ export interface StudiesRefreshState {
   last_studies_refresh_status?: number;
 }
 
+export interface ResearcherRef {
+  id: string;
+  name: string;
+}
+
+/** Which of a priority filter's list pairs (match/ignore) to target. Applies to both keyword and researcher lists. */
+export type FilterListField = 'match' | 'ignore';
+
 export interface PriorityFilter {
   id: string;
   name: string;
@@ -84,8 +93,10 @@ export interface PriorityFilter {
   minimum_hourly_reward_major: number;
   maximum_estimated_minutes: number;
   minimum_places_available: number;
-  always_open_keywords: string[];
+  match_keywords: string[];
   ignore_keywords: string[];
+  match_researchers: ResearcherRef[];
+  ignore_researchers: ResearcherRef[];
 }
 
 export interface TelegramMessageFormatOptions {
