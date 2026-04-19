@@ -39,3 +39,17 @@ body.no-scroll { overflow: hidden; }
 
 /* Compact range sliders */
 .range-xs { --range-thumb-size: 1rem; }
+
+/*
+ * Soften the default DaisyUI 5 field focus ring. Out of the box it's a 2px
+ * solid outline with a 2px offset using the base-content color, which reads
+ * as a chunky 4px halo around compact fields. Use a subtler 1.5px primary
+ * tint flush against the border instead.
+ */
+.input:focus,
+.input:focus-within,
+.select:focus,
+.select:focus-within {
+  outline: 1.5px solid oklch(var(--p) / 0.55);
+  outline-offset: 0;
+}
