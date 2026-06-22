@@ -4,13 +4,11 @@ import {
   categorizeStatus,
   computeStatusCounts,
   computeStatusStats,
-  computeTimeToApproval,
   extractRejectionDetails,
   hasRejectionDetails,
   extractResearcherOptions,
   filterSubmissionsByDateRange,
   filterSubmissionsByResearcher,
-  statusCategoryLabel,
   statusCategoryColorClass,
 } from '../submission-analytics';
 
@@ -51,14 +49,6 @@ describe('categorizeStatus', () => {
   it('categorizes unknown as other', () => {
     expect(categorizeStatus('UNKNOWN')).toBe('other');
     expect(categorizeStatus('')).toBe('other');
-  });
-});
-
-describe('statusCategoryLabel', () => {
-  it('returns human-readable labels', () => {
-    expect(statusCategoryLabel('approved')).toBe('Approved');
-    expect(statusCategoryLabel('awaiting_review')).toBe('Awaiting review');
-    expect(statusCategoryLabel('screened_out')).toBe('Screened out');
   });
 });
 
@@ -122,44 +112,6 @@ describe('computeStatusStats', () => {
     const stats = computeStatusStats([]);
     expect(stats.approval_rate).toBe(0);
     expect(stats.total).toBe(0);
-  });
-});
-
-describe('computeTimeToApproval', () => {
-  it('computes time-to-approval stats', () => {
-    const subs: SubmissionRecord[] = [
-      makeSubmission({
-        submission_id: '1',
-        status: 'APPROVED',
-        payload: {
-          started_at: '2025-01-15T10:00:00Z',
-          completed_at: '2025-01-15T10:10:00Z',
-        },
-      }),
-      makeSubmission({
-        submission_id: '2',
-        status: 'APPROVED',
-        payload: {
-          started_at: '2025-01-15T11:00:00Z',
-          completed_at: '2025-01-15T11:20:00Z',
-        },
-      }),
-    ];
-
-    const stats = computeTimeToApproval(subs);
-
-    expect(stats).not.toBeNull();
-    expect(stats!.count).toBe(2);
-    expect(stats!.min_seconds).toBe(600);
-    expect(stats!.max_seconds).toBe(1200);
-    expect(stats!.mean_seconds).toBe(900);
-  });
-
-  it('returns null for no approved submissions', () => {
-    const subs: SubmissionRecord[] = [
-      makeSubmission({ submission_id: '1', status: 'REJECTED' }),
-    ];
-    expect(computeTimeToApproval(subs)).toBeNull();
   });
 });
 
@@ -319,51 +271,6 @@ describe('adversarial: computeStatusStats edge cases', () => {
     const stats = computeStatusStats(subs);
     expect(stats.other).toBe(2);
     expect(stats.total).toBe(2);
-  });
-});
-
-describe('adversarial: computeTimeToApproval with bad data', () => {
-  it('handles missing timestamps', () => {
-    const subs: SubmissionRecord[] = [
-      makeSubmission({ submission_id: '1', status: 'APPROVED', payload: {} }),
-      makeSubmission({
-        submission_id: '2',
-        status: 'APPROVED',
-        payload: { started_at: '2025-01-15T10:00:00Z' },
-      }),
-    ];
-    const stats = computeTimeToApproval(subs);
-    expect(stats).toBeNull();
-  });
-
-  it('handles started_at after completed_at (negative duration)', () => {
-    const subs: SubmissionRecord[] = [
-      makeSubmission({
-        submission_id: '1',
-        status: 'APPROVED',
-        payload: {
-          started_at: '2025-01-15T12:00:00Z',
-          completed_at: '2025-01-15T10:00:00Z',
-        },
-      }),
-    ];
-    const stats = computeTimeToApproval(subs);
-    expect(stats).toBeNull();
-  });
-
-  it('filters out absurdly long durations (>30 days)', () => {
-    const subs: SubmissionRecord[] = [
-      makeSubmission({
-        submission_id: '1',
-        status: 'APPROVED',
-        payload: {
-          started_at: '2025-01-01T10:00:00Z',
-          completed_at: '2025-03-01T10:00:00Z',
-        },
-      }),
-    ];
-    const stats = computeTimeToApproval(subs);
-    expect(stats).toBeNull();
   });
 });
 

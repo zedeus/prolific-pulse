@@ -6,8 +6,6 @@ import {
   RETURNED_STATUS,
   REJECTED_STATUS,
   SCREENED_OUT_STATUS,
-  extractStartedAt,
-  extractCompletedAt,
 } from './earnings';
 
 export type StatusCategory = 'approved' | 'awaiting_review' | 'returned' | 'rejected' | 'screened_out' | 'other';
@@ -37,17 +35,6 @@ export function categorizeStatus(status: string): StatusCategory {
     case REJECTED_STATUS: return 'rejected';
     case SCREENED_OUT_STATUS: return 'screened_out';
     default: return 'other';
-  }
-}
-
-export function statusCategoryLabel(cat: StatusCategory): string {
-  switch (cat) {
-    case 'approved': return 'Approved';
-    case 'awaiting_review': return 'Awaiting review';
-    case 'returned': return 'Returned';
-    case 'rejected': return 'Rejected';
-    case 'screened_out': return 'Screened out';
-    case 'other': return 'Other';
   }
 }
 
@@ -96,43 +83,6 @@ export function computeStatusStats(submissions: SubmissionRecord[]): StatusStats
     approval_rate: terminal > 0 ? counts.approved / terminal : 0,
     rejection_rate: terminal > 0 ? counts.rejected / terminal : 0,
     return_rate: terminal > 0 ? counts.returned / terminal : 0,
-  };
-}
-
-export interface TimeToApprovalStats {
-  count: number;
-  mean_seconds: number;
-  median_seconds: number;
-  min_seconds: number;
-  max_seconds: number;
-}
-
-export function computeTimeToApproval(submissions: SubmissionRecord[]): TimeToApprovalStats | null {
-  const durations: number[] = [];
-
-  for (const s of submissions) {
-    if (s.phase !== 'submitted') continue;
-    if (categorizeStatus(s.status) !== 'approved') continue;
-
-    const started = extractStartedAt(s);
-    const completed = extractCompletedAt(s);
-    if (!started || !completed) continue;
-
-    const seconds = (completed.getTime() - started.getTime()) / 1000;
-    if (seconds > 0 && seconds < 86400 * 30) durations.push(seconds);
-  }
-
-  if (durations.length === 0) return null;
-
-  durations.sort((a, b) => a - b);
-  const sum = durations.reduce((a, b) => a + b, 0);
-
-  return {
-    count: durations.length,
-    mean_seconds: sum / durations.length,
-    median_seconds: durations[Math.floor(durations.length / 2)],
-    min_seconds: durations[0],
-    max_seconds: durations[durations.length - 1],
   };
 }
 
@@ -270,6 +220,3 @@ export function extractSubmissionMeta(payload: unknown): SubmissionMeta {
   };
 }
 
-export function hasSubmissionMeta(meta: SubmissionMeta): boolean {
-  return !!(meta.researcher_country || meta.institution_name || meta.study_code || meta.is_trial || meta.bonuses.length);
-}
