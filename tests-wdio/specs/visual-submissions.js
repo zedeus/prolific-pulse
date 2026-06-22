@@ -1,5 +1,5 @@
-// Visual audit: seed IndexedDB with fake submissions, screenshot the submissions panel,
-// including the new SubmissionStats component and detail modal.
+// Visual audit: seed IndexedDB with fake submissions, screenshot the submissions panel
+// and detail modal.
 
 import fs from 'node:fs';
 import path from 'node:path';
