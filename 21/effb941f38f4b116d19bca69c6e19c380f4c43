@@ -1,0 +1,19 @@
+src/entrypoints/popup/components/SubmissionDetail.svelte
+  s_3615280ee9fbc0::t_8a6d06479d87a7 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "21effb941f38f4b116d19bca69c6e19c380f4c43",
+  "prompts": {},
+  "sessions": {
+    "s_3615280ee9fbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c470cea-6b5a-485e-8aba-c8d30c33b646",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
