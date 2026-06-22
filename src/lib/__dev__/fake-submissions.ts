@@ -51,6 +51,23 @@ const STATUS_POOL: readonly string[] = [
   ...Array(3).fill(SCREENED_OUT_STATUS),
 ];
 
+const RETURN_REASONS: readonly string[] = [
+  'Submission timed out',
+  'Did not complete required tasks',
+  'Technical issues prevented completion',
+  'Participant withdrew voluntarily',
+];
+
+const REJECTION_REASONS: readonly string[] = [
+  'Failed attention check',
+  'Invalid or nonsensical responses',
+  'Responses did not meet quality standards',
+  'Did not follow instructions',
+];
+
+const COUNTRIES: readonly string[] = ['US', 'GB', 'CA', 'DE', 'FR', 'AU', 'NL', 'SE', 'IT', 'FI'];
+const INSTITUTIONS: readonly (string | null)[] = [null, null, null, 'stanford.edu', 'mit.edu', 'oxford.ac.uk', 'maze.design'];
+
 export interface FakeDataOptions {
   count: number;
   /** Base seed (deterministic). Default 42. */
@@ -99,13 +116,34 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
     const currency = rng() < foreignFrac ? pick(['USD', 'EUR'] as const, rng) : 'GBP';
 
     const studyId = `study-${Math.floor(rng() * 40) + 1}`;
+    const country = pick(COUNTRIES, rng);
+    const institution = pick(INSTITUTIONS, rng);
+    const studyCode = status === APPROVED_STATUS ? `C${Math.floor(rng() * 1e8).toString(36).toUpperCase()}` : null;
+    const hasBonus = status === APPROVED_STATUS && rng() > 0.85;
+
     const payload: Record<string, unknown> = {
       started_at: startDate.toISOString(),
       submission_reward: { amount: rewardMinor, currency },
-      study: { id: studyId, name: template.name, researcher },
+      study_code: studyCode,
+      is_trial_study: rng() > 0.95,
+      submission_bonuses: hasBonus ? [{ amount: Math.round(rewardMinor * 0.2), currency }] : [],
+      study: {
+        id: studyId,
+        name: template.name,
+        is_trial_study: rng() > 0.95,
+        researcher: {
+          ...researcher,
+          country,
+          institution: institution ? { name: institution, logo: null, link: '' } : { name: null, logo: null, link: '' },
+        },
+      },
     };
-    if (status === RETURNED_STATUS || status === REJECTED_STATUS) {
+    if (status === RETURNED_STATUS) {
       payload.returned_at = completedAt.toISOString();
+      payload.return_reason = pick(RETURN_REASONS, rng);
+    } else if (status === REJECTED_STATUS) {
+      payload.returned_at = completedAt.toISOString();
+      payload.rejection_message = pick(REJECTION_REASONS, rng);
     } else {
       payload.completed_at = completedAt.toISOString();
     }
