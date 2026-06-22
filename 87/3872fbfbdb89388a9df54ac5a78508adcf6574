@@ -1,0 +1,25 @@
+src/lib/submission-analytics.ts
+  s_3615280ee9fbc0::t_e7f85e2e527702 65-68
+  s_3615280ee9fbc0::t_32b354e52f88f9 236-241,244,247-248,250-262,265-269,273-274
+  s_3615280ee9fbc0::t_5b6b8eca8bfd95 235,242-243,245-246,249,263-264,270-272,275
+  s_3615280ee9fbc0::t_4be9ab51b10d7d 1-64,69-234
+src/lib/__tests__/submission-analytics.test.ts
+  s_3615280ee9fbc0::t_bf058c2450b16e 287-453
+  s_3615280ee9fbc0::t_671cc7e753bd12 1-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "873872fbfbdb89388a9df54ac5a78508adcf6574",
+  "prompts": {},
+  "sessions": {
+    "s_3615280ee9fbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c470cea-6b5a-485e-8aba-c8d30c33b646",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
