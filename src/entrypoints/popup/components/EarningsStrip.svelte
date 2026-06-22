@@ -10,6 +10,7 @@
     resolveEarningsContext,
   } from '../../../lib/earnings';
   import { formatMoneyFromMajorUnits } from '../../../lib/format';
+  import { computeStatusStats } from '../../../lib/submission-analytics';
   import type { EarningsPrefs } from '../../../lib/earnings-prefs';
 
   let { submissions, prefs, onTogglePending } = $props<{
@@ -22,6 +23,11 @@
   const currency = $derived(ctx.currency);
   const includeStatus = $derived(ctx.includeStatus);
   const convertedSubmissions = $derived(ctx.converted);
+
+  const approvalStats = $derived(computeStatusStats(submissions));
+  const terminal = $derived(approvalStats.approved + approvalStats.returned + approvalStats.rejected + approvalStats.screened_out);
+  const negatives = $derived(approvalStats.returned + approvalStats.rejected + approvalStats.screened_out);
+  const approvalPct = $derived(Math.round(approvalStats.approval_rate * 100));
 
   const now = new Date();
   const todayStart = startOfLocalDay(now);
@@ -100,6 +106,18 @@
           >
             <span class="text-[10.5px] uppercase tracking-wide text-base-content/50 font-semibold">Rate (30d)</span>
             <span class="text-[14px] font-bold text-emerald-600 dark:text-emerald-400">{fmt(rateStats.median)}<span class="text-[10.5px] text-base-content/50 font-medium">/hr</span></span>
+          </div>
+        {/if}
+        {#if terminal > 0}
+          <div
+            class="flex flex-col leading-tight"
+            title={`${approvalStats.approved} approved, ${negatives} returned/rejected — ${approvalPct}% approval rate`}
+          >
+            <span class="text-[10.5px] uppercase tracking-wide text-base-content/50 font-semibold">Approved</span>
+            <span class="text-[14px] font-bold">
+              <span class="text-emerald-600 dark:text-emerald-400">{approvalStats.approved}</span><span class="text-base-content/30">/</span><span class="text-rose-600 dark:text-rose-400">{negatives}</span>
+              <span class="text-[11px] text-base-content/50 font-medium">({approvalPct}%)</span>
+            </span>
           </div>
         {/if}
       </div>
