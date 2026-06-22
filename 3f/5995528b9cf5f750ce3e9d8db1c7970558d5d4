@@ -1,0 +1,25 @@
+src/lib/__dev__/fake-submissions.ts
+  s_3615280ee9fbc0::t_2b58487d2896da 121
+  s_3615280ee9fbc0::t_26ee64ab8a58c5 70
+  s_3615280ee9fbc0::t_16697933518ccd 123,130-132,139
+  s_3615280ee9fbc0::t_bbaaeb64a5b3f5 68-69
+  s_3615280ee9fbc0::t_64bb90f64b7751 54-67
+  s_3615280ee9fbc0::t_078368700ec1e1 119-120,122,127-129,133-138
+  s_3615280ee9fbc0::t_74f3dbeef85ab0 141-144,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3f5995528b9cf5f750ce3e9d8db1c7970558d5d4",
+  "prompts": {},
+  "sessions": {
+    "s_3615280ee9fbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c470cea-6b5a-485e-8aba-c8d30c33b646",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
