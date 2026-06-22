@@ -22,8 +22,18 @@
     TERMINAL_NEGATIVE_STATUSES,
     extractSubmissionReward,
     extractDurationSeconds,
+    extractCompletedAt,
+    extractStartedAt,
   } from '../../../lib/earnings';
+  import {
+    extractResearcherOptions,
+    filterSubmissionsByDateRange,
+    filterSubmissionsByResearcher,
+    statusColorClass,
+    type ResearcherOption,
+  } from '../../../lib/submission-analytics';
   import EarningsStrip from './EarningsStrip.svelte';
+  import SubmissionDetail from './SubmissionDetail.svelte';
   import StudyTitle from './StudyTitle.svelte';
 
   let {
@@ -54,8 +64,13 @@
   let minReward = $state<number | null>(null);
   let minHourly = $state<number | null>(null);
   let maxDuration = $state<number | null>(null);
+  let researcherFilter = $state('');
+  let dateRangeStart = $state<string>('');
+  let dateRangeEnd = $state<string>('');
+  let selectedSubmission = $state<Submission | null>(null);
 
   const currencySymbol = $derived(getCurrencySymbol(earningsPrefs.primary_currency));
+  const researcherOptions = $derived<ResearcherOption[]>(extractResearcherOptions(allSubmissions));
 
   const hasNumericFilters = $derived(
     (minReward !== null && minReward > 0) ||
@@ -63,9 +78,18 @@
     (maxDuration !== null && maxDuration > 0)
   );
 
-  const hasActiveFilters = $derived(
-    searchQuery.trim() !== '' || statusFilter !== 'all' || hasNumericFilters
+  const hasAdvancedFilters = $derived(
+    hasNumericFilters || researcherFilter !== '' || dateRangeStart !== '' || dateRangeEnd !== ''
   );
+
+  const hasActiveFilters = $derived(
+    searchQuery.trim() !== '' || statusFilter !== 'all' || hasAdvancedFilters
+  );
+
+  const dateRange = $derived({
+    start: dateRangeStart ? new Date(dateRangeStart + 'T00:00:00') : null,
+    end: dateRangeEnd ? new Date(dateRangeEnd + 'T23:59:59') : null,
+  });
 
   function getStatusCategory(status: string): 'approved' | 'pending' | 'rejected' {
     const upper = normalizeSubmissionStatus(status);
@@ -101,6 +125,14 @@
 
     if (statusFilter !== 'all') {
       result = result.filter((s) => getStatusCategory(s.status) === statusFilter);
+    }
+
+    if (researcherFilter) {
+      result = filterSubmissionsByResearcher(result as unknown as SubmissionRecord[], researcherFilter) as unknown as Submission[];
+    }
+
+    if (dateRange.start || dateRange.end) {
+      result = filterSubmissionsByDateRange(result as unknown as SubmissionRecord[], dateRange) as unknown as Submission[];
     }
 
     if (minReward !== null && minReward > 0) {
@@ -155,6 +187,14 @@
     minReward = null;
     minHourly = null;
     maxDuration = null;
+    researcherFilter = '';
+    dateRangeStart = '';
+    dateRangeEnd = '';
+  }
+
+  function handleSubmissionClick(e: MouseEvent, entry: Submission) {
+    e.preventDefault();
+    selectedSubmission = entry;
   }
 
   function cardBorderClass(status: string, phase: string): string {
@@ -164,14 +204,6 @@
     if (TERMINAL_NEGATIVE_STATUSES.has(upper)) return 'border-l-error';
     if (String(phase || '').toLowerCase().trim() === 'submitting') return 'border-l-info';
     return 'border-l-base-300';
-  }
-
-  function statusBadgeClass(status: string): string {
-    const upper = normalizeSubmissionStatus(status);
-    if (upper === APPROVED_STATUS) return 'text-emerald-600 dark:text-emerald-400';
-    if (upper === AWAITING_REVIEW_STATUS) return 'text-amber-600 dark:text-amber-400';
-    if (TERMINAL_NEGATIVE_STATUSES.has(upper)) return 'text-rose-600 dark:text-rose-400';
-    return 'text-base-content/50';
   }
 
   function handleLinkClick(event: MouseEvent, url: string) {
@@ -217,10 +249,10 @@
         </select>
         <button
           type="button"
-          class="btn btn-xs btn-square {filtersExpanded || hasNumericFilters ? 'btn-primary' : 'btn-ghost'}"
-          class:btn-outline={hasNumericFilters && !filtersExpanded}
+          class="btn btn-xs btn-square {filtersExpanded || hasAdvancedFilters ? 'btn-primary' : 'btn-ghost'}"
+          class:btn-outline={hasAdvancedFilters && !filtersExpanded}
           onclick={() => filtersExpanded = !filtersExpanded}
-          title="Quick filters"
+          title="Advanced filters"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -228,48 +260,82 @@
         </button>
       </div>
       {#if filtersExpanded}
-        <div class="flex items-center gap-3 px-1 py-1.5 bg-base-200/50 rounded-lg text-[11px]">
-          <label class="flex items-center gap-1 text-base-content/70" title="Minimum reward">
-            <span class="text-[12px] font-semibold text-base-content/60">{currencySymbol}</span>
-            <input
-              type="number"
-              class="input input-xs w-12 tabular-nums text-center bg-base-100"
-              min="0"
-              step="0.5"
-              placeholder="any"
-              bind:value={minReward}
-            />
-          </label>
-          <label class="flex items-center gap-1 text-base-content/70" title="Minimum actual hourly rate">
-            <span class="text-[12px] font-semibold text-base-content/60">{currencySymbol}/hr</span>
-            <input
-              type="number"
-              class="input input-xs w-12 tabular-nums text-center bg-base-100"
-              min="0"
-              step="1"
-              placeholder="any"
-              bind:value={minHourly}
-            />
-          </label>
-          <label class="flex items-center gap-1 text-base-content/70" title="Maximum actual time taken (minutes)">
-            <span class="text-[12px] font-semibold text-base-content/60">Time</span>
-            <input
-              type="number"
-              class="input input-xs w-12 tabular-nums text-center bg-base-100"
-              min="0"
-              step="5"
-              placeholder="any"
-              bind:value={maxDuration}
-            />
-          </label>
-          {#if hasNumericFilters}
-            <button
-              type="button"
-              class="btn btn-ghost btn-xs ml-auto px-2 h-6 min-h-0 text-[11px] text-base-content/50 hover:text-error"
-              onclick={clearFilters}
-              title="Clear filters"
-            >✕ clear</button>
-          {/if}
+        <div class="space-y-1.5 px-1 py-1.5 bg-base-200/50 rounded-lg text-[11px]">
+          <div class="flex items-center gap-3 flex-wrap">
+            <label class="flex items-center gap-1 text-base-content/70" title="Minimum reward">
+              <span class="text-[12px] font-semibold text-base-content/60">{currencySymbol}</span>
+              <input
+                type="number"
+                class="input input-xs w-12 tabular-nums text-center bg-base-100"
+                min="0"
+                step="0.5"
+                placeholder="any"
+                bind:value={minReward}
+              />
+            </label>
+            <label class="flex items-center gap-1 text-base-content/70" title="Minimum actual hourly rate">
+              <span class="text-[12px] font-semibold text-base-content/60">{currencySymbol}/hr</span>
+              <input
+                type="number"
+                class="input input-xs w-12 tabular-nums text-center bg-base-100"
+                min="0"
+                step="1"
+                placeholder="any"
+                bind:value={minHourly}
+              />
+            </label>
+            <label class="flex items-center gap-1 text-base-content/70" title="Maximum actual time taken (minutes)">
+              <span class="text-[12px] font-semibold text-base-content/60">Time</span>
+              <input
+                type="number"
+                class="input input-xs w-12 tabular-nums text-center bg-base-100"
+                min="0"
+                step="5"
+                placeholder="any"
+                bind:value={maxDuration}
+              />
+            </label>
+          </div>
+          <div class="flex items-center gap-3 flex-wrap">
+            {#if researcherOptions.length > 0}
+              <label class="flex items-center gap-1 text-base-content/70" title="Filter by researcher">
+                <span class="text-[12px] font-semibold text-base-content/60">By</span>
+                <select
+                  class="select select-xs bg-base-100 min-w-0 max-w-[140px]"
+                  bind:value={researcherFilter}
+                >
+                  <option value="">Any researcher</option>
+                  {#each researcherOptions as r (r.id)}
+                    <option value={r.id}>{r.name} ({r.count})</option>
+                  {/each}
+                </select>
+              </label>
+            {/if}
+            <label class="flex items-center gap-1 text-base-content/70" title="From date">
+              <span class="text-[12px] font-semibold text-base-content/60">From</span>
+              <input
+                type="date"
+                class="input input-xs bg-base-100 w-[110px]"
+                bind:value={dateRangeStart}
+              />
+            </label>
+            <label class="flex items-center gap-1 text-base-content/70" title="To date">
+              <span class="text-[12px] font-semibold text-base-content/60">To</span>
+              <input
+                type="date"
+                class="input input-xs bg-base-100 w-[110px]"
+                bind:value={dateRangeEnd}
+              />
+            </label>
+            {#if hasAdvancedFilters}
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs ml-auto px-2 h-6 min-h-0 text-[11px] text-base-content/50 hover:text-error"
+                onclick={clearFilters}
+                title="Clear filters"
+              >✕ clear</button>
+            {/if}
+          </div>
         </div>
       {/if}
     </div>
@@ -291,7 +357,10 @@
       {#each filteredAndSorted as entry (entry.submission_id)}
         {@const name = entry.study_name || '(unknown study)'}
         {@const researcherName = extractResearcherFromSubmissionPayload(entry.payload)?.name ?? ''}
-        {@const observedAt = formatRelative(entry.observed_at, true)}
+        {@const completedAt = extractCompletedAt(entry)}
+        {@const startedAt = extractStartedAt(entry)}
+        {@const hasRealTime = !!(completedAt || startedAt)}
+        {@const displayTime = completedAt ? formatRelative(completedAt.toISOString(), true) : startedAt ? formatRelative(startedAt.toISOString(), true) : `Added ${formatRelative(entry.observed_at, true)}`}
         {@const studyURL = studyUrlFromId(entry.study_id)}
         {@const rewardMoney = extractSubmissionReward(entry)}
         {@const reward = formatMoneyFromMinorUnits(rewardMoney)}
@@ -305,47 +374,59 @@
         {@const borderClass = cardBorderClass(entry.status, entry.phase)}
         {@const statusLabel = formatSubmissionStatus(entry.status)}
 
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <a
-            class="event-link block no-underline text-inherit rounded-lg outline-none"
-            href={studyURL}
-            title="Open study in Prolific"
-            onclick={(e) => handleLinkClick(e, studyURL)}
-          >
-            <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 shadow-sm bg-base-100 border-l-[3px] {borderClass}">
-              <div class="event-top flex items-start justify-between gap-2.5">
-                <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
-                  <StudyTitle {name} {researcherName} />
-                </div>
-                <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
+        <button
+          type="button"
+          class="event-btn block w-full text-left rounded-lg outline-none"
+          title="View details"
+          onclick={(e) => handleSubmissionClick(e, entry)}
+        >
+          <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 shadow-sm bg-base-100 border-l-[3px] {borderClass}">
+            <div class="event-top flex items-start justify-between gap-2.5">
+              <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
+                <StudyTitle {name} {researcherName} />
               </div>
-              <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">
-                <span class="text-[15px] font-bold text-primary">{reward}</span>
-                <span class="text-[12px] font-semibold {hourlyClass}">{hourly}</span>
-                <span class="text-base-content/20 select-none">·</span>
-                <span class="text-xs font-medium {statusBadgeClass(entry.status)}">{statusLabel}</span>
-                <span class="text-base-content/20 select-none">·</span>
-                <span class="text-xs text-base-content/55">{duration}</span>
+              <div class="flex items-center gap-1.5">
+                <span class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{displayTime}</span>
+                <a
+                  href={studyURL}
+                  class="text-base-content/40 hover:text-primary transition-colors"
+                  title="Open in Prolific"
+                  onclick={(e) => { e.stopPropagation(); handleLinkClick(e, studyURL); }}
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
               </div>
             </div>
-          </a>
+            <div class="event-metrics mt-1.5 flex items-baseline gap-x-1.5 flex-wrap gap-y-0.5">
+              <span class="text-[15px] font-bold text-primary">{reward}</span>
+              <span class="text-[12px] font-semibold {hourlyClass}">{hourly}</span>
+              <span class="text-base-content/20 select-none">·</span>
+              <span class="text-xs font-medium {statusColorClass(entry.status)}">{statusLabel}</span>
+              <span class="text-base-content/20 select-none">·</span>
+              <span class="text-xs text-base-content/55">{duration}</span>
+            </div>
+          </div>
+        </button>
       {/each}
     {/if}
   </div>
+  <SubmissionDetail submission={selectedSubmission} onClose={() => selectedSubmission = null} {onStudyClick} />
 </div>
 
 <style>
   .event {
     transition: transform 100ms ease, box-shadow 100ms ease;
   }
-  .event-link:hover .event {
+  .event-btn:hover .event {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px oklch(var(--bc) / 0.10), 0 1px 3px oklch(var(--bc) / 0.06);
   }
-  .event-link:focus-visible .event {
+  .event-btn:focus-visible .event {
     box-shadow: 0 4px 12px oklch(var(--bc) / 0.10), 0 1px 3px oklch(var(--bc) / 0.06);
   }
-  .event-link:active .event {
+  .event-btn:active .event {
     transform: translateY(0);
   }
   .panel {
