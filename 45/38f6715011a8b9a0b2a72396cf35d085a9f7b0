@@ -1,0 +1,22 @@
+src/entrypoints/popup/components/EarningsStrip.svelte
+  s_3615280ee9fbc0::t_219cd99d0f06fd 28-30
+  s_3615280ee9fbc0::t_7c9b7603d5a6e8 111-113,115-118,120
+  s_3615280ee9fbc0::t_3f986c9c75fdee 13,27
+  s_3615280ee9fbc0::t_151c6dd7c13278 114,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4538f6715011a8b9a0b2a72396cf35d085a9f7b0",
+  "prompts": {},
+  "sessions": {
+    "s_3615280ee9fbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c470cea-6b5a-485e-8aba-c8d30c33b646",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
