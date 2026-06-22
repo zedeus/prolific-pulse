@@ -1,10 +1,13 @@
 import { seedFakeSubmissions, clearFakeSubmissions } from './fake-submissions';
+import { seedFakeStudies, clearFakeStudies } from './fake-studies';
 
 declare global {
   interface Window {
     __ppDev?: {
       seed: (count: number, seed?: number) => Promise<number>;
       clear: () => Promise<void>;
+      seedStudies: (count: number, seed?: number) => Promise<number>;
+      clearStudies: () => Promise<void>;
     };
   }
 }
@@ -14,5 +17,7 @@ export function attachDevHelpers(): void {
   window.__ppDev = {
     seed: seedFakeSubmissions,
     clear: clearFakeSubmissions,
+    seedStudies: seedFakeStudies,
+    clearStudies: clearFakeStudies,
   };
 }

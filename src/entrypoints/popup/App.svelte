@@ -668,6 +668,7 @@
     {studies}
     {priorityFilters}
     {telegramSettings}
+    primaryCurrency={earningsPrefs.primary_currency || 'USD'}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
     onAddResearcherToFilter={addResearcherToExistingFilter}
@@ -678,6 +679,7 @@
   <FeedPanel
     active={activeTab === 'feed'}
     {events}
+    primaryCurrency={earningsPrefs.primary_currency || 'USD'}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
   />

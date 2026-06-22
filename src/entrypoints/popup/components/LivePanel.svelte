@@ -10,8 +10,16 @@
     studyUrlFromId,
     rateColorClass,
     formatStudyLabel,
+    getCurrencySymbol,
   } from '../../../lib/format';
-  import { studyMatchesPriorityFilter, studyKeywordBlob } from '../../background/domain';
+  import {
+    studyMatchesPriorityFilter,
+    studyKeywordBlob,
+    studyRewardMajor,
+    studyHourlyRewardMajor,
+    studyEstimatedMinutes,
+    studyPlacesAvailable,
+  } from '../../background/domain';
   import StudyActionMenu from './StudyActionMenu.svelte';
   import StudyTitle from './StudyTitle.svelte';
 
@@ -20,6 +28,7 @@
     studies,
     priorityFilters,
     telegramSettings,
+    primaryCurrency,
     overrideMessage,
     onStudyClick,
     onAddResearcherToFilter,
@@ -31,6 +40,7 @@
     studies: Study[];
     priorityFilters: PriorityFilter[];
     telegramSettings: TelegramSettings;
+    primaryCurrency: string;
     overrideMessage: string;
     onStudyClick: (url: string) => void;
     onAddResearcherToFilter: (study: Study, filterId: string, field: FilterListField) => void;
@@ -39,18 +49,106 @@
     onSendStudyToTelegram: (study: Study) => void;
   }>();
 
+  type SortKey = 'newest' | 'reward' | 'hourly' | 'places' | 'duration';
+
+  let sortKey = $state<SortKey>('newest');
+  let searchQuery = $state('');
+  let minReward = $state<number | null>(null);
+  let minHourly = $state<number | null>(null);
+  let maxDuration = $state<number | null>(null);
+
   const enabledFilters = $derived(priorityFilters.filter((f: PriorityFilter) => f.enabled));
 
-  const sortedStudies = $derived(
-    [...studies].sort((a, b) => {
-      const aDate = parseDate(a.published_at || a.date_created);
-      const bDate = parseDate(b.published_at || b.date_created);
-      const aTs = aDate ? aDate.getTime() : 0;
-      const bTs = bDate ? bDate.getTime() : 0;
-      if (aTs !== bTs) return aTs - bTs;
-      return (a.id || '').localeCompare(b.id || '');
-    })
+  function getTimestamp(study: Study): number {
+    const date = parseDate(study.published_at || study.date_created);
+    return date ? date.getTime() : 0;
+  }
+
+  let filtersExpanded = $state(false);
+
+  const hasNumericFilters = $derived(
+    (minReward !== null && minReward > 0) ||
+    (minHourly !== null && minHourly > 0) ||
+    (maxDuration !== null && maxDuration > 0)
   );
+
+  const hasActiveFilters = $derived(searchQuery.trim() !== '' || hasNumericFilters);
+
+  const currencySymbol = $derived(getCurrencySymbol(primaryCurrency));
+
+  const filteredAndSortedStudies = $derived.by(() => {
+    let result = [...studies];
+    const query = searchQuery.trim().toLowerCase();
+
+    if (query) {
+      result = result.filter((s) => {
+        const blob = studyKeywordBlob(s);
+        const researcher = s.researcher?.name?.toLowerCase() || '';
+        return blob.includes(query) || researcher.includes(query);
+      });
+    }
+
+    if (minReward !== null && minReward > 0) {
+      const threshold = minReward;
+      result = result.filter((s) => studyRewardMajor(s) >= threshold);
+    }
+    if (minHourly !== null && minHourly > 0) {
+      const threshold = minHourly;
+      result = result.filter((s) => studyHourlyRewardMajor(s) >= threshold);
+    }
+    if (maxDuration !== null && maxDuration > 0) {
+      const threshold = maxDuration;
+      result = result.filter((s) => {
+        const d = studyEstimatedMinutes(s);
+        return Number.isFinite(d) && d <= threshold;
+      });
+    }
+
+    result.sort((a, b) => {
+      let aVal: number, bVal: number;
+      switch (sortKey) {
+        case 'reward':
+          aVal = studyRewardMajor(a);
+          bVal = studyRewardMajor(b);
+          break;
+        case 'hourly':
+          aVal = studyHourlyRewardMajor(a);
+          bVal = studyHourlyRewardMajor(b);
+          break;
+        case 'places':
+          aVal = studyPlacesAvailable(a);
+          bVal = studyPlacesAvailable(b);
+          break;
+        case 'duration':
+          aVal = studyEstimatedMinutes(a);
+          bVal = studyEstimatedMinutes(b);
+          break;
+        case 'newest':
+        default:
+          aVal = getTimestamp(a);
+          bVal = getTimestamp(b);
+          break;
+      }
+      const aFinite = Number.isFinite(aVal);
+      const bFinite = Number.isFinite(bVal);
+      if (aFinite && bFinite) {
+        const diff = sortKey === 'duration' ? aVal - bVal : bVal - aVal;
+        if (diff !== 0) return diff;
+      } else if (aFinite !== bFinite) {
+        return aFinite ? -1 : 1;
+      }
+      return (a.id || '').localeCompare(b.id || '');
+    });
+
+    return result;
+  });
+
+  function clearFilters() {
+    searchQuery = '';
+    minReward = null;
+    minHourly = null;
+    maxDuration = null;
+  }
 
   function handleLinkClick(event: MouseEvent, url: string) {
     event.preventDefault();
@@ -59,17 +157,100 @@
 </script>
 
 <div id="panelLive" class="panel" class:active role="tabpanel" aria-labelledby="tabLive">
-  <div class="live-studies min-h-[420px] max-h-[420px] scroll-container pb-1">
+  {#if !overrideMessage && studies.length > 0}
+    <div class="live-toolbar mb-2 space-y-1.5">
+      <div class="flex items-center gap-1.5">
+        <input
+          type="text"
+          class="input input-xs flex-1 min-w-0"
+          placeholder="Search..."
+          bind:value={searchQuery}
+        />
+        <select
+          class="select select-xs w-auto"
+          bind:value={sortKey}
+          title="Sort studies by"
+        >
+          <option value="newest">Newest</option>
+          <option value="reward">Pay ↓</option>
+          <option value="hourly">Rate ↓</option>
+          <option value="places">Spots ↓</option>
+          <option value="duration">Time ↑</option>
+        </select>
+        <button
+          type="button"
+          class="btn btn-xs btn-square {filtersExpanded || hasNumericFilters ? 'btn-primary' : 'btn-ghost'}"
+          class:btn-outline={hasNumericFilters && !filtersExpanded}
+          onclick={() => filtersExpanded = !filtersExpanded}
+          title="Quick filters"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+        </button>
+      </div>
+      {#if filtersExpanded}
+        <div class="flex items-center gap-3 px-1 py-1.5 bg-base-200/50 rounded-lg text-[11px]">
+          <label class="flex items-center gap-1 text-base-content/70" title="Minimum reward">
+            <span class="text-[12px] font-semibold text-base-content/60">{currencySymbol}</span>
+            <input
+              type="number"
+              class="input input-xs w-12 tabular-nums text-center bg-base-100"
+              min="0"
+              step="0.5"
+              placeholder="any"
+              bind:value={minReward}
+            />
+          </label>
+          <label class="flex items-center gap-1 text-base-content/70" title="Minimum hourly rate">
+            <span class="text-[12px] font-semibold text-base-content/60">{currencySymbol}/hr</span>
+            <input
+              type="number"
+              class="input input-xs w-12 tabular-nums text-center bg-base-100"
+              min="0"
+              step="1"
+              placeholder="any"
+              bind:value={minHourly}
+            />
+          </label>
+          <label class="flex items-center gap-1 text-base-content/70" title="Maximum duration in minutes">
+            <span class="text-[12px] font-semibold text-base-content/60">ETA</span>
+            <input
+              type="number"
+              class="input input-xs w-12 tabular-nums text-center bg-base-100"
+              min="0"
+              step="5"
+              placeholder="any"
+              bind:value={maxDuration}
+            />
+          </label>
+          {#if hasNumericFilters}
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs ml-auto px-2 h-6 min-h-0 text-[11px] text-base-content/50 hover:text-error"
+              onclick={clearFilters}
+              title="Clear filters"
+            >✕ clear</button>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
+  <div class="live-studies min-h-[350px] max-h-[350px] scroll-container pb-1">
     {#if overrideMessage}
       <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-100">
         {overrideMessage}
       </div>
-    {:else if !sortedStudies.length}
+    {:else if !filteredAndSortedStudies.length}
       <div class="empty-events p-8 text-base-content/50 text-sm text-center border border-dashed border-base-300 rounded-lg bg-base-100">
-        No studies available right now. They'll appear here automatically.
+        {#if hasActiveFilters}
+          No studies match. Try widening your filters or click Clear.
+        {:else}
+          No studies available right now. They'll appear here automatically.
+        {/if}
       </div>
     {:else}
-      {#each sortedStudies as study (study.id)}
+      {#each filteredAndSortedStudies as study (study.id)}
         {@const blob = enabledFilters.length > 0 ? studyKeywordBlob(study) : ''}
         {@const isPriority = enabledFilters.length > 0 && enabledFilters.some((f: PriorityFilter) => studyMatchesPriorityFilter(study, f, blob))}
         {@const url = studyUrlFromId(study.id)}

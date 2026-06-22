@@ -13,7 +13,7 @@ export function extractStudyID(study: Study | null | undefined): string {
   return study?.id?.trim() ?? '';
 }
 
-function studyHourlyRewardMajor(study: Study | null | undefined): number {
+export function studyHourlyRewardMajor(study: Study | null | undefined): number {
   const s = study as any;
   const hourly = s && typeof s === 'object'
     ? (s.study_average_reward_per_hour || s.average_reward_per_hour)
@@ -21,7 +21,7 @@ function studyHourlyRewardMajor(study: Study | null | undefined): number {
   return moneyMajorValue(hourly as Money | null | undefined);
 }
 
-function studyRewardMajor(study: Study | null | undefined): number {
+export function studyRewardMajor(study: Study | null | undefined): number {
   const s = study as any;
   const reward = s && typeof s === 'object'
     ? (s.study_reward || s.reward)
@@ -29,7 +29,7 @@ function studyRewardMajor(study: Study | null | undefined): number {
   return moneyMajorValue(reward as Money | null | undefined);
 }
 
-function studyEstimatedMinutes(study: Study | null | undefined): number {
+export function studyEstimatedMinutes(study: Study | null | undefined): number {
   const s = study as any;
   const raw = s && (s.estimated_completion_time ?? (Number(s.average_completion_time_in_seconds) / 60));
   const minutes = Number(raw);
@@ -39,7 +39,7 @@ function studyEstimatedMinutes(study: Study | null | undefined): number {
   return minutes;
 }
 
-function studyPlacesAvailable(study: Study | null | undefined): number {
+export function studyPlacesAvailable(study: Study | null | undefined): number {
   const explicit = Number(study && study.places_available);
   if (Number.isFinite(explicit)) {
     return explicit;

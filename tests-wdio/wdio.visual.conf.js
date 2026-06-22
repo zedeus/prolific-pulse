@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { FIREFOX_PREFS, PROFILE_DIR, WXT_SRC_DIR } from './helpers/constants.js';
-import { zipExtensionBase64 } from './helpers/extension.js';
+import { zipExtensionBase64Dev } from './helpers/extension.js';
 
 const headless = process.env.HEADLESS !== '0';
 
@@ -27,7 +27,10 @@ export const config = {
   reporters: ['spec'],
   mochaOpts: { ui: 'bdd', timeout: 180_000 },
 
-  specs: [path.resolve('./specs/visual-earnings.js')],
+  specs: [
+    path.resolve('./specs/visual-earnings.js'),
+    path.resolve('./specs/visual-live.js'),
+  ],
 
   capabilities: [{
     browserName: 'firefox',
@@ -46,7 +49,7 @@ export const config = {
     console.log('Building extension with WXT (firefox, dev mode for __ppDev helpers)...');
     execSync('npx wxt build -b firefox --mode development', { cwd: WXT_SRC_DIR, stdio: 'inherit' });
     console.log('Installing extension...');
-    const xpiBase64 = await zipExtensionBase64();
+    const xpiBase64 = await zipExtensionBase64Dev();
     await browser.installAddOn(xpiBase64, true);
     await browser.pause(1500);
   },

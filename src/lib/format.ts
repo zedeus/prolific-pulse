@@ -16,6 +16,7 @@ import {
 
 const shortNumberFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const currencyFmtCache = new Map<string, Intl.NumberFormat>();
+const currencySymbolCache = new Map<string, string>();
 const clockTimeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
 function getCurrencyFmt(code: string): Intl.NumberFormat {
@@ -30,6 +31,21 @@ function getCurrencyFmt(code: string): Intl.NumberFormat {
     currencyFmtCache.set(code, fmt);
   }
   return fmt;
+}
+
+export function getCurrencySymbol(currency: string): string {
+  const code = (currency || 'USD').toUpperCase();
+  let symbol = currencySymbolCache.get(code);
+  if (symbol === undefined) {
+    try {
+      const formatted = new Intl.NumberFormat('en', { style: 'currency', currency: code }).format(0);
+      symbol = formatted.replace(/[\d.,\s]/g, '').trim() || code;
+    } catch {
+      symbol = code;
+    }
+    currencySymbolCache.set(code, symbol);
+  }
+  return symbol;
 }
 
 export function formatShortNumber(value: number): string {
