@@ -1,0 +1,75 @@
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  s_3615280ee9fbc0::t_76bdaa91485703 190
+  s_3615280ee9fbc0::t_5297f78f5f8901 67
+  s_3615280ee9fbc0::t_45c6c9dc4a8183 82
+  s_3615280ee9fbc0::t_146c2156baba43 252-253,255,263-306,309-338
+  s_3615280ee9fbc0::t_b1922e8f74a19c 130-137
+  s_3615280ee9fbc0::t_52b3524b7d89dd 415
+  s_3615280ee9fbc0::t_5f5c636d81461b 191-197
+  s_3615280ee9fbc0::t_3d09ea649182bd 406
+  s_3615280ee9fbc0::t_436dddea5f6b43 81,83-84,86,89-92
+  s_3615280ee9fbc0::t_df7448b750816c 361
+  s_3615280ee9fbc0::t_5c832ad8a34365 32
+  s_3615280ee9fbc0::t_f48c0d8dfd68df 362-363
+  s_3615280ee9fbc0::t_ce027a358444b7 307
+  s_3615280ee9fbc0::t_772376701727db 377-386,388,390-399,402-405,407-411
+  s_3615280ee9fbc0::t_9d0e89e64deb94 422,426,429
+  s_3615280ee9fbc0::t_d92db90c9c33ab 308
+  s_3615280ee9fbc0::t_86f5f24654ae45 28-31,33-34,36,68-70,73
+  s_3615280ee9fbc0::t_a4e0e1ec76b462 360
+  s_3615280ee9fbc0::t_2d51511d9c9a09 389
+  s_3615280ee9fbc0::t_de9b183467b0c2 26
+  s_3615280ee9fbc0::t_eb31d4a0234769 25
+tests-wdio/specs/visual-submissions.js
+  s_3615280ee9fbc0::t_789e852ae51a5d 114
+  s_3615280ee9fbc0::t_0951cd74137dd3 90
+  s_3615280ee9fbc0::t_49e53d35fdbfeb 47-59
+  s_3615280ee9fbc0::t_95a85e91b7518a 1-46,60-89,91-113,115-173
+src/lib/__dev__/fake-submissions.ts
+  s_3615280ee9fbc0::t_64bb90f64b7751 54-67
+  s_3615280ee9fbc0::t_26ee64ab8a58c5 70
+  s_3615280ee9fbc0::t_078368700ec1e1 119-120,122,127-129,133-138
+  s_3615280ee9fbc0::t_2b58487d2896da 121
+  s_3615280ee9fbc0::t_16697933518ccd 123,130-132,139
+  s_3615280ee9fbc0::t_74f3dbeef85ab0 141-144,146
+  s_3615280ee9fbc0::t_bbaaeb64a5b3f5 68-69
+src/lib/submission-analytics.ts
+  s_3615280ee9fbc0::t_e7f85e2e527702 65-68
+  s_3615280ee9fbc0::t_4be9ab51b10d7d 1-64,69-234
+  s_3615280ee9fbc0::t_5b6b8eca8bfd95 235,242-243,245-246,249,263-264,270-272,275
+  s_3615280ee9fbc0::t_32b354e52f88f9 236-241,244,247-248,250-262,265-269,273-274
+src/entrypoints/popup/components/EarningsStrip.svelte
+  s_3615280ee9fbc0::t_7c9b7603d5a6e8 111-113,115-118,120-122
+  s_3615280ee9fbc0::t_151c6dd7c13278 114,119
+  s_3615280ee9fbc0::t_3f986c9c75fdee 13,27
+  s_3615280ee9fbc0::t_219cd99d0f06fd 28-30
+src/lib/__tests__/submission-analytics.test.ts
+  s_3615280ee9fbc0::t_bf058c2450b16e 287-453
+  s_3615280ee9fbc0::t_671cc7e753bd12 1-286
+src/entrypoints/popup/components/SubmissionDetail.svelte
+  s_3615280ee9fbc0::t_3b8ed3e929e843 6-7,11-12,28,31,44-62
+  s_3615280ee9fbc0::t_b98c197de176c8 43
+  s_3615280ee9fbc0::t_2eb00eb68c4976 78,81
+  s_3615280ee9fbc0::t_4c2409df8550f3 135-151
+  s_3615280ee9fbc0::t_a82e0097b7656d 23
+  s_3615280ee9fbc0::t_23193de0a8d631 117-120,133-134,153-166
+  s_3615280ee9fbc0::t_42c9f51a842135 152
+  s_3615280ee9fbc0::t_f2d09c0c79a0b4 1-5,8-10,13-22,25-27,29-30,32-42,63-77,79-80,82-116,121-132,167-203
+  s_3615280ee9fbc0::t_12318c72c7a403 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "a110fc30b3dcab93b2b686a4395ceb477c9ffebc",
+  "prompts": {},
+  "sessions": {
+    "s_3615280ee9fbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c470cea-6b5a-485e-8aba-c8d30c33b646",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
