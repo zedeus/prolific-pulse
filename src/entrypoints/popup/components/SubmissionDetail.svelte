@@ -145,7 +145,7 @@
           {#if meta?.study_code}
             <span class="badge badge-sm bg-base-200 text-base-content/50 border-0 font-mono" title="Completion code">{meta.study_code}</span>
           {/if}
-          {#each meta?.bonuses ?? [] as bonus}
+          {#each meta?.bonuses ?? [] as bonus, i (i)}
             <span class="badge badge-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-0" title="Bonus">+{formatMoneyFromMinorUnits(bonus)}</span>
           {/each}
         </div>

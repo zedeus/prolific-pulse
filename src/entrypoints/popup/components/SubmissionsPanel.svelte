@@ -359,7 +359,6 @@
         {@const researcherName = extractResearcherFromSubmissionPayload(entry.payload)?.name ?? ''}
         {@const completedAt = extractCompletedAt(entry)}
         {@const startedAt = extractStartedAt(entry)}
-        {@const hasRealTime = !!(completedAt || startedAt)}
         {@const displayTime = completedAt ? formatRelative(completedAt.toISOString(), true) : startedAt ? formatRelative(startedAt.toISOString(), true) : `Added ${formatRelative(entry.observed_at, true)}`}
         {@const studyURL = studyUrlFromId(entry.study_id)}
         {@const rewardMoney = extractSubmissionReward(entry)}
