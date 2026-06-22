@@ -1,0 +1,39 @@
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  s_3615280ee9fbc0::t_436dddea5f6b43 81,83-84,86,89-92
+  s_3615280ee9fbc0::t_de9b183467b0c2 26
+  s_3615280ee9fbc0::t_eb31d4a0234769 25
+  s_3615280ee9fbc0::t_9d0e89e64deb94 422,426,429
+  s_3615280ee9fbc0::t_2d51511d9c9a09 389
+  s_3615280ee9fbc0::t_86f5f24654ae45 28-31,33-34,36,68-70,73
+  s_3615280ee9fbc0::t_45c6c9dc4a8183 82
+  s_3615280ee9fbc0::t_ce027a358444b7 307
+  s_3615280ee9fbc0::t_a4e0e1ec76b462 360
+  s_3615280ee9fbc0::t_146c2156baba43 252-253,255,263-306,309-338
+  s_3615280ee9fbc0::t_5297f78f5f8901 67
+  s_3615280ee9fbc0::t_52b3524b7d89dd 415
+  s_3615280ee9fbc0::t_d92db90c9c33ab 308
+  s_3615280ee9fbc0::t_f48c0d8dfd68df 362-363
+  s_3615280ee9fbc0::t_3d09ea649182bd 406
+  s_3615280ee9fbc0::t_5c832ad8a34365 32
+  s_3615280ee9fbc0::t_5f5c636d81461b 191-197
+  s_3615280ee9fbc0::t_b1922e8f74a19c 130-137
+  s_3615280ee9fbc0::t_df7448b750816c 361
+  s_3615280ee9fbc0::t_772376701727db 377-386,388,390-399,402-405,407-411
+  s_3615280ee9fbc0::t_76bdaa91485703 190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "47fdd0117b72a848e7bc8dc8e39cec1a144238f2",
+  "prompts": {},
+  "sessions": {
+    "s_3615280ee9fbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c470cea-6b5a-485e-8aba-c8d30c33b646",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
