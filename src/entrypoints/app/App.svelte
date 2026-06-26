@@ -6,6 +6,7 @@
   import type { EarningsPrefs } from '../../lib/earnings-prefs';
   import { loadEarningsPrefs, saveEarningsPrefs, DEFAULT_EARNINGS_PREFS } from '../../lib/earnings-prefs';
   import { listCurrencies, detectDefaultCurrency } from '../../lib/earnings';
+  import { getStudyTypeMap } from '../../lib/store';
   import { maybeRefreshFxRatesForPrefs } from '../../lib/fx-rates';
   import { SEED_CURRENCIES } from '../../lib/constants';
   import { applyThemeAttr, readInitialTheme, watchSystemTheme, writeThemePref } from '../../lib/theme';
@@ -14,6 +15,7 @@
   import EarningsView from './views/EarningsView.svelte';
 
   let submissions: SubmissionRecord[] = $state([]);
+  let studyTypeMap: Map<string, string> = $state(new Map());
   let earningsPrefs: EarningsPrefs = $state({ ...DEFAULT_EARNINGS_PREFS, fx_rates: {}, fx_rates_cache: {} });
   let loading = $state(true);
   let darkMode = $state(false);
@@ -45,12 +47,15 @@
 
   async function loadAll() {
     try {
-      const [rows, prefs] = await Promise.all([
+      const [rows, prefs, typeMap] = await Promise.all([
         db.submissions.where('phase').equals('submitted').toArray(),
         loadEarningsPrefs(),
+        // Study types are decorative — a read failure shouldn't block submissions/totals from loading.
+        getStudyTypeMap().catch(() => new Map<string, string>()),
       ]);
       submissions = rows;
       earningsPrefs = prefs;
+      studyTypeMap = typeMap;
     } finally {
       loading = false;
     }
@@ -111,6 +116,7 @@
   {:else}
     <EarningsView
       {submissions}
+      {studyTypeMap}
       {earningsPrefs}
       onEarningsPrefsChange={handleEarningsPrefsChange}
       onReloadSubmissions={loadAll}

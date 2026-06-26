@@ -14,11 +14,13 @@
     forecastDaily,
     FORECAST_MIN_HISTORY_DAYS,
     computeTotals,
+    computeStatusComposition,
     groupByDayOfWeek,
     groupByDowHour,
     groupByHourOfDay,
     groupByResearcher,
     groupByStudy,
+    groupByStudyType,
     localDateKey,
     observedDateRange,
     parseDateKey,
@@ -26,6 +28,7 @@
     perSubmissionHourly,
     perSubmissionHourlySeries,
     quantile,
+    recordEventTime,
     resolveEarningsContext,
     startOfLocalDay,
     summarizeRates,
@@ -39,11 +42,13 @@
   import { scaleBand } from 'd3-scale';
   import { Area, Axis, Bar, Chart, ChartClipPath, Circle, Highlight, Rule, Spline, Svg, Tooltip } from 'layerchart';
 
-  let { submissions, earningsPrefs, onEarningsPrefsChange, onReloadSubmissions } = $props<{
+  let { submissions, earningsPrefs, onEarningsPrefsChange, onReloadSubmissions, studyTypeMap } = $props<{
     submissions: SubmissionRecord[];
     earningsPrefs: EarningsPrefs;
     onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
     onReloadSubmissions: () => Promise<void>;
+    /** study_id → display study-type label, from observed studies (see getStudyTypeMap). */
+    studyTypeMap: Map<string, string>;
   }>();
 
   type RangePreset = '7d' | '30d' | '90d' | 'this_month' | 'last_month' | 'all';
@@ -83,6 +88,57 @@
   );
 
   const rangeRollups = $derived(dailyRollups(rangeRecords));
+
+  // ── Status composition ─────────────────────────────────────
+  // Composition needs rejected/returned too, which filterEligible drops — so window the full
+  // converted set by the active range (all statuses) and let computeStatusComposition split it.
+  const rangeAllStatusRecords = $derived.by(() => {
+    if (!currency) return [];
+    const { start, end } = range;
+    if (!start && !end) return convertedSubmissions;
+    const out: SubmissionRecord[] = [];
+    for (const r of convertedSubmissions) {
+      const t = recordEventTime(r);
+      if (!t) continue;
+      if (start && t < start) continue;
+      if (end && t >= end) continue;
+      out.push(r);
+    }
+    return out;
+  });
+  const statusComposition = $derived(computeStatusComposition(rangeAllStatusRecords, currency));
+  const compositionTotal = $derived(
+    statusComposition.banked_minor + statusComposition.pending_minor + statusComposition.lost_minor,
+  );
+  const COMPOSITION_SEGMENTS = $derived([
+    {
+      key: 'banked',
+      label: 'Banked',
+      sub: 'Approved — paid out',
+      minor: statusComposition.banked_minor,
+      count: statusComposition.banked_count,
+      barClass: 'bg-emerald-500',
+      textClass: 'text-emerald-600 dark:text-emerald-400',
+    },
+    {
+      key: 'pending',
+      label: 'Pending',
+      sub: 'Awaiting review',
+      minor: statusComposition.pending_minor,
+      count: statusComposition.pending_count,
+      barClass: 'bg-amber-400 dark:bg-amber-500',
+      textClass: 'text-amber-600 dark:text-amber-400',
+    },
+    {
+      key: 'lost',
+      label: 'Not paid',
+      sub: 'Rejected or returned',
+      minor: statusComposition.lost_minor,
+      count: statusComposition.lost_count,
+      barClass: 'bg-rose-400 dark:bg-rose-500',
+      textClass: 'text-rose-600 dark:text-rose-400',
+    },
+  ]);
 
   // ── Cards ──────────────────────────────────────────────────
   const todayStart = startOfLocalDay(now);
@@ -655,6 +711,21 @@
   const studyMedian = $derived(rateMedian(fullStudyBoard));
   const researcherMedian = $derived(rateMedian(fullResearcherBoard));
 
+  // ── Earnings by study type ─────────────────────────────────
+  const studyTypeBoard = $derived.by(() => {
+    const resolve = (id: string) => studyTypeMap?.get(id) ?? '';
+    const board = groupByStudyType(rangeRecords, resolve);
+    board.sort((a, b) => b.reward_minor - a.reward_minor || a.label.localeCompare(b.label));
+    return board;
+  });
+  const studyTypeMedian = $derived(rateMedian(studyTypeBoard));
+  const studyTypeTotal = $derived(studyTypeBoard.reduce((sum, g) => sum + g.reward_minor, 0));
+  // Board is sorted by reward descending, so the largest bar is simply the first row.
+  const studyTypeMaxReward = $derived(studyTypeBoard[0]?.reward_minor ?? 0);
+  const studyTypeOtherShare = $derived(
+    studyTypeTotal > 0 ? (studyTypeBoard.find((g) => g.key === 'Other')?.reward_minor ?? 0) / studyTypeTotal : 0,
+  );
+
   type LeaderSortKey = 'name' | 'earned' | 'count' | 'rate';
   type LeaderSort = { key: LeaderSortKey; dir: 'asc' | 'desc' };
   let studySort: LeaderSort = $state({ key: 'earned', dir: 'desc' });
@@ -984,6 +1055,47 @@
         </div>
       {/each}
     </div>
+
+    <!-- Earnings composition by status -->
+    <section class="rounded-lg border border-base-300 bg-base-100 p-4">
+      <div class="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
+        <h2 class="font-semibold">Where your money stands · {range.label}</h2>
+        <div class="text-xs text-base-content/55">Reward value by submission outcome</div>
+      </div>
+      {#if compositionTotal === 0}
+        <div class="text-center text-base-content/50 py-8">No submissions with a reward in this range.</div>
+      {:else}
+        <div
+          class="flex h-3 w-full overflow-hidden rounded-full bg-base-200"
+          role="img"
+          aria-label={`Banked ${fmt(statusComposition.banked_minor / 100)}, pending ${fmt(statusComposition.pending_minor / 100)}, not paid ${fmt(statusComposition.lost_minor / 100)}`}
+        >
+          {#each COMPOSITION_SEGMENTS as seg (seg.key)}
+            {#if seg.minor > 0}
+              <div class={seg.barClass} style={`width: ${(seg.minor / compositionTotal) * 100}%`}></div>
+            {/if}
+          {/each}
+        </div>
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {#each COMPOSITION_SEGMENTS as seg (seg.key)}
+            <div class="rounded border border-base-300 p-3">
+              <div class="flex items-center gap-1.5">
+                <span class={`inline-block w-2.5 h-2.5 rounded-sm ${seg.barClass}`}></span>
+                <span class="text-sm font-semibold">{seg.label}</span>
+                <span class="ml-auto text-[11px] text-base-content/50">{Math.round((seg.minor / compositionTotal) * 100)}%</span>
+              </div>
+              <div class={`text-xl font-bold mt-1 ${seg.textClass}`}>{fmt(seg.minor / 100)}</div>
+              <div class="text-[11px] text-base-content/55 mt-0.5">{seg.sub} · {seg.count} submission{seg.count === 1 ? '' : 's'}</div>
+            </div>
+          {/each}
+        </div>
+        <div class="mt-3 text-[11px] text-base-content/55 leading-snug">
+          <span class="font-medium text-base-content/70">Banked</span> is paid and yours.
+          <span class="font-medium text-base-content/70">Pending</span> is awaiting the researcher's review — usually approved, but not guaranteed.
+          <span class="font-medium text-base-content/70">Not paid</span> is the reward on submissions you returned or that were rejected.
+        </div>
+      {/if}
+    </section>
 
     <!-- Cumulative earnings + forecast -->
     <section class="rounded-lg border border-base-300 bg-base-100 p-4">
@@ -1674,5 +1786,38 @@
         {/if}
       </section>
     </div>
+
+    <!-- Earnings by study type -->
+    <section class="rounded-lg border border-base-300 bg-base-100 p-4">
+      <div class="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
+        <h2 class="font-semibold">Earnings by study type · {range.label}</h2>
+        <div class="text-xs text-base-content/55">Auto-detected from studies you've seen</div>
+      </div>
+      {#if studyTypeBoard.length === 0}
+        <div class="text-sm text-base-content/50 py-4">No studies in range.</div>
+      {:else}
+        <div class="space-y-1.5">
+          {#each studyTypeBoard as t (t.key)}
+            {@const median = studyTypeMedian.get(t.key) ?? NaN}
+            {@const isOther = t.key === 'Other'}
+            <div class="flex items-center gap-3">
+              <div class="w-28 shrink-0 text-sm font-medium truncate {isOther ? 'text-base-content/55' : ''}" title={t.label}>{t.label}</div>
+              <div class="flex-1 h-5 rounded bg-base-200 overflow-hidden">
+                <div class="h-full {isOther ? 'bg-base-content/25' : 'bg-primary'}" style={`width: ${studyTypeMaxReward > 0 ? (t.reward_minor / studyTypeMaxReward) * 100 : 0}%`}></div>
+              </div>
+              <div class="w-20 shrink-0 text-right text-sm font-semibold">{fmt(t.reward_minor / 100)}</div>
+              <div class="w-24 shrink-0 text-right text-[11px] text-base-content/55">
+                {t.submission_count} sub{t.submission_count === 1 ? '' : 's'}{Number.isFinite(median) ? ` · ${fmt(median)}/hr` : ''}
+              </div>
+            </div>
+          {/each}
+        </div>
+        {#if studyTypeOtherShare >= 0.5}
+          <div class="mt-3 text-[11px] text-base-content/55 leading-snug">
+            Most earnings show as “Other” because their type isn't known yet. Prolific doesn't label past submissions, so types are detected from studies you see while the extension runs — they'll fill in the longer you use it.
+          </div>
+        {/if}
+      {/if}
+    </section>
   {/if}
 </div>

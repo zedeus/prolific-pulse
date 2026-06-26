@@ -1,6 +1,6 @@
 import { db } from './db';
 import { extractSubmissionReward, extractStartedAt } from './earnings';
-import { nowIso, trimString } from './format';
+import { nowIso, trimString, formatStudyLabel } from './format';
 import { CSV_SUBMISSION_ID_PREFIX } from './import-csv';
 import type {
   StudyLatestRecord,
@@ -75,6 +75,29 @@ export async function storeNormalizedStudies(studies: Study[], observedAt: strin
     }),
     upsertResearchersFromStudies(studies, observedAt),
   ]);
+}
+
+/**
+ * Build a `study_id → display study-type label` map from every study we've observed.
+ * Used to label earnings by study type (submissions don't carry labels themselves).
+ * Studies with no usable label are omitted, so callers should fall back to "Other".
+ */
+export async function getStudyTypeMap(): Promise<Map<string, string>> {
+  const rows = await db.studiesLatest.toArray();
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (!row.study_id) continue;
+    const p = row.payload as Partial<Study> | undefined;
+    // Defensive: payloads may predate the current schema or be hand-imported — only feed clean
+    // string labels to formatStudyLabel, which would otherwise throw on a non-string element.
+    const label = formatStudyLabel(stringArray(p?.study_labels), stringArray(p?.ai_inferred_study_labels));
+    if (label) map.set(row.study_id, label);
+  }
+  return map;
+}
+
+function stringArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 }
 
 // --- Researchers ---

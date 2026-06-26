@@ -91,6 +91,8 @@
   let allSubmissions: SubmissionRecord[] = $state([]);
   let earningsPrefs: EarningsPrefs = $state({ ...DEFAULT_EARNINGS_PREFS, fx_rates: {}, fx_rates_cache: {} });
   let knownResearchers: ResearcherRecord[] = $state([]);
+  // study_id → study-type label, loaded once per popup open (types are stable within a session).
+  let studyTypeMap: Map<string, string> = $state(new Map());
   let focusFilterId = $state('');
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
@@ -177,6 +179,7 @@
     untrack(() => {
       refreshSettings();
       refreshView();
+      void loadStudyTypeMap();
     });
   });
 
@@ -297,6 +300,14 @@
     ]);
     const researchers = store.annotateResearcherCounts(researcherList, studiesList, analyticsList);
     return { refreshState, studies: studiesList, events: eventsList, submissions: submissionsList, analyticsSubmissions: analyticsList, researchers };
+  }
+
+  async function loadStudyTypeMap() {
+    try {
+      studyTypeMap = await store.getStudyTypeMap();
+    } catch {
+      /* non-fatal: study-type breakdown just falls back to "Other" */
+    }
   }
 
 
@@ -697,6 +708,7 @@
     <Earnings
       active={activeTab === 'earnings'}
       {allSubmissions}
+      {studyTypeMap}
       {earningsPrefs}
       onEarningsPrefsChange={handleEarningsPrefsChange}
       overrideMessage={showPanelOverride ? panelOverrideText : ''}

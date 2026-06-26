@@ -5,26 +5,36 @@
   import {
     filterEligible,
     computeTotals,
+    computeStatusComposition,
     perSubmissionHourlySeries,
     perHourOfWorkDaily,
     dailyRollups,
     summarizeRates,
+    groupByResearcher,
+    groupByStudyType,
+    groupByDayOfWeek,
+    weekdayDailyStats,
+    forecastDaily,
+    FORECAST_MIN_HISTORY_DAYS,
     daysAgo,
     startOfLocalDay,
     addLocalDays,
     localDateKey,
     resolveEarningsContext,
     type RateStats,
+    type GroupAgg,
   } from '../../../lib/earnings';
   import { formatMoneyFromMajorUnits } from '../../../lib/format';
-  import { Area, Axis, Chart, Highlight, Svg, Tooltip } from 'layerchart';
+  import { Area, Chart, Highlight, Svg, Tooltip } from 'layerchart';
 
-  let { active, allSubmissions, earningsPrefs, onEarningsPrefsChange, overrideMessage } = $props<{
+  let { active, allSubmissions, earningsPrefs, onEarningsPrefsChange, overrideMessage, studyTypeMap } = $props<{
     active: boolean;
     allSubmissions: SubmissionRecord[];
     earningsPrefs: EarningsPrefs;
     onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
     overrideMessage: string;
+    /** study_id → display study-type label, from observed studies (see getStudyTypeMap). */
+    studyTypeMap?: Map<string, string>;
   }>();
 
   type RateMethod = 'per_submission' | 'per_hour_of_work' | 'per_active_day';
@@ -68,6 +78,8 @@
   const eligibleAll = $derived(
     filterEligible(convertedSubmissions, { includeStatus, currency }),
   );
+  // One day-bucketing pass over the all-time eligible set, shared by the rate + forecast widgets.
+  const allRollups = $derived(dailyRollups(eligibleAll));
 
   // Sparkline: daily earnings over last 30 days
   interface SparkPoint { date: Date; value: number; }
@@ -92,8 +104,77 @@
       return summarizeRates(perHourOfWorkDaily(eligibleAll));
     }
     // per_active_day: median £/day across days with ≥3 submissions
-    const rollups = dailyRollups(eligibleAll).filter((r) => r.submission_count >= 3);
+    const rollups = allRollups.filter((r) => r.submission_count >= 3);
     return summarizeRates(rollups.map((r) => r.reward_minor / 100));
+  });
+
+  // ── On pace this month ─────────────────────────────────────
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEndExclusive = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const monthEndLabel = addLocalDays(monthEndExclusive, -1).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const monthToDate = $derived(totalFor(monthStart));
+  // "On pace" needs a real recent earning pattern. Gate on the count of distinct days you've
+  // actually earned (all-time); the trailing-28-day weekday medians drive the projection itself.
+  // Gating on raw window length would look "ready" yet project ~£0 for a barely-active user,
+  // because weekdayDailyStats counts every calendar day (incl. zero days) as a sample.
+  const totalActiveDays = $derived(allRollups.length);
+  const monthForecast = $derived.by(() => {
+    if (!currency) return null;
+    const start = daysAgo(28, now);
+    const tomorrow = addLocalDays(todayStart, 1);
+    const source = dailyRollups(filterEligible(convertedSubmissions, { includeStatus, currency, start }));
+    const stats = weekdayDailyStats(source, start, tomorrow);
+    const horizon = Math.max(0, Math.round((monthEndExclusive.getTime() - tomorrow.getTime()) / 86_400_000));
+    const points = forecastDaily(stats, tomorrow, horizon);
+    let median = 0, p25 = 0, p75 = 0;
+    for (const p of points) { median += p.median; p25 += p.p25; p75 += p.p75; }
+    const ready = totalActiveDays >= FORECAST_MIN_HISTORY_DAYS && median > 0;
+    return {
+      ready,
+      remainingDays: horizon,
+      projected: monthToDate + median,
+      low: monthToDate + p25,
+      high: monthToDate + p75,
+    };
+  });
+  const forecastDaysNeeded = $derived(Math.max(0, FORECAST_MIN_HISTORY_DAYS - totalActiveDays));
+  const monthPaceHint = $derived(
+    forecastDaysNeeded > 0
+      ? `${forecastDaysNeeded} more day${forecastDaysNeeded === 1 ? '' : 's'} of studies unlocks a forecast`
+      : 'do a few more studies to forecast the rest of the month',
+  );
+
+  // ── Status composition (all time) ──────────────────────────
+  const composition = $derived(computeStatusComposition(convertedSubmissions, currency));
+  const compositionTotal = $derived(composition.banked_minor + composition.pending_minor + composition.lost_minor);
+  const compositionSegments = $derived([
+    { key: 'banked', label: 'Banked', minor: composition.banked_minor, barClass: 'bg-emerald-500' },
+    { key: 'pending', label: 'Pending', minor: composition.pending_minor, barClass: 'bg-amber-400 dark:bg-amber-500' },
+    { key: 'lost', label: 'Not paid', minor: composition.lost_minor, barClass: 'bg-rose-400 dark:bg-rose-500' },
+  ]);
+
+  // ── Top researchers + study types (all time, by earnings) ──
+  const topResearchers = $derived(
+    [...groupByResearcher(eligibleAll)].sort((a, b) => b.reward_minor - a.reward_minor).slice(0, 4),
+  );
+  const topStudyTypes = $derived(
+    [...groupByStudyType(eligibleAll, (id: string) => studyTypeMap?.get(id) ?? '')]
+      .sort((a, b) => b.reward_minor - a.reward_minor)
+      .slice(0, 4),
+  );
+
+  // ── Best days (day-of-week earnings) ───────────────────────
+  const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const DOW_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+  const dowBuckets = $derived(groupByDayOfWeek(eligibleAll));
+  const dowMax = $derived(dowBuckets.reduce((m, b) => Math.max(m, b.reward_minor), 0));
+  const bestDow = $derived.by(() => {
+    let best: (typeof dowBuckets)[number] | null = null;
+    for (const b of dowBuckets) {
+      if (b.reward_minor <= 0) continue;
+      if (!best || b.reward_minor > best.reward_minor) best = b;
+    }
+    return best;
   });
 
   function fmt(major: number): string {
@@ -180,6 +261,35 @@
         {/each}
       </div>
 
+      <!-- On pace this month -->
+      {#if monthForecast?.ready}
+        <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
+          <div class="flex items-baseline justify-between mb-1">
+            <div class="text-[11px] uppercase tracking-wide text-base-content/55 font-semibold">On pace this month</div>
+            <div class="text-[10.5px] text-base-content/45">by {monthEndLabel} · {monthForecast.remainingDays}d left</div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span class="text-[18px] font-bold text-primary leading-none">{fmt(monthForecast.projected)}</span>
+            <span class="text-[11px] text-base-content/55">{fmt(monthToDate)} so far</span>
+          </div>
+          <div
+            class="mt-2 h-2 rounded-full bg-base-200 overflow-hidden"
+            title={`${fmt(monthToDate)} earned of ${fmt(monthForecast.projected)} projected`}
+          >
+            <div class="h-full bg-primary" style={`width: ${monthForecast.projected > 0 ? Math.min(100, (monthToDate / monthForecast.projected) * 100) : 0}%`}></div>
+          </div>
+          <div class="mt-1 text-[10px] text-base-content/45">Likely {fmt(monthForecast.low)} – {fmt(monthForecast.high)}, depending on how busy the rest of the month is</div>
+        </div>
+      {:else}
+        <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
+          <div class="text-[11px] uppercase tracking-wide text-base-content/55 font-semibold">This month</div>
+          <div class="flex items-baseline gap-2 mt-0.5">
+            <span class="text-[18px] font-bold leading-none">{fmt(monthToDate)}</span>
+            <span class="text-[11px] text-base-content/55">so far · {monthPaceHint}</span>
+          </div>
+        </div>
+      {/if}
+
       <!-- Sparkline -->
       <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
         <div class="flex items-baseline justify-between mb-1">
@@ -213,6 +323,84 @@
           </Chart>
         </div>
       </div>
+
+      <!-- Money status (composition) -->
+      {#if compositionTotal > 0}
+        <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
+          <div class="flex items-baseline justify-between mb-1.5">
+            <div class="text-[11px] uppercase tracking-wide text-base-content/55 font-semibold">Money status</div>
+            <div class="text-[10.5px] text-base-content/45">all time</div>
+          </div>
+          <div
+            class="flex h-2.5 w-full overflow-hidden rounded-full bg-base-200"
+            title="Banked = approved and paid · Pending = awaiting the researcher's review · Not paid = returned or rejected"
+          >
+            {#each compositionSegments as seg (seg.key)}
+              {#if seg.minor > 0}
+                <div class={seg.barClass} style={`width: ${(seg.minor / compositionTotal) * 100}%`}></div>
+              {/if}
+            {/each}
+          </div>
+          <div class="mt-1.5 flex items-center justify-between gap-1 text-[10.5px]">
+            {#each compositionSegments as seg (seg.key)}
+              <span class="inline-flex items-center gap-1 min-w-0">
+                <span class={`inline-block w-2 h-2 rounded-sm shrink-0 ${seg.barClass}`}></span>
+                <span class="text-base-content/55">{seg.label}</span>
+                <span class="font-semibold whitespace-nowrap">{fmt(seg.minor / 100)}</span>
+              </span>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      <!-- Top researchers + study types -->
+      {#snippet topCard(title: string, rows: GroupAgg[], dimOther: boolean)}
+        <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
+          <div class="text-[10.5px] uppercase tracking-wide text-base-content/55 font-semibold mb-1.5">{title}</div>
+          {#if rows.length === 0}
+            <div class="text-[11px] text-base-content/40 py-1">No data yet</div>
+          {:else}
+            <div class="space-y-1">
+              {#each rows as row (row.key)}
+                <div class="flex items-baseline justify-between gap-2">
+                  <span class="text-[11.5px] truncate {dimOther && row.key === 'Other' ? 'text-base-content/55' : ''}" title={row.label}>{row.label}</span>
+                  <span class="text-[11.5px] font-semibold whitespace-nowrap">{fmt(row.reward_minor / 100)}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/snippet}
+      <div class="grid grid-cols-2 gap-2">
+        {@render topCard('Top researchers', topResearchers, false)}
+        {@render topCard('Top study types', topStudyTypes, true)}
+      </div>
+
+      <!-- Best days -->
+      {#if dowMax > 0}
+        <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
+          <div class="flex items-baseline justify-between mb-1.5">
+            <div class="text-[11px] uppercase tracking-wide text-base-content/55 font-semibold">Best days</div>
+            {#if bestDow}
+              <div class="text-[10.5px] text-base-content/55">You earn most on <span class="font-semibold text-base-content/80">{DOW_FULL[bestDow.dow]}</span></div>
+            {/if}
+          </div>
+          <div class="flex items-end gap-1 h-9">
+            {#each dowBuckets as b (b.dow)}
+              <div
+                class="flex-1 rounded-sm {b.dow === bestDow?.dow ? 'bg-primary' : 'bg-primary/30'}"
+                style={`height: ${dowMax > 0 ? Math.max(4, (b.reward_minor / dowMax) * 100) : 0}%`}
+                title={`${DOW_FULL[b.dow]}: ${fmt(b.reward_minor / 100)}`}
+              ></div>
+            {/each}
+          </div>
+          <div class="flex gap-1 mt-0.5">
+            {#each DOW_INITIALS as d, i (i)}
+              <div class="flex-1 text-center text-[9px] text-base-content/45">{d}</div>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       <!-- Rate -->
       <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">

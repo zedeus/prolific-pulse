@@ -165,6 +165,38 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
   return out;
 }
 
+// Fake submissions reference study ids `study-1`..`study-40`. Submissions don't carry study-type
+// labels, so the earnings "by study type" view joins against observed study records. We seed
+// labelled `studiesLatest` records for those ids here, leaving a handful unlabelled so the
+// "Other" bucket is exercised too. Labels use the same vocabulary as formatStudyLabel().
+const FAKE_STUDY_ID_COUNT = 40;
+const FAKE_LABELLED_STUDY_COUNT = 34;
+const FAKE_STUDY_TYPE_POOL: readonly string[] = [
+  'survey', 'survey', 'survey', 'survey',
+  'experiment', 'experiment', 'experiment',
+  'interview', 'interview',
+  'longitudinal',
+  'data_collection',
+  'decision_making_task',
+];
+
+async function seedFakeStudyTypes(): Promise<void> {
+  const { db } = await import('../db');
+  const now = new Date().toISOString();
+  const records = [];
+  for (let n = 1; n <= FAKE_LABELLED_STUDY_COUNT; n++) {
+    const label = FAKE_STUDY_TYPE_POOL[(n - 1) % FAKE_STUDY_TYPE_POOL.length];
+    const name = `Study ${n}`;
+    records.push({
+      study_id: `study-${n}`,
+      name,
+      payload: { id: `study-${n}`, name, study_labels: [label], ai_inferred_study_labels: [] },
+      last_seen_at: now,
+    });
+  }
+  await db.studiesLatest.bulkPut(records);
+}
+
 /** Exposed on `window.__ppDev.seed` by dev-helpers. */
 export async function seedFakeSubmissions(count: number, seed?: number): Promise<number> {
   const { db } = await import('../db');
@@ -175,10 +207,13 @@ export async function seedFakeSubmissions(count: number, seed?: number): Promise
   for (let i = 0; i < records.length; i += CHUNK) {
     await db.submissions.bulkAdd(records.slice(i, i + CHUNK));
   }
+  await seedFakeStudyTypes();
   return records.length;
 }
 
 export async function clearFakeSubmissions(): Promise<void> {
   const { db } = await import('../db');
   await db.submissions.clear();
+  const studyIds = Array.from({ length: FAKE_STUDY_ID_COUNT }, (_, i) => `study-${i + 1}`);
+  await db.studiesLatest.bulkDelete(studyIds);
 }

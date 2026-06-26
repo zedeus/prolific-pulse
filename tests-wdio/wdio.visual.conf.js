@@ -29,6 +29,7 @@ export const config = {
 
   specs: [
     path.resolve('./specs/visual-earnings.js'),
+    path.resolve('./specs/visual-earnings-popup.js'),
     path.resolve('./specs/visual-live.js'),
   ],
 

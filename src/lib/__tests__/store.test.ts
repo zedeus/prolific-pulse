@@ -638,3 +638,44 @@ describe('importSubmissions', () => {
     expect(summary).toEqual({ added: 1, skipped_existing: 1, total: 2 });
   });
 });
+
+describe('getStudyTypeMap', () => {
+  it('maps study_id to a display label from observed studies, omitting unlabelled', async () => {
+    await store.storeNormalizedStudies([
+      makeStudy('study-1', 'Survey A', { ai_inferred_study_labels: ['survey'] }),
+      makeStudy('study-2', 'Interview B', { study_labels: ['interview'], ai_inferred_study_labels: ['survey'] }),
+      makeStudy('study-3', 'Untyped C'), // no labels → omitted
+    ], '2026-04-01T00:00:00Z');
+
+    const map = await store.getStudyTypeMap();
+    expect(map.get('study-1')).toBe('Survey');
+    // explicit study_labels win over ai_inferred
+    expect(map.get('study-2')).toBe('Interview');
+    expect(map.has('study-3')).toBe(false);
+  });
+
+  it('returns an empty map when no studies observed', async () => {
+    const map = await store.getStudyTypeMap();
+    expect(map.size).toBe(0);
+  });
+});
+
+describe('getStudyTypeMap — malformed payloads', () => {
+  it('survives non-string labels, null, string-instead-of-array, missing fields', async () => {
+    await db.studiesLatest.bulkPut([
+      // study_labels[0] is a number — formatStudyLabel(...).trim() would throw on it
+      { study_id: 's-num', name: 'n', payload: { study_labels: [123], ai_inferred_study_labels: ['survey'] }, last_seen_at: 't' },
+      { study_id: 's-null', name: 'n', payload: { study_labels: null, ai_inferred_study_labels: null }, last_seen_at: 't' },
+      { study_id: 's-str', name: 'n', payload: { study_labels: 'survey' }, last_seen_at: 't' },
+      { study_id: 's-empty', name: 'n', payload: {}, last_seen_at: 't' },
+      { study_id: 's-ok', name: 'n', payload: { study_labels: ['interview'] }, last_seen_at: 't' },
+    ]);
+    const map = await store.getStudyTypeMap();
+    expect(map.get('s-ok')).toBe('Interview');
+    // non-string first element is ignored, falling through to ai_inferred 'survey'
+    expect(map.get('s-num')).toBe('Survey');
+    expect(map.has('s-null')).toBe(false);
+    expect(map.has('s-str')).toBe(false);
+    expect(map.has('s-empty')).toBe(false);
+  });
+});

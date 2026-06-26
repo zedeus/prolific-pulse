@@ -48,6 +48,24 @@ export interface Totals {
   currency: string;
 }
 
+/**
+ * Reward value split by lifecycle outcome, for "earnings composition by status".
+ * - `banked`  = APPROVED (paid, secured)
+ * - `pending` = AWAITING REVIEW + SCREENED OUT (expected but not final — the "at-risk until
+ *               approved" money). Mirrors how {@link computeTotals} groups its pending bucket, so
+ *               `banked_minor + pending_minor === computeTotals().combined_minor`.
+ * - `lost`    = RETURNED + REJECTED (the reward you'd have earned but forfeited; £0 to your balance)
+ */
+export interface StatusComposition {
+  banked_minor: number;
+  pending_minor: number;
+  lost_minor: number;
+  banked_count: number;
+  pending_count: number;
+  lost_count: number;
+  currency: string;
+}
+
 export interface RateStats {
   n: number;
   n_excluded_outliers: number;
@@ -288,6 +306,39 @@ export function computeTotals(records: SubmissionRecord[], currency: string): To
   }
   totals.combined_minor = totals.approved_minor + totals.pending_minor;
   return totals;
+}
+
+/**
+ * Split reward value across banked / pending / lost outcomes. `records` should already be
+ * currency-converted; rewards in other currencies are ignored. See {@link StatusComposition}.
+ */
+export function computeStatusComposition(records: SubmissionRecord[], currency: string): StatusComposition {
+  const out: StatusComposition = {
+    banked_minor: 0,
+    pending_minor: 0,
+    lost_minor: 0,
+    banked_count: 0,
+    pending_count: 0,
+    lost_count: 0,
+    currency,
+  };
+  for (const r of records) {
+    if (r.phase !== 'submitted') continue;
+    const reward = extractSubmissionReward(r);
+    if (!reward || reward.amount <= 0 || reward.currency !== currency) continue;
+    const status = normalizeSubmissionStatus(r.status);
+    if (status === APPROVED_STATUS) {
+      out.banked_minor += reward.amount;
+      out.banked_count += 1;
+    } else if (PENDING_STATUSES.has(status) || status === SCREENED_OUT_STATUS) {
+      out.pending_minor += reward.amount;
+      out.pending_count += 1;
+    } else if (TERMINAL_NEGATIVE_STATUSES.has(status)) {
+      out.lost_minor += reward.amount;
+      out.lost_count += 1;
+    }
+  }
+  return out;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -686,6 +737,43 @@ export function groupByResearcher(records: SubmissionRecord[]): GroupAgg[] {
         hourly_rates: [],
       };
       map.set(id, agg);
+    }
+    if (reward.currency !== agg.currency) continue;
+    agg.submission_count += 1;
+    agg.reward_minor += reward.amount;
+    const hr = perSubmissionHourly(r);
+    if (hr !== null) agg.hourly_rates.push(hr);
+  }
+  return [...map.values()];
+}
+
+/**
+ * Bucket eligible records by study-type label. `resolveType(studyId)` returns a display label
+ * (e.g. "Survey") or '' when the study type is unknown — unknown/empty falls into the 'Other'
+ * bucket. Submissions don't carry labels themselves, so the resolver typically joins against
+ * observed studies (see `getStudyTypeMap` in store.ts). Returns {@link GroupAgg}[] keyed by label.
+ */
+export function groupByStudyType(
+  records: SubmissionRecord[],
+  resolveType: (studyId: string) => string,
+): GroupAgg[] {
+  const OTHER = 'Other';
+  const map = new Map<string, GroupAgg>();
+  for (const r of records) {
+    const reward = extractSubmissionReward(r);
+    if (!reward || reward.amount <= 0) continue;
+    const label = (resolveType(r.study_id) || '').trim() || OTHER;
+    let agg = map.get(label);
+    if (!agg) {
+      agg = {
+        key: label,
+        label,
+        submission_count: 0,
+        reward_minor: 0,
+        currency: reward.currency,
+        hourly_rates: [],
+      };
+      map.set(label, agg);
     }
     if (reward.currency !== agg.currency) continue;
     agg.submission_count += 1;

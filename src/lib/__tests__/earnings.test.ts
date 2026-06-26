@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { makeRng } from '../__dev__/rng';
 import type { SubmissionRecord } from '../db';
 import {
   extractSubmissionReward,
@@ -32,6 +33,8 @@ import {
   observedDateRange,
   convertRewards,
   perHourOfWorkDaily,
+  computeStatusComposition,
+  groupByStudyType,
   MIN_SENSIBLE_DURATION_SECONDS,
 } from '../earnings';
 
@@ -625,5 +628,185 @@ describe('rollingDailyMean', () => {
 
   it('empty input produces empty output', () => {
     expect(rollingDailyMean([], 7)).toEqual([]);
+  });
+});
+
+// ── computeStatusComposition ─────────────────────────────────
+
+describe('computeStatusComposition', () => {
+  it('splits reward value across banked / pending / lost', () => {
+    const records = [
+      make({ id: 'a', status: 'APPROVED', rewardMinor: 500 }),
+      make({ id: 'b', status: 'APPROVED', rewardMinor: 300 }),
+      make({ id: 'c', status: 'AWAITING REVIEW', rewardMinor: 200 }),
+      make({ id: 'd', status: 'SCREENED OUT', rewardMinor: 50 }),
+      make({ id: 'e', status: 'RETURNED', rewardMinor: 400 }),
+      make({ id: 'f', status: 'REJECTED', rewardMinor: 100 }),
+    ];
+    const c = computeStatusComposition(records, 'GBP');
+    expect(c.banked_minor).toBe(800);
+    expect(c.banked_count).toBe(2);
+    // pending = awaiting review + screened out, matching computeTotals' pending bucket
+    expect(c.pending_minor).toBe(250);
+    expect(c.pending_count).toBe(2);
+    expect(c.lost_minor).toBe(500);
+    expect(c.lost_count).toBe(2);
+    expect(c.currency).toBe('GBP');
+  });
+
+  it('banked + pending reconciles with computeTotals.combined_minor', () => {
+    const records = [
+      make({ id: 'a', status: 'APPROVED', rewardMinor: 500 }),
+      make({ id: 'b', status: 'AWAITING REVIEW', rewardMinor: 200 }),
+      make({ id: 'c', status: 'SCREENED OUT', rewardMinor: 50 }),
+      make({ id: 'd', status: 'REJECTED', rewardMinor: 999 }),
+    ];
+    const c = computeStatusComposition(records, 'GBP');
+    const t = computeTotals(records, 'GBP');
+    expect(c.banked_minor + c.pending_minor).toBe(t.combined_minor);
+  });
+
+  it('ignores other-currency, non-submitted, and zero-reward records', () => {
+    const records = [
+      make({ id: 'a', status: 'APPROVED', rewardMinor: 500, currency: 'GBP' }),
+      make({ id: 'b', status: 'APPROVED', rewardMinor: 700, currency: 'USD' }),
+      make({ id: 'c', status: 'APPROVED', rewardMinor: 0 }),
+      make({ id: 'd', status: 'APPROVED', rewardMinor: 600, phase: 'submitting' }),
+    ];
+    const c = computeStatusComposition(records, 'GBP');
+    expect(c.banked_minor).toBe(500);
+    expect(c.banked_count).toBe(1);
+  });
+
+  it('empty input yields all-zero composition', () => {
+    const c = computeStatusComposition([], 'GBP');
+    expect(c).toEqual({
+      banked_minor: 0, pending_minor: 0, lost_minor: 0,
+      banked_count: 0, pending_count: 0, lost_count: 0, currency: 'GBP',
+    });
+  });
+});
+
+// ── groupByStudyType ─────────────────────────────────────────
+
+describe('groupByStudyType', () => {
+  const resolver = (id: string): string =>
+    id === 'study-1' ? 'Survey' : id === 'study-2' ? 'Interview' : '';
+
+  it('buckets by resolved label and sums reward + count', () => {
+    const records = [
+      make({ id: 'a', study_id: 'study-1', rewardMinor: 200 }),
+      make({ id: 'b', study_id: 'study-1', rewardMinor: 300 }),
+      make({ id: 'c', study_id: 'study-2', rewardMinor: 400 }),
+    ];
+    const groups = groupByStudyType(records, resolver);
+    const survey = groups.find((g) => g.label === 'Survey');
+    const interview = groups.find((g) => g.label === 'Interview');
+    expect(survey?.reward_minor).toBe(500);
+    expect(survey?.submission_count).toBe(2);
+    expect(interview?.reward_minor).toBe(400);
+  });
+
+  it('routes unknown/empty study types into the Other bucket', () => {
+    const records = [
+      make({ id: 'a', study_id: 'study-99', rewardMinor: 150 }),
+      make({ id: 'b', study_id: 'study-2', rewardMinor: 100 }),
+    ];
+    const groups = groupByStudyType(records, resolver);
+    const other = groups.find((g) => g.label === 'Other');
+    expect(other?.reward_minor).toBe(150);
+    expect(other?.key).toBe('Other');
+  });
+
+  it('collects per-submission hourly rates for each type', () => {
+    const records = [
+      make({ id: 'a', study_id: 'study-1', rewardMinor: 600,
+        started_at: '2026-04-01T10:00:00Z', completed_at: '2026-04-01T11:00:00Z' }), // £6/hr
+    ];
+    const groups = groupByStudyType(records, resolver);
+    expect(groups[0].hourly_rates).toEqual([6]);
+  });
+
+  it('empty input yields no groups', () => {
+    expect(groupByStudyType([], resolver)).toEqual([]);
+  });
+});
+
+// ── computeStatusComposition / groupByStudyType — fuzz/property ───
+
+describe('earnings analytics — fuzz/property', () => {
+  const STATUSES = ['APPROVED', 'AWAITING REVIEW', 'awaiting_review', 'RETURNED', 'REJECTED', 'SCREENED OUT', 'WEIRD', ''];
+  const CURRENCIES = ['GBP', 'USD', 'EUR'];
+
+  function randomRecords(rng: () => number, n: number, currency?: string): SubmissionRecord[] {
+    const out: SubmissionRecord[] = [];
+    for (let i = 0; i < n; i++) {
+      const cur = currency ?? CURRENCIES[Math.floor(rng() * CURRENCIES.length)];
+      const reward = rng() < 0.1 ? 0 : Math.floor(rng() * 5000) + 1;
+      const startMs = Date.UTC(2026, 0, 1) + Math.floor(rng() * 200) * 86_400_000 + Math.floor(rng() * 3600) * 1000;
+      const dur = Math.floor(rng() * 3000) + 10;
+      out.push(make({
+        id: `f-${i}`,
+        status: STATUSES[Math.floor(rng() * STATUSES.length)],
+        rewardMinor: reward,
+        currency: cur,
+        started_at: new Date(startMs).toISOString(),
+        completed_at: new Date(startMs + dur * 1000).toISOString(),
+        study_id: `study-${Math.floor(rng() * 8) + 1}`,
+      }));
+    }
+    return out;
+  }
+
+  it('computeStatusComposition: non-negative, finite, and banked+pending reconciles with computeTotals', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const records = randomRecords(makeRng(seed), 60, 'GBP');
+      const c = computeStatusComposition(records, 'GBP');
+      for (const v of [c.banked_minor, c.pending_minor, c.lost_minor, c.banked_count, c.pending_count, c.lost_count]) {
+        expect(Number.isFinite(v)).toBe(true);
+        expect(v).toBeGreaterThanOrEqual(0);
+      }
+      expect(c.banked_minor + c.pending_minor).toBe(computeTotals(records, 'GBP').combined_minor);
+    }
+  });
+
+  it('computeStatusComposition: tolerates mixed currencies / odd statuses without throwing', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const records = randomRecords(makeRng(seed * 7), 50);
+      expect(() => computeStatusComposition(records, 'GBP')).not.toThrow();
+    }
+  });
+
+  it('groupByStudyType: single-currency grouped reward equals input reward; labels never empty', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const rng = makeRng(seed + 100);
+      const records = randomRecords(rng, 50, 'GBP');
+      const resolver = (id: string) => (Math.floor(rng() * 3) === 0 ? '' : `T-${id.slice(-1)}`);
+      const groups = groupByStudyType(records, resolver);
+      let grouped = 0;
+      for (const g of groups) {
+        expect(g.label.length).toBeGreaterThan(0);
+        expect(g.reward_minor).toBeGreaterThanOrEqual(0);
+        grouped += g.reward_minor;
+      }
+      const inputTotal = records.reduce((s, r) => {
+        const rw = extractSubmissionReward(r);
+        return s + (rw && rw.amount > 0 ? rw.amount : 0);
+      }, 0);
+      expect(grouped).toBe(inputTotal);
+    }
+  });
+
+  it('groupByStudyType: falsy/odd resolver outputs never throw and never yield empty labels', () => {
+    const garbage: unknown[] = [null, undefined, '', '   ', 0, NaN, false, '🎉', '<b>x</b>'];
+    for (let seed = 1; seed <= 20; seed++) {
+      const rng = makeRng(seed * 13);
+      const records = randomRecords(rng, 30, 'GBP');
+      const resolver = (() => garbage[Math.floor(rng() * garbage.length)]) as unknown as (id: string) => string;
+      expect(() => groupByStudyType(records, resolver)).not.toThrow();
+      for (const g of groupByStudyType(records, resolver)) {
+        expect(typeof g.label === 'string' && g.label.length > 0).toBe(true);
+      }
+    }
   });
 });
