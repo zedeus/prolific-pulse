@@ -68,6 +68,10 @@ const REJECTION_REASONS: readonly string[] = [
 const COUNTRIES: readonly string[] = ['US', 'GB', 'CA', 'DE', 'FR', 'AU', 'NL', 'SE', 'IT', 'FI'];
 const INSTITUTIONS: readonly (string | null)[] = [null, null, null, 'stanford.edu', 'mit.edu', 'oxford.ac.uk', 'maze.design'];
 
+// Submissions reference study ids `study-1`..`study-N`; the labelled `studiesLatest` seeding and its
+// cleanup both key off this same count, so generation and teardown can't drift.
+const FAKE_STUDY_ID_COUNT = 40;
+
 export interface FakeDataOptions {
   count: number;
   /** Base seed (deterministic). Default 42. */
@@ -115,7 +119,7 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
     const rewardMinor = Math.round(rewardGBP * 100);
     const currency = rng() < foreignFrac ? pick(['USD', 'EUR'] as const, rng) : 'GBP';
 
-    const studyId = `study-${Math.floor(rng() * 40) + 1}`;
+    const studyId = `study-${Math.floor(rng() * FAKE_STUDY_ID_COUNT) + 1}`;
     const country = pick(COUNTRIES, rng);
     const institution = pick(INSTITUTIONS, rng);
     const studyCode = status === APPROVED_STATUS ? `C${Math.floor(rng() * 1e8).toString(36).toUpperCase()}` : null;
@@ -169,7 +173,6 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
 // labels, so the earnings "by study type" view joins against observed study records. We seed
 // labelled `studiesLatest` records for those ids here, leaving a handful unlabelled so the
 // "Other" bucket is exercised too. Labels use the same vocabulary as formatStudyLabel().
-const FAKE_STUDY_ID_COUNT = 40;
 const FAKE_LABELLED_STUDY_COUNT = 34;
 const FAKE_STUDY_TYPE_POOL: readonly string[] = [
   'survey', 'survey', 'survey', 'survey',

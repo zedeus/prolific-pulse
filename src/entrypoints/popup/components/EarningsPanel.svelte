@@ -17,6 +17,8 @@
     forecastDaily,
     FORECAST_MIN_HISTORY_DAYS,
     STUDY_TYPE_MIN_TYPED_SHARE,
+    STUDY_TYPE_OTHER_LABEL,
+    typedStudyShare,
     daysAgo,
     startOfLocalDay,
     addLocalDays,
@@ -120,7 +122,9 @@
     if (!currency) return null;
     const start = daysAgo(28, now);
     const tomorrow = addLocalDays(todayStart, 1);
-    const windowed = filterEligible(convertedSubmissions, { includeStatus, currency, start });
+    // eligible30d is the same eligibility+currency set already narrowed to 30 days — a superset of
+    // this 28-day window, so re-window it instead of rescanning all-time history.
+    const windowed = filterEligible(eligible30d, { includeStatus, currency, start });
     const basis = forecastBasis(windowed, start, tomorrow);
     const horizon = Math.max(0, Math.round((monthEndExclusive.getTime() - tomorrow.getTime()) / 86_400_000));
     let median = 0, p25 = 0, p75 = 0;
@@ -150,34 +154,22 @@
 
   // ── Top researchers + study types (all time, by earnings) ──
   const topResearchers = $derived(
-    [...groupByResearcher(eligibleAll)].sort((a, b) => b.reward_minor - a.reward_minor).slice(0, 4),
+    groupByResearcher(eligibleAll).sort((a, b) => b.reward_minor - a.reward_minor).slice(0, 4),
   );
   const studyTypeBoard = $derived(
-    [...groupByStudyType(eligibleAll, (id: string) => studyTypeMap?.get(id) ?? '')]
+    groupByStudyType(eligibleAll, (id: string) => studyTypeMap?.get(id) ?? '')
       .sort((a, b) => b.reward_minor - a.reward_minor),
   );
   const topStudyTypes = $derived(studyTypeBoard.slice(0, 4));
   // Only worth showing once enough earnings are typed — otherwise it's a wall of "Other".
-  const studyTypesReady = $derived.by(() => {
-    const total = studyTypeBoard.reduce((s, g) => s + g.reward_minor, 0);
-    if (total <= 0) return false;
-    const other = studyTypeBoard.find((g) => g.key === 'Other')?.reward_minor ?? 0;
-    return 1 - other / total >= STUDY_TYPE_MIN_TYPED_SHARE;
-  });
+  const studyTypesReady = $derived(typedStudyShare(studyTypeBoard) >= STUDY_TYPE_MIN_TYPED_SHARE);
 
   // ── Best days (day-of-week earnings) ───────────────────────
   const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const DOW_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
   const dowBuckets = $derived(groupByDayOfWeek(eligibleAll));
   const dowMax = $derived(dowBuckets.reduce((m, b) => Math.max(m, b.reward_minor), 0));
-  const bestDow = $derived.by(() => {
-    let best: (typeof dowBuckets)[number] | null = null;
-    for (const b of dowBuckets) {
-      if (b.reward_minor <= 0) continue;
-      if (!best || b.reward_minor > best.reward_minor) best = b;
-    }
-    return best;
-  });
+  const bestDow = $derived(dowMax > 0 ? (dowBuckets.find((b) => b.reward_minor === dowMax) ?? null) : null);
 
   function fmt(major: number): string {
     if (!currency) return '—';
@@ -365,7 +357,7 @@
             <div class="space-y-1">
               {#each rows as row (row.key)}
                 <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-[11.5px] truncate {dimOther && row.key === 'Other' ? 'text-base-content/55' : ''}" title={row.label}>{row.label}</span>
+                  <span class="text-[11.5px] truncate {dimOther && row.key === STUDY_TYPE_OTHER_LABEL ? 'text-base-content/55' : ''}" title={row.label}>{row.label}</span>
                   <span class="text-[11.5px] font-semibold whitespace-nowrap">{fmt(row.reward_minor / 100)}</span>
                 </div>
               {/each}
@@ -398,7 +390,7 @@
             {#each dowBuckets as b (b.dow)}
               <div
                 class="flex-1 rounded-sm {b.dow === bestDow?.dow ? 'bg-primary' : 'bg-primary/30'}"
-                style={`height: ${dowMax > 0 ? Math.max(4, (b.reward_minor / dowMax) * 100) : 0}%`}
+                style={`height: ${Math.max(4, (b.reward_minor / dowMax) * 100)}%`}
                 title={`${DOW_FULL[b.dow]}: ${fmt(b.reward_minor / 100)}`}
               ></div>
             {/each}

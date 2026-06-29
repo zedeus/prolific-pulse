@@ -35,6 +35,8 @@ import {
   perHourOfWorkDaily,
   computeStatusComposition,
   groupByStudyType,
+  typedStudyShare,
+  STUDY_TYPE_OTHER_LABEL,
   forecastBasis,
   FORECAST_MIN_HISTORY_DAYS,
   MIN_SENSIBLE_DURATION_SECONDS,
@@ -854,5 +856,26 @@ describe('forecastBasis', () => {
     expect(basis.activeDays).toBe(0);
     expect(basis.ready).toBe(false);
     expect(basis.stats.length).toBe(7);
+  });
+});
+
+// ── typedStudyShare ──────────────────────────────────────────
+
+describe('typedStudyShare', () => {
+  const g = (key: string, minor: number) => ({
+    key, label: key, submission_count: 1, reward_minor: minor, currency: 'GBP', hourly_rates: [],
+  });
+
+  it('returns the reward fraction outside the Other bucket', () => {
+    expect(typedStudyShare([g('Survey', 700), g(STUDY_TYPE_OTHER_LABEL, 300)])).toBeCloseTo(0.7, 5);
+  });
+
+  it('is 1 when nothing is Other', () => {
+    expect(typedStudyShare([g('Survey', 500), g('Experiment', 500)])).toBe(1);
+  });
+
+  it('is 0 for an empty or all-Other board', () => {
+    expect(typedStudyShare([])).toBe(0);
+    expect(typedStudyShare([g(STUDY_TYPE_OTHER_LABEL, 400)])).toBe(0);
   });
 });

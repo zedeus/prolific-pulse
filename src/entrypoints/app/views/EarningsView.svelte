@@ -14,6 +14,8 @@
     forecastDaily,
     FORECAST_MIN_HISTORY_DAYS,
     STUDY_TYPE_MIN_TYPED_SHARE,
+    STUDY_TYPE_OTHER_LABEL,
+    typedStudyShare,
     computeTotals,
     computeStatusComposition,
     groupByDayOfWeek,
@@ -719,12 +721,9 @@
   const studyTypeTotal = $derived(studyTypeBoard.reduce((sum, g) => sum + g.reward_minor, 0));
   // Board is sorted by reward descending, so the largest bar is simply the first row.
   const studyTypeMaxReward = $derived(studyTypeBoard[0]?.reward_minor ?? 0);
-  const studyTypeOtherShare = $derived(
-    studyTypeTotal > 0 ? (studyTypeBoard.find((g) => g.key === 'Other')?.reward_minor ?? 0) / studyTypeTotal : 0,
-  );
-  const studyTypeTypedShare = $derived(studyTypeTotal > 0 ? 1 - studyTypeOtherShare : 0);
-  const studyTypeTypedMinor = $derived(studyTypeTotal * studyTypeTypedShare);
-  const studyTypeReady = $derived(studyTypeTypedShare >= STUDY_TYPE_MIN_TYPED_SHARE);
+  const studyTypeTypedFrac = $derived(typedStudyShare(studyTypeBoard));
+  const studyTypeTypedMinor = $derived(studyTypeTotal * studyTypeTypedFrac);
+  const studyTypeReady = $derived(studyTypeTypedFrac >= STUDY_TYPE_MIN_TYPED_SHARE);
 
   type LeaderSortKey = 'name' | 'earned' | 'count' | 'rate';
   type LeaderSort = { key: LeaderSortKey; dir: 'asc' | 'desc' };
@@ -1810,7 +1809,7 @@
         <div class="space-y-1.5">
           {#each studyTypeBoard as t (t.key)}
             {@const median = studyTypeMedian.get(t.key) ?? NaN}
-            {@const isOther = t.key === 'Other'}
+            {@const isOther = t.key === STUDY_TYPE_OTHER_LABEL}
             <div class="flex items-center gap-3">
               <div class="w-28 shrink-0 text-sm font-medium truncate {isOther ? 'text-base-content/55' : ''}" title={t.label}>{t.label}</div>
               <div class="flex-1 h-5 rounded bg-base-200 overflow-hidden">
@@ -1823,9 +1822,9 @@
             </div>
           {/each}
         </div>
-        {#if studyTypeOtherShare >= 0.5}
+        {#if studyTypeTypedFrac <= 0.5}
           <div class="mt-3 text-[11px] text-base-content/55 leading-snug">
-            Most earnings show as “Other” because their type isn't known yet. Prolific doesn't label past submissions, so types are detected from studies you see while the extension runs — they'll fill in the longer you use it.
+            Much of this is still “Other” because the type isn't known yet. Prolific doesn't label past submissions, so types are detected from studies you see while the extension runs — they'll fill in the longer you use it.
           </div>
         {/if}
       {/if}

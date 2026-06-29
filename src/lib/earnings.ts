@@ -747,22 +747,24 @@ export function groupByResearcher(records: SubmissionRecord[]): GroupAgg[] {
   return [...map.values()];
 }
 
+/** Bucket key for submissions whose study type is unknown. */
+export const STUDY_TYPE_OTHER_LABEL = 'Other';
+
 /**
  * Bucket eligible records by study-type label. `resolveType(studyId)` returns a display label
- * (e.g. "Survey") or '' when the study type is unknown — unknown/empty falls into the 'Other'
- * bucket. Submissions don't carry labels themselves, so the resolver typically joins against
- * observed studies (see `getStudyTypeMap` in store.ts). Returns {@link GroupAgg}[] keyed by label.
+ * (e.g. "Survey") or '' when the study type is unknown — unknown/empty falls into the
+ * {@link STUDY_TYPE_OTHER_LABEL} bucket. Submissions don't carry labels themselves, so the resolver
+ * typically joins against observed studies (see `getStudyTypeMap` in store.ts).
  */
 export function groupByStudyType(
   records: SubmissionRecord[],
   resolveType: (studyId: string) => string,
 ): GroupAgg[] {
-  const OTHER = 'Other';
   const map = new Map<string, GroupAgg>();
   for (const r of records) {
     const reward = extractSubmissionReward(r);
     if (!reward || reward.amount <= 0) continue;
-    const label = (resolveType(r.study_id) || '').trim() || OTHER;
+    const label = (resolveType(r.study_id) || '').trim() || STUDY_TYPE_OTHER_LABEL;
     let agg = map.get(label);
     if (!agg) {
       agg = {
@@ -782,6 +784,22 @@ export function groupByStudyType(
     if (hr !== null) agg.hourly_rates.push(hr);
   }
   return [...map.values()];
+}
+
+/**
+ * Fraction of a study-type board's reward that has a known type (i.e. not the
+ * {@link STUDY_TYPE_OTHER_LABEL} bucket). Returns 0 for an empty board. Shared by the popup and
+ * full view so they agree on when the "by study type" breakdown is worth showing
+ * (see {@link STUDY_TYPE_MIN_TYPED_SHARE}).
+ */
+export function typedStudyShare(board: GroupAgg[]): number {
+  let total = 0;
+  let other = 0;
+  for (const g of board) {
+    total += g.reward_minor;
+    if (g.key === STUDY_TYPE_OTHER_LABEL) other += g.reward_minor;
+  }
+  return total > 0 ? 1 - other / total : 0;
 }
 
 // ──────────────────────────────────────────────────────────────
