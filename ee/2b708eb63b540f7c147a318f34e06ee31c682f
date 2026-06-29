@@ -1,0 +1,32 @@
+src/entrypoints/app/views/EarningsView.svelte
+  s_bee88548938aa3::t_e609f8bd8d2b2f 35
+  s_bee88548938aa3::t_0cd427253fd287 298-299
+  s_bee88548938aa3::t_01570cc750a50c 305
+  s_bee88548938aa3::t_60f40fdf77b362 1102-1104
+src/entrypoints/popup/App.svelte
+  s_bee88548938aa3::t_9efcf3a6fbc318 414-417
+src/lib/__tests__/earnings.test.ts
+  s_bee88548938aa3::t_140654b2f5f468 38-39
+  s_bee88548938aa3::t_cc4ee56dc33fc7 815-858
+src/lib/earnings.ts
+  s_bee88548938aa3::t_583b3af9772e24 866-893
+src/entrypoints/popup/components/EarningsPanel.svelte
+  s_bee88548938aa3::t_11929386712448 116-117,122-123,126,128-129,136,138
+  s_bee88548938aa3::t_6f814cd6867499 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ee2b708eb63b540f7c147a318f34e06ee31c682f",
+  "prompts": {},
+  "sessions": {
+    "s_bee88548938aa3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eca1e25e-1a19-4a0e-b856-eec44cab09a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
