@@ -13,6 +13,7 @@
     filterEligible,
     forecastDaily,
     FORECAST_MIN_HISTORY_DAYS,
+    STUDY_TYPE_MIN_TYPED_SHARE,
     computeTotals,
     computeStatusComposition,
     groupByDayOfWeek,
@@ -721,6 +722,9 @@
   const studyTypeOtherShare = $derived(
     studyTypeTotal > 0 ? (studyTypeBoard.find((g) => g.key === 'Other')?.reward_minor ?? 0) / studyTypeTotal : 0,
   );
+  const studyTypeTypedShare = $derived(studyTypeTotal > 0 ? 1 - studyTypeOtherShare : 0);
+  const studyTypeTypedMinor = $derived(studyTypeTotal * studyTypeTypedShare);
+  const studyTypeReady = $derived(studyTypeTypedShare >= STUDY_TYPE_MIN_TYPED_SHARE);
 
   type LeaderSortKey = 'name' | 'earned' | 'count' | 'rate';
   type LeaderSort = { key: LeaderSortKey; dir: 'asc' | 'desc' };
@@ -1787,10 +1791,21 @@
     <section class="rounded-lg border border-base-300 bg-base-100 p-4">
       <div class="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
         <h2 class="font-semibold">Earnings by study type · {range.label}</h2>
-        <div class="text-xs text-base-content/55">Auto-detected from studies you've seen</div>
+        {#if studyTypeReady}
+          <div class="text-xs text-base-content/55">Auto-detected from studies you've seen</div>
+        {/if}
       </div>
       {#if studyTypeBoard.length === 0}
         <div class="text-sm text-base-content/50 py-4">No studies in range.</div>
+      {:else if !studyTypeReady}
+        <div class="text-sm text-base-content/55 py-6 text-center leading-snug max-w-lg mx-auto">
+          Not enough studies have a known type yet. Prolific doesn't tag submissions with a type, so
+          it's detected from studies this extension sees in the live feed — keep it running and this
+          fills in as you find and complete work.
+          {#if studyTypeTypedMinor > 0}
+            <div class="text-xs text-base-content/45 mt-1">{fmt(studyTypeTypedMinor / 100)} of {fmt(studyTypeTotal / 100)} earned is typed so far.</div>
+          {/if}
+        </div>
       {:else}
         <div class="space-y-1.5">
           {#each studyTypeBoard as t (t.key)}

@@ -863,6 +863,13 @@ export function forecastDaily(
 /** Minimum days of history required before a forecast is shown. */
 export const FORECAST_MIN_HISTORY_DAYS = 14;
 
+/**
+ * Minimum share of earnings that must have a known study type before the "by study type" breakdown
+ * is worth showing. Submissions don't carry a type, so it's only known for studies observed live;
+ * below this, the breakdown would be mostly "Other", so the UI shows a "fills in over time" note.
+ */
+export const STUDY_TYPE_MIN_TYPED_SHARE = 0.3;
+
 export interface ForecastBasis {
   /** Per-weekday earnings distribution over the trailing window (always length 7). */
   stats: WeekdayStats[];

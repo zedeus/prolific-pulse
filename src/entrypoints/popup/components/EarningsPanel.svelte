@@ -16,6 +16,7 @@
     forecastBasis,
     forecastDaily,
     FORECAST_MIN_HISTORY_DAYS,
+    STUDY_TYPE_MIN_TYPED_SHARE,
     daysAgo,
     startOfLocalDay,
     addLocalDays,
@@ -151,11 +152,18 @@
   const topResearchers = $derived(
     [...groupByResearcher(eligibleAll)].sort((a, b) => b.reward_minor - a.reward_minor).slice(0, 4),
   );
-  const topStudyTypes = $derived(
+  const studyTypeBoard = $derived(
     [...groupByStudyType(eligibleAll, (id: string) => studyTypeMap?.get(id) ?? '')]
-      .sort((a, b) => b.reward_minor - a.reward_minor)
-      .slice(0, 4),
+      .sort((a, b) => b.reward_minor - a.reward_minor),
   );
+  const topStudyTypes = $derived(studyTypeBoard.slice(0, 4));
+  // Only worth showing once enough earnings are typed — otherwise it's a wall of "Other".
+  const studyTypesReady = $derived.by(() => {
+    const total = studyTypeBoard.reduce((s, g) => s + g.reward_minor, 0);
+    if (total <= 0) return false;
+    const other = studyTypeBoard.find((g) => g.key === 'Other')?.reward_minor ?? 0;
+    return 1 - other / total >= STUDY_TYPE_MIN_TYPED_SHARE;
+  });
 
   // ── Best days (day-of-week earnings) ───────────────────────
   const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -367,7 +375,14 @@
       {/snippet}
       <div class="grid grid-cols-2 gap-2">
         {@render topCard('Top researchers', topResearchers, false)}
-        {@render topCard('Top study types', topStudyTypes, true)}
+        {#if studyTypesReady}
+          {@render topCard('Top study types', topStudyTypes, true)}
+        {:else}
+          <div class="rounded-lg border border-base-300 bg-base-100 p-2.5">
+            <div class="text-[10.5px] uppercase tracking-wide text-base-content/55 font-semibold mb-1.5">Top study types</div>
+            <div class="text-[11px] text-base-content/45 leading-snug">Fills in as the extension sees studies in the live feed.</div>
+          </div>
+        {/if}
       </div>
 
       <!-- Best days -->
