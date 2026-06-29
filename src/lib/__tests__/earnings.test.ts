@@ -35,6 +35,8 @@ import {
   perHourOfWorkDaily,
   computeStatusComposition,
   groupByStudyType,
+  forecastBasis,
+  FORECAST_MIN_HISTORY_DAYS,
   MIN_SENSIBLE_DURATION_SECONDS,
 } from '../earnings';
 
@@ -808,5 +810,49 @@ describe('earnings analytics — fuzz/property', () => {
         expect(typeof g.label === 'string' && g.label.length > 0).toBe(true);
       }
     }
+  });
+});
+
+// ── forecastBasis ────────────────────────────────────────────
+
+describe('forecastBasis', () => {
+  const windowStart = new Date(2026, 0, 1);   // Jan 1 (local)
+  const windowEnd = new Date(2026, 0, 29);    // exclusive → 28-day window
+
+  function dayRecord(dayOfMonth: number, rewardMinor = 500): SubmissionRecord {
+    return make({
+      id: `d-${dayOfMonth}-${rewardMinor}`,
+      status: 'APPROVED',
+      rewardMinor,
+      started_at: new Date(2026, 0, dayOfMonth, 11, 0, 0).toISOString(),
+      completed_at: new Date(2026, 0, dayOfMonth, 12, 0, 0).toISOString(),
+    });
+  }
+
+  it('is not ready below FORECAST_MIN_HISTORY_DAYS active days', () => {
+    const basis = forecastBasis([1, 2, 3, 4, 5].map((n) => dayRecord(n)), windowStart, windowEnd);
+    expect(basis.activeDays).toBe(5);
+    expect(basis.ready).toBe(false);
+    expect(basis.stats.length).toBe(7);
+  });
+
+  it('is ready at the threshold', () => {
+    const records = Array.from({ length: FORECAST_MIN_HISTORY_DAYS }, (_, i) => dayRecord(i + 1));
+    const basis = forecastBasis(records, windowStart, windowEnd);
+    expect(basis.activeDays).toBe(FORECAST_MIN_HISTORY_DAYS);
+    expect(basis.ready).toBe(true);
+  });
+
+  it('counts multiple submissions on the same day as one active day', () => {
+    const basis = forecastBasis([dayRecord(1), dayRecord(1, 300), dayRecord(2)], windowStart, windowEnd);
+    expect(basis.activeDays).toBe(2);
+    expect(basis.ready).toBe(false);
+  });
+
+  it('empty window is not ready and still yields 7 weekday buckets', () => {
+    const basis = forecastBasis([], windowStart, windowEnd);
+    expect(basis.activeDays).toBe(0);
+    expect(basis.ready).toBe(false);
+    expect(basis.stats.length).toBe(7);
   });
 });

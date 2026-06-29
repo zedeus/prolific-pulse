@@ -32,7 +32,7 @@
     resolveEarningsContext,
     startOfLocalDay,
     summarizeRates,
-    weekdayDailyStats,
+    forecastBasis,
     type RateStats,
     type GroupAgg,
   } from '../../../lib/earnings';
@@ -295,18 +295,14 @@
     if (!currency) return null;
     const start = daysAgo(28, now);
     const endExcl = addLocalDays(startOfLocalDay(now), 1);
-    const source = dailyRollups(
-      filterEligible(convertedSubmissions, { includeStatus, currency, start }),
-    );
-    const stats = weekdayDailyStats(source, start, endExcl);
-    const total = stats.reduce((a, s) => a + s.n, 0);
-    return { stats, total };
+    const windowed = filterEligible(convertedSubmissions, { includeStatus, currency, start });
+    return forecastBasis(windowed, start, endExcl);
   });
 
   const forecastSeries: CumulativeForecastPoint[] = $derived.by(() => {
     if (!rangeEndsAtToday) return [];
     if (!forecastWeekdayStats) return [];
-    if (forecastWeekdayStats.total < FORECAST_MIN_HISTORY_DAYS) return [];
+    if (!forecastWeekdayStats.ready) return [];
     if (cumulativeSeries.length === 0) return [];
 
     const lastActual = cumulativeSeries[cumulativeSeries.length - 1];
@@ -1103,9 +1099,9 @@
         <h2 class="font-semibold">Cumulative earnings · {range.label}</h2>
         <div class="text-xs text-base-content/55">
           {#if forecastSeries.length > 0}
-            Dashed tail = 14-day forecast (per-weekday median · {forecastWeekdayStats?.total ?? 0}-day history)
-          {:else if rangeEndsAtToday && forecastWeekdayStats && forecastWeekdayStats.total < FORECAST_MIN_HISTORY_DAYS}
-            Need {FORECAST_MIN_HISTORY_DAYS} days of history for a forecast · you have {forecastWeekdayStats.total}
+            Dashed tail = 14-day forecast (per-weekday median · {forecastWeekdayStats?.activeDays ?? 0} active days)
+          {:else if rangeEndsAtToday && forecastWeekdayStats && !forecastWeekdayStats.ready}
+            Need {FORECAST_MIN_HISTORY_DAYS} days of activity for a forecast · you have {forecastWeekdayStats.activeDays}
           {:else if !rangeEndsAtToday}
             Forecast shown only when range extends to today
           {/if}

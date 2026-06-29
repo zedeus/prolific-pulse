@@ -13,7 +13,7 @@
     groupByResearcher,
     groupByStudyType,
     groupByDayOfWeek,
-    weekdayDailyStats,
+    forecastBasis,
     forecastDaily,
     FORECAST_MIN_HISTORY_DAYS,
     daysAgo,
@@ -113,35 +113,29 @@
   const monthEndExclusive = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const monthEndLabel = addLocalDays(monthEndExclusive, -1).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const monthToDate = $derived(totalFor(monthStart));
-  // "On pace" needs a real recent earning pattern. Gate on the count of distinct days you've
-  // actually earned (all-time); the trailing-28-day weekday medians drive the projection itself.
-  // Gating on raw window length would look "ready" yet project ~£0 for a barely-active user,
-  // because weekdayDailyStats counts every calendar day (incl. zero days) as a sample.
-  const totalActiveDays = $derived(allRollups.length);
+  // Forecast from the trailing-28-day weekday pattern, gated on distinct active days (see
+  // forecastBasis) so a barely-active month shows "needs history" instead of a £0 projection.
   const monthForecast = $derived.by(() => {
     if (!currency) return null;
     const start = daysAgo(28, now);
     const tomorrow = addLocalDays(todayStart, 1);
-    const source = dailyRollups(filterEligible(convertedSubmissions, { includeStatus, currency, start }));
-    const stats = weekdayDailyStats(source, start, tomorrow);
+    const windowed = filterEligible(convertedSubmissions, { includeStatus, currency, start });
+    const basis = forecastBasis(windowed, start, tomorrow);
     const horizon = Math.max(0, Math.round((monthEndExclusive.getTime() - tomorrow.getTime()) / 86_400_000));
-    const points = forecastDaily(stats, tomorrow, horizon);
     let median = 0, p25 = 0, p75 = 0;
-    for (const p of points) { median += p.median; p25 += p.p25; p75 += p.p75; }
-    const ready = totalActiveDays >= FORECAST_MIN_HISTORY_DAYS && median > 0;
+    for (const p of forecastDaily(basis.stats, tomorrow, horizon)) { median += p.median; p25 += p.p25; p75 += p.p75; }
     return {
-      ready,
+      ready: basis.ready,
+      activeDays: basis.activeDays,
       remainingDays: horizon,
       projected: monthToDate + median,
       low: monthToDate + p25,
       high: monthToDate + p75,
     };
   });
-  const forecastDaysNeeded = $derived(Math.max(0, FORECAST_MIN_HISTORY_DAYS - totalActiveDays));
+  const forecastDaysNeeded = $derived(Math.max(0, FORECAST_MIN_HISTORY_DAYS - (monthForecast?.activeDays ?? 0)));
   const monthPaceHint = $derived(
-    forecastDaysNeeded > 0
-      ? `${forecastDaysNeeded} more day${forecastDaysNeeded === 1 ? '' : 's'} of studies unlocks a forecast`
-      : 'do a few more studies to forecast the rest of the month',
+    `${forecastDaysNeeded} more day${forecastDaysNeeded === 1 ? '' : 's'} of studies unlocks a forecast`,
   );
 
   // ── Status composition (all time) ──────────────────────────

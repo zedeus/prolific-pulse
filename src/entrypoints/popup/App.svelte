@@ -411,6 +411,10 @@
         if (events.length) events = [];
         if (submissions.length) submissions = [];
         if (allSubmissions.length) allSubmissions = [];
+        // Researcher lists live in local IndexedDB — keep them so priority-filter management in
+        // Settings still works while signed out (live study/feed/earnings panels show the notice).
+        const newResearchers = dashboard?.researchers ?? [];
+        if (!jsonEqual(knownResearchers, newResearchers)) knownResearchers = newResearchers;
       } else if (dashboard) {
         const newStudies = dashboard.studies ?? [];
         const newEvents = dashboard.events ?? [];

@@ -863,6 +863,34 @@ export function forecastDaily(
 /** Minimum days of history required before a forecast is shown. */
 export const FORECAST_MIN_HISTORY_DAYS = 14;
 
+export interface ForecastBasis {
+  /** Per-weekday earnings distribution over the trailing window (always length 7). */
+  stats: WeekdayStats[];
+  /** Distinct days with earnings in the window — the real "history" signal. */
+  activeDays: number;
+  /** True once there's enough real recent history to project from. */
+  ready: boolean;
+}
+
+/**
+ * Per-weekday stats for a trailing window plus a meaningful readiness signal. `windowedRecords`
+ * must already be filtered to `[windowStart, windowEndExclusive)`. Readiness gates on the count of
+ * distinct *active* days, NOT raw window length: `weekdayDailyStats` counts every calendar day
+ * (incl. zero-earning days) as a sample, so a 28-day-wide window of mostly-empty days would
+ * otherwise look "ready" yet project ~£0. Both the popup "on pace" and the full-view forecast use
+ * this so they agree on when a forecast is meaningful.
+ */
+export function forecastBasis(
+  windowedRecords: SubmissionRecord[],
+  windowStart: Date,
+  windowEndExclusive: Date,
+): ForecastBasis {
+  const daily = dailyRollups(windowedRecords);
+  const stats = weekdayDailyStats(daily, windowStart, windowEndExclusive);
+  const activeDays = daily.length;
+  return { stats, activeDays, ready: activeDays >= FORECAST_MIN_HISTORY_DAYS };
+}
+
 /** Earliest + latest `completed_at` across records. `null` if none have one. */
 export function observedDateRange(records: SubmissionRecord[]): { first: Date; last: Date } | null {
   let first: Date | null = null;
