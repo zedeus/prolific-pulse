@@ -1,0 +1,39 @@
+src/lib/__tests__/earnings.test.ts
+  s_bee88548938aa3::t_d4148af65cc195 38-39
+  s_bee88548938aa3::t_f273a58ec40451 861-881
+src/lib/earnings.ts
+  s_bee88548938aa3::t_bbd0c25465aa63 750-752,755-757,767
+  s_bee88548938aa3::t_1a207bea040e40 789-804
+src/entrypoints/app/views/EarningsView.svelte
+  s_bee88548938aa3::t_378af9e04d96f1 724-726
+  s_bee88548938aa3::t_3fa003283c1d9e 17-18
+  s_bee88548938aa3::t_986c27d8abab9f 1812
+  s_bee88548938aa3::t_ef0f7b889ac5ad 1825,1827
+src/entrypoints/popup/components/EarningsPanel.svelte
+  s_bee88548938aa3::t_f34b5b4b240ff8 125-127
+  s_bee88548938aa3::t_98012b11a0cfd3 157
+  s_bee88548938aa3::t_c09fa05762b4df 172
+  s_bee88548938aa3::t_b118e7d8538771 20-21
+  s_bee88548938aa3::t_6e8836a9e8a5ed 393
+  s_bee88548938aa3::t_0ace178d169178 160,165
+  s_bee88548938aa3::t_5a024452394549 360
+src/lib/__dev__/fake-submissions.ts
+  s_bee88548938aa3::t_876b2df671f3a4 71-74
+  s_bee88548938aa3::t_ac4ae0fd937ace 122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d5bdbb4bffcbbf50c2e0271d4a427ec1f14e21b0",
+  "prompts": {},
+  "sessions": {
+    "s_bee88548938aa3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eca1e25e-1a19-4a0e-b856-eec44cab09a3",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
