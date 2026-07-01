@@ -5,6 +5,7 @@
   import type { SubmissionRecord, ResearcherRecord } from '../../../lib/db';
   import { createDefaultPriorityFilter } from '../../../lib/priority-filter';
   import ResearcherPicker from './ResearcherPicker.svelte';
+  import { computeCompactProfiles } from '../../../lib/researcher-profile';
   import type { EarningsPrefs } from '../../../lib/earnings-prefs';
   import { listCurrencies } from '../../../lib/earnings';
   import { cacheKey as fxCacheKey } from '../../../lib/fx-rates';
@@ -84,6 +85,10 @@
     onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
     onFilterFocused: () => void;
   }>();
+
+  // Per-researcher reliability profiles (submissions-only), keyed by researcher id.
+  // Feeds the reliability badge + pay sparkline shown in ResearcherPicker rows.
+  const researcherProfiles = $derived(computeCompactProfiles(allSubmissions));
 
   // Always show common currencies in the picker even with no data, so users
   // can configure FX pre-emptively. Detected currencies show submission counts.
@@ -941,6 +946,7 @@
                   <ResearcherPicker
                     selected={filter.match_researchers ?? []}
                     {knownResearchers}
+                    profiles={researcherProfiles}
                     tone="positive"
                     placeholder="Add researcher"
                     onChange={(next) => handleResearchersChange(filter, 'match', next)}
@@ -951,6 +957,7 @@
                   <ResearcherPicker
                     selected={filter.ignore_researchers ?? []}
                     {knownResearchers}
+                    profiles={researcherProfiles}
                     tone="negative"
                     placeholder="Add researcher"
                     onChange={(next) => handleResearchersChange(filter, 'ignore', next)}

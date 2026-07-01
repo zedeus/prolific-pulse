@@ -1,5 +1,5 @@
 import type { Study, Money } from '../types';
-import type { StudyLatestRecord, StudyActiveSnapshotRecord } from '../db';
+import type { StudyLatestRecord, StudyActiveSnapshotRecord, ResearcherRecord, StudyAvailabilityEventRecord } from '../db';
 import { db } from '../db';
 import { makeRng, pick } from './rng';
 import { STATE_KEY } from '../constants';
@@ -120,9 +120,45 @@ function generateFakeStudies(options: FakeStudiesOptions): Study[] {
   return studies;
 }
 
+// Mirror real ingest: production populates `researchers` (upsertResearchersFromStudies) and
+// availability events (reconcileAvailability) as studies flow in, but the dev seeder used to skip
+// both — leaving the researcher picker and reliability profiles empty. Derive them from the seeded
+// studies so the researcher-reliability surfaces have data to render.
+function buildResearcherRecords(now: Date): ResearcherRecord[] {
+  const nowIso = now.toISOString();
+  return RESEARCHERS.map((r, i) => ({
+    id: r.id,
+    name: r.name,
+    country: r.country,
+    // Spread "first seen" across the past few months so profiles show varied tenure.
+    first_seen_at: new Date(now.getTime() - (30 + i * 21) * 86_400_000).toISOString(),
+    last_seen_at: nowIso,
+    study_count: 0,
+    submission_count: 0,
+  }));
+}
+
+// Give ~65% of studies an available→unavailable pair so the profile "typically listed" / fill-speed
+// metric has something to aggregate; the rest stay open (still-listed).
+function buildAvailabilityEvents(studies: Study[], now: Date): Omit<StudyAvailabilityEventRecord, 'row_id'>[] {
+  const rng = makeRng(99);
+  const events: Omit<StudyAvailabilityEventRecord, 'row_id'>[] = [];
+  for (const s of studies) {
+    const availableAt = s.first_seen_at || now.toISOString();
+    events.push({ study_id: s.id, study_name: s.name, event_type: 'available', observed_at: availableAt });
+    if (rng() < 0.65) {
+      const listedMinutes = Math.round(5 + rng() * 175);
+      const closedAt = new Date(new Date(availableAt).getTime() + listedMinutes * 60_000).toISOString();
+      events.push({ study_id: s.id, study_name: s.name, event_type: 'unavailable', observed_at: closedAt });
+    }
+  }
+  return events;
+}
+
 export async function seedFakeStudies(count: number, seed = 42): Promise<number> {
   const studies = generateFakeStudies({ count, seed });
-  const now = new Date().toISOString();
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
 
   const latestRecords: StudyLatestRecord[] = studies.map((s) => ({
     study_id: s.id,
@@ -138,17 +174,23 @@ export async function seedFakeStudies(count: number, seed = 42): Promise<number>
     last_seen_at: now,
   }));
 
-  await db.transaction('rw', [db.studiesLatest, db.studiesActiveSnapshot, db.serviceState], async () => {
-    await db.studiesLatest.bulkPut(latestRecords);
-    await db.studiesActiveSnapshot.bulkPut(snapshotRecords);
-    // Seed service state so the popup shows as "logged in"
-    await db.serviceState.put({
-      id: 1,
-      last_studies_refresh_at: now,
-      last_studies_refresh_source: 'fake-studies',
-      updated_at: now,
-    });
-  });
+  await db.transaction(
+    'rw',
+    [db.studiesLatest, db.studiesActiveSnapshot, db.serviceState, db.researchers, db.studyAvailabilityEvents],
+    async () => {
+      await db.studiesLatest.bulkPut(latestRecords);
+      await db.studiesActiveSnapshot.bulkPut(snapshotRecords);
+      await db.researchers.bulkPut(buildResearcherRecords(nowDate));
+      await db.studyAvailabilityEvents.bulkAdd(buildAvailabilityEvents(studies, nowDate));
+      // Seed service state so the popup shows as "logged in"
+      await db.serviceState.put({
+        id: 1,
+        last_studies_refresh_at: now,
+        last_studies_refresh_source: 'fake-studies',
+        updated_at: now,
+      });
+    },
+  );
 
   // Also seed the sync state in browser storage so auth check passes
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,12 +204,18 @@ export async function seedFakeStudies(count: number, seed = 42): Promise<number>
 }
 
 export async function clearFakeStudies(): Promise<void> {
-  await db.transaction('rw', [db.studiesLatest, db.studiesActiveSnapshot, db.serviceState], async () => {
-    await db.studiesLatest.where('study_id').startsWith('study-fake-').delete();
-    await db.studiesActiveSnapshot.where('study_id').startsWith('study-fake-').delete();
-    // Clear service state to reset to "logged out"
-    await db.serviceState.delete(1);
-  });
+  await db.transaction(
+    'rw',
+    [db.studiesLatest, db.studiesActiveSnapshot, db.serviceState, db.researchers, db.studyAvailabilityEvents],
+    async () => {
+      await db.studiesLatest.where('study_id').startsWith('study-fake-').delete();
+      await db.studiesActiveSnapshot.where('study_id').startsWith('study-fake-').delete();
+      await db.studyAvailabilityEvents.where('study_id').startsWith('study-fake-').delete();
+      await db.researchers.bulkDelete(RESEARCHERS.map((r) => r.id));
+      // Clear service state to reset to "logged out"
+      await db.serviceState.delete(1);
+    },
+  );
 
   // Clear sync state in browser storage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

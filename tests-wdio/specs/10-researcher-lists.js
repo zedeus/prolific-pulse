@@ -157,7 +157,9 @@ async function getSelectedChipLabels(kind) {
     const picker = pickers[idx];
     if (!picker) return [];
     return [...picker.querySelectorAll('.chip')].map((c) =>
-      c.querySelector('span')?.textContent?.trim() || ''
+      // .chip-label is the stable hook for the researcher name (a chip may also
+      // render a leading reliability dot + a trailing × glyph).
+      (c.querySelector('.chip-label') || c.querySelector('span'))?.textContent?.trim() || ''
     );
   }, kind);
 }

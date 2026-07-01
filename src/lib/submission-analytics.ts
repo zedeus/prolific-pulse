@@ -1,5 +1,6 @@
 import type { SubmissionRecord } from './db';
-import { normalizeSubmissionStatus, parseDate } from './format';
+import type { Researcher } from './types';
+import { normalizeSubmissionStatus, parseDate, trimString } from './format';
 import {
   APPROVED_STATUS,
   AWAITING_REVIEW_STATUS,
@@ -117,6 +118,22 @@ export function hasRejectionDetails(details: RejectionDetails): boolean {
   return !!(details.return_reason || details.rejection_message || details.rejection_category || details.researcher_message);
 }
 
+/** Pull the researcher {id, name, country} off a submission payload (`study.researcher`, else top-level). */
+export function researcherRefFromPayload(payload: unknown): Researcher | null {
+  const p = payload as Record<string, unknown> | undefined;
+  if (!p || typeof p !== 'object') return null;
+  const study = p.study as Record<string, unknown> | undefined;
+  const researcher = (study?.researcher ?? p.researcher) as Record<string, unknown> | undefined;
+  if (!researcher || typeof researcher !== 'object') return null;
+  const id = trimString(researcher.id);
+  if (!id) return null;
+  return {
+    id,
+    name: trimString(researcher.name),
+    country: trimString(researcher.country),
+  };
+}
+
 export interface ResearcherOption {
   id: string;
   name: string;
@@ -127,19 +144,15 @@ export function extractResearcherOptions(submissions: SubmissionRecord[]): Resea
   const map = new Map<string, { name: string; count: number }>();
 
   for (const s of submissions) {
-    const p = s.payload as Record<string, unknown> | undefined;
-    const study = p?.study as Record<string, unknown> | undefined;
-    const researcher = study?.researcher as Record<string, unknown> | undefined;
+    const ref = researcherRefFromPayload(s.payload);
+    if (!ref) continue;
 
-    const id = String(researcher?.id ?? '').trim();
-    if (!id) continue;
-
-    const name = String(researcher?.name ?? '').trim() || id;
-    const existing = map.get(id);
+    const name = ref.name || ref.id;
+    const existing = map.get(ref.id);
     if (existing) {
       existing.count++;
     } else {
-      map.set(id, { name, count: 1 });
+      map.set(ref.id, { name, count: 1 });
     }
   }
 
@@ -174,13 +187,7 @@ export function filterSubmissionsByResearcher(
 ): SubmissionRecord[] {
   if (!researcherId) return submissions;
 
-  return submissions.filter((s) => {
-    const p = s.payload as Record<string, unknown> | undefined;
-    const study = p?.study as Record<string, unknown> | undefined;
-    const researcher = study?.researcher as Record<string, unknown> | undefined;
-    const id = String(researcher?.id ?? '').trim();
-    return id === researcherId;
-  });
+  return submissions.filter((s) => researcherRefFromPayload(s.payload)?.id === researcherId);
 }
 
 export interface SubmissionMeta {

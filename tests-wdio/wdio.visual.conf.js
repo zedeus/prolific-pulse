@@ -31,6 +31,7 @@ export const config = {
     path.resolve('./specs/visual-earnings.js'),
     path.resolve('./specs/visual-earnings-popup.js'),
     path.resolve('./specs/visual-live.js'),
+    path.resolve('./specs/visual-researcher.js'),
   ],
 
   capabilities: [{

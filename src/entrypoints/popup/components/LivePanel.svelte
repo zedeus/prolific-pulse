@@ -35,6 +35,7 @@
     onAddResearcherToNewFilter,
     onCopyLink,
     onSendStudyToTelegram,
+    onViewResearcher,
   } = $props<{
     active: boolean;
     studies: Study[];
@@ -47,6 +48,7 @@
     onAddResearcherToNewFilter: (study: Study, field: FilterListField) => void;
     onCopyLink: (url: string) => void;
     onSendStudyToTelegram: (study: Study) => void;
+    onViewResearcher?: (researcherId: string, researcherName: string) => void;
   }>();
 
   type SortKey = 'newest' | 'reward' | 'hourly' | 'places' | 'duration';
@@ -276,7 +278,12 @@
             <div class="event live {isPriority ? 'priority' : ''} p-3.5 rounded-lg mb-2.5 text-[12.5px] shadow-sm border border-base-300 bg-base-100 {isPriority ? 'priority-card' : ''}">
               <div class="event-top flex items-start justify-between gap-2.5">
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
-                  <StudyTitle name={study.name || '(unnamed study)'} {researcherName} />
+                  <StudyTitle
+                    name={study.name || '(unnamed study)'}
+                    {researcherName}
+                    researcherId={study.researcher?.id?.trim() || ''}
+                    onResearcherClick={onViewResearcher}
+                  />
                 </div>
                 <div class="flex items-center gap-1 flex-shrink-0">
                   {#if firstSeenText}
@@ -291,6 +298,7 @@
                     onAddToNewFilter={(field) => onAddResearcherToNewFilter(study, field)}
                     onCopyLink={() => onCopyLink(url)}
                     onSendTelegram={() => onSendStudyToTelegram(study)}
+                    onViewProfile={onViewResearcher}
                   />
                 </div>
               </div>

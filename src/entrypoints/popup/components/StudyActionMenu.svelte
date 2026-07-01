@@ -11,6 +11,7 @@
     onAddToNewFilter: (field: FilterListField) => void;
     onCopyLink: () => void;
     onSendTelegram: () => void;
+    onViewProfile?: (researcherId: string, researcherName: string) => void;
   }
 
   let {
@@ -22,6 +23,7 @@
     onAddToNewFilter,
     onCopyLink,
     onSendTelegram,
+    onViewProfile,
   }: Props = $props();
 
   type SubmenuKind = FilterListField | null;
@@ -115,6 +117,17 @@
     close();
   }
 
+  function handleViewProfile(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!hasResearcher || !onViewProfile) return;
+    const id = study?.researcher?.id?.trim() ?? '';
+    // Pass the real name only (not the id fallback used for menu labels) so the profile can
+    // resolve the name from the researchers table / past submissions when the study omits it.
+    onViewProfile(id, study?.researcher?.name?.trim() ?? '');
+    close();
+  }
+
   function handleCopyLink(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -199,6 +212,18 @@
     role="menu"
     style="left: {menuPos.left}px; {menuPos.flipUp ? `bottom: ${window.innerHeight - menuPos.top}px` : `top: ${menuPos.top}px`};"
   >
+    {#if onViewProfile}
+      <button
+        type="button"
+        class="menu-item w-full text-left px-3 py-1.5 text-[12px] hover:bg-base-200 flex items-center gap-2 bg-transparent border-none cursor-pointer {hasResearcher ? 'text-base-content' : 'text-base-content/30 cursor-not-allowed'}"
+        disabled={!hasResearcher}
+        onclick={handleViewProfile}
+        title={hasResearcher ? `View ${researcherName}'s reliability profile` : 'No researcher on this study'}
+      >
+        <span class="truncate">&#128100; View researcher profile</span>
+      </button>
+      <div class="border-t border-base-300 my-0.5"></div>
+    {/if}
     <button
       type="button"
       class="menu-item w-full text-left px-3 py-1.5 text-[12px] hover:bg-primary/10 flex items-center justify-between gap-2 bg-transparent border-none cursor-pointer {hasResearcher ? 'text-base-content' : 'text-base-content/30 cursor-not-allowed'}"

@@ -55,12 +55,16 @@
   } from '../../lib/format';
   import { applyThemeAttr, readInitialTheme, watchSystemTheme, writeThemePref } from '../../lib/theme';
 
+  import { filterSubmissionsByResearcher } from '../../lib/submission-analytics';
+  import { computeResearcherProfile, type ResearcherProfile } from '../../lib/researcher-profile';
+
   import StatusBar from './components/StatusBar.svelte';
   import TabBar from './components/TabBar.svelte';
   import LivePanel from './components/LivePanel.svelte';
   import FeedPanel from './components/FeedPanel.svelte';
   import SubmissionsPanel from './components/SubmissionsPanel.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
+  import ResearcherProfileCard from './components/ResearcherProfileCard.svelte';
 
   // EarningsPanel pulls in ~600 kB of layerchart + d3-scale. Lazy-load it on
   // first visit to the Earnings tab so the initial popup paint stays cheap.
@@ -94,6 +98,10 @@
   // study_id → study-type label, loaded once per popup open (types are stable within a session).
   let studyTypeMap: Map<string, string> = $state(new Map());
   let focusFilterId = $state('');
+
+  // Researcher reliability profile (opened by clicking a researcher name / the study action menu).
+  let profileResearcherId = $state('');
+  let researcherProfile: ResearcherProfile | null = $state(null);
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
@@ -580,6 +588,11 @@
   function addResearcherToNewFilter(study: Study, field: FilterListField) {
     const ref = researcherRefFromStudy(study);
     if (!ref) return;
+    addResearcherRefToNewFilter(ref, field);
+  }
+
+  function addResearcherRefToNewFilter(ref: ResearcherRef, field: FilterListField) {
+    if (!ref?.id) return;
     if (priorityFilters.length >= MAX_PRIORITY_FILTERS) {
       errorMessage = `Filter limit reached (${MAX_PRIORITY_FILTERS}).`;
       return;
@@ -598,6 +611,44 @@
     handlePriorityFiltersChange();
     focusFilterId = newFilter.id;
     activeTab = 'settings';
+  }
+
+  async function handleViewResearcher(researcherId: string, researcherName: string) {
+    const id = researcherId?.trim();
+    if (!id) return;
+    profileResearcherId = id;
+    // Empty (not id) when the click had no name — lets computeResearcherProfile resolve the name
+    // from the researchers record / past submissions rather than showing the raw id.
+    const name = researcherName?.trim() || '';
+    const subs = filterSubmissionsByResearcher(allSubmissions, id);
+    // Show the submissions-only profile instantly, then enrich with study-history context.
+    researcherProfile = computeResearcherProfile({ id, name, submissions: subs });
+    try {
+      const ctx = await store.getResearcherStudyData(id);
+      // Ignore if the user already closed or switched to a different researcher.
+      if (profileResearcherId !== id) return;
+      researcherProfile = computeResearcherProfile({
+        id,
+        name,
+        researcher: ctx.researcher,
+        submissions: subs,
+        studies: ctx.studies,
+        availabilityEvents: ctx.availabilityEvents,
+      });
+    } catch {
+      /* keep the compact profile already shown */
+    }
+  }
+
+  function closeResearcherProfile() {
+    profileResearcherId = '';
+    researcherProfile = null;
+  }
+
+  function addResearcherFromProfile(field: FilterListField) {
+    if (!researcherProfile) return;
+    addResearcherRefToNewFilter({ id: researcherProfile.id, name: researcherProfile.name }, field);
+    closeResearcherProfile();
   }
 
   async function copyStudyLink(url: string) {
@@ -690,6 +741,7 @@
     onAddResearcherToNewFilter={addResearcherToNewFilter}
     onCopyLink={copyStudyLink}
     onSendStudyToTelegram={sendStudyToTelegram}
+    onViewResearcher={handleViewResearcher}
   />
   <FeedPanel
     active={activeTab === 'feed'}
@@ -747,4 +799,11 @@
   {:else}
     <div id="panelSettings" class="panel" class:active={activeTab === 'settings'}></div>
   {/if}
+
+  <ResearcherProfileCard
+    profile={researcherProfile}
+    onClose={closeResearcherProfile}
+    onPrioritize={() => addResearcherFromProfile('match')}
+    onBlacklist={() => addResearcherFromProfile('ignore')}
+  />
 </main>

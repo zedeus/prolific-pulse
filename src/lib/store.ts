@@ -2,9 +2,11 @@ import { db } from './db';
 import { extractSubmissionReward, extractStartedAt } from './earnings';
 import { nowIso, trimString, formatStudyLabel } from './format';
 import { CSV_SUBMISSION_ID_PREFIX } from './import-csv';
+import { researcherRefFromPayload } from './submission-analytics';
 import type {
   StudyLatestRecord,
   StudyActiveSnapshotRecord,
+  StudyAvailabilityEventRecord,
   SubmissionRecord,
   ResearcherRecord,
 } from './db';
@@ -178,14 +180,47 @@ export async function upsertResearcherFromSubmission(
 }
 
 export function extractResearcherFromSubmissionPayload(rawPayload: unknown): Researcher | null {
-  if (!rawPayload || typeof rawPayload !== 'object') return null;
-  const p = rawPayload as Record<string, unknown>;
-  const study = p.study as Record<string, unknown> | undefined;
-  const raw = (study?.researcher ?? p.researcher) as Record<string, unknown> | undefined;
-  if (!raw || typeof raw !== 'object') return null;
-  const id = trimString(raw.id);
-  if (!id) return null;
-  return { id, name: trimString(raw.name), country: trimString(raw.country) };
+  // Shared implementation lives in submission-analytics (DB-free); kept as a named re-export here
+  // because store is the historical import site (SubmissionDetail/SubmissionsPanel, ingest path).
+  return researcherRefFromPayload(rawPayload);
+}
+
+export interface ResearcherStudyData {
+  researcher: ResearcherRecord | null;
+  studies: Study[];
+  availabilityEvents: StudyAvailabilityEventRecord[];
+}
+
+/**
+ * Gather a researcher's study-history context for a profile: their researcher record, every study
+ * we've observed from them (from `studiesLatest`, which retains all study ids ever seen), and the
+ * availability events for those studies. Submissions are joined separately by the caller (the popup
+ * already holds the full analytics set in memory).
+ */
+export async function getResearcherStudyData(researcherId: string): Promise<ResearcherStudyData> {
+  const id = trimString(researcherId);
+  if (!id) return { researcher: null, studies: [], availabilityEvents: [] };
+
+  const [researcher, latestRows] = await Promise.all([
+    db.researchers.get(id),
+    db.studiesLatest.toArray(),
+  ]);
+
+  const studies: Study[] = [];
+  const studyIds: string[] = [];
+  for (const row of latestRows) {
+    const study = row.payload as unknown as Study;
+    if (trimString(study?.researcher?.id) === id) {
+      studies.push(study);
+      studyIds.push(row.study_id);
+    }
+  }
+
+  const availabilityEvents = studyIds.length > 0
+    ? await db.studyAvailabilityEvents.where('study_id').anyOf(studyIds).toArray()
+    : [];
+
+  return { researcher: researcher ?? null, studies, availabilityEvents };
 }
 
 export async function listKnownResearchers(): Promise<ResearcherRecord[]> {

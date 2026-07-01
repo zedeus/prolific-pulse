@@ -679,3 +679,44 @@ describe('getStudyTypeMap — malformed payloads', () => {
     expect(map.has('s-empty')).toBe(false);
   });
 });
+
+describe('getResearcherStudyData', () => {
+  it('returns empty result for a blank id', async () => {
+    const data = await store.getResearcherStudyData('   ');
+    expect(data).toEqual({ researcher: null, studies: [], availabilityEvents: [] });
+  });
+
+  it('joins studies + availability events for a researcher, skipping other researchers', async () => {
+    await db.researchers.clear();
+    await db.researchers.put({
+      id: 'r-target', name: 'Target Lab', country: 'GB',
+      first_seen_at: '2025-01-01T00:00:00Z', last_seen_at: '2025-02-01T00:00:00Z',
+      study_count: 0, submission_count: 0,
+    });
+    await db.studiesLatest.bulkPut([
+      { study_id: 'sa', name: 'A', payload: { id: 'sa', researcher: { id: 'r-target' } }, last_seen_at: 't' },
+      { study_id: 'sb', name: 'B', payload: { id: 'sb', researcher: { id: 'r-target' } }, last_seen_at: 't' },
+      { study_id: 'sc', name: 'C', payload: { id: 'sc', researcher: { id: 'r-other' } }, last_seen_at: 't' },
+    ]);
+    await db.studyAvailabilityEvents.bulkAdd([
+      { study_id: 'sa', study_name: 'A', event_type: 'available', observed_at: '2025-03-01T10:00:00Z' },
+      { study_id: 'sa', study_name: 'A', event_type: 'unavailable', observed_at: '2025-03-01T11:00:00Z' },
+      { study_id: 'sc', study_name: 'C', event_type: 'available', observed_at: '2025-03-01T10:00:00Z' }, // other researcher
+    ]);
+
+    const data = await store.getResearcherStudyData('r-target');
+    expect(data.researcher?.name).toBe('Target Lab');
+    expect(data.studies.map((s) => s.id).sort()).toEqual(['sa', 'sb']);
+    expect(data.availabilityEvents.every((e) => e.study_id === 'sa')).toBe(true);
+    expect(data.availabilityEvents.length).toBe(2);
+  });
+
+  it('returns a null researcher record but still finds studies when the record is missing', async () => {
+    await db.researchers.clear();
+    await db.studiesLatest.put({ study_id: 'sx', name: 'X', payload: { id: 'sx', researcher: { id: 'r-noRec' } }, last_seen_at: 't' });
+    const data = await store.getResearcherStudyData('r-noRec');
+    expect(data.researcher).toBeNull();
+    expect(data.studies.map((s) => s.id)).toEqual(['sx']);
+    expect(data.availabilityEvents).toEqual([]);
+  });
+});

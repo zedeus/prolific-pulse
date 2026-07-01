@@ -135,6 +135,8 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
         id: studyId,
         name: template.name,
         is_trial_study: rng() > 0.95,
+        // Study's advertised time (minutes) — lets the researcher profile compare actual vs estimate.
+        estimated_completion_time: Math.max(1, Math.round(template.meanSeconds / 60)),
         researcher: {
           ...researcher,
           country,
