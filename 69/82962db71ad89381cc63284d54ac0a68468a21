@@ -1,0 +1,91 @@
+tests-wdio/specs/08-popup-panels.js
+  s_f94177f0cbee86::t_9d81da015a3f06 196,200
+src/entrypoints/popup/components/ResearcherProfileCard.svelte
+  s_f94177f0cbee86::t_2fd37faffff734 18-20,23-25
+  s_f94177f0cbee86::t_0b13433d144bad 69-92
+  s_f94177f0cbee86::t_64ef0c39ea2cf1 232-246,248,253,257-269,271
+src/lib/__tests__/researcher-profile.test.ts
+  s_f94177f0cbee86::t_062df373dfe124 389-404
+  s_f94177f0cbee86::t_340cd0e0e59a45 11
+src/entrypoints/popup/components/StudyTitle.svelte
+  s_f94177f0cbee86::t_d5706b5675bcf8 2-4,11-12,15,33
+src/entrypoints/popup/components/LivePanel.svelte
+  s_f94177f0cbee86::t_569306304ae891 57,64-66,68-73
+  s_f94177f0cbee86::t_d1cefd9cefaa96 204,208-209
+  s_f94177f0cbee86::t_61dba328a887ac 40,46
+  s_f94177f0cbee86::t_621065d3b83c5f 122-125,146-148
+  s_f94177f0cbee86::t_ce283eb9d1cb82 67
+  s_f94177f0cbee86::t_b1f175f3f5d8e0 3
+  s_f94177f0cbee86::t_f9da69ab5b958c 175
+  s_f94177f0cbee86::t_83ba0ede1b916a 90-91
+  s_f94177f0cbee86::t_a59d3375d88c6a 314
+  s_f94177f0cbee86::t_89e22b34662500 253-257
+  s_f94177f0cbee86::t_967a3d342617d5 149
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  s_f94177f0cbee86::t_0d08d2f35b027a 397
+  s_f94177f0cbee86::t_d0f644360ccb83 48-49,58-59
+  s_f94177f0cbee86::t_640e015a6f7f73 364-366
+  s_f94177f0cbee86::t_d8b1f209998c89 392-396,398
+  s_f94177f0cbee86::t_319be2197d0733 5
+src/entrypoints/popup/App.svelte
+  s_f94177f0cbee86::t_432d8aa05886cc 783
+  s_f94177f0cbee86::t_2a152bb5f44b7d 107
+  s_f94177f0cbee86::t_10d43cd0f14f18 60
+  s_f94177f0cbee86::t_a527457e9b8d34 108-110
+  s_f94177f0cbee86::t_77faaed4296d63 749,762,766,773,777
+  s_f94177f0cbee86::t_8bb0809cf04682 68
+  s_f94177f0cbee86::t_26765be6cbab8c 629-633
+  s_f94177f0cbee86::t_b1ad414b27598c 657
+  s_f94177f0cbee86::t_53be2dbbda98a0 811
+  s_f94177f0cbee86::t_6fcf89f997167f 830,832
+  s_f94177f0cbee86::t_4982d6ed2d1fbe 779-782,784
+  s_f94177f0cbee86::t_3810f5a80f088a 55
+  s_f94177f0cbee86::t_74389f661c5012 778
+src/lib/format.ts
+  s_f94177f0cbee86::t_aefac1d5ff2a94 56-64
+src/lib/__tests__/format.test.ts
+  s_f94177f0cbee86::t_708723759135ed 1-21
+src/entrypoints/popup/components/SettingsPanel.svelte
+  s_f94177f0cbee86::t_e05fc615935e1a 8
+  s_f94177f0cbee86::t_dbfe4abeaf99f1 77
+  s_f94177f0cbee86::t_824748da6d5267 54
+src/entrypoints/popup/components/FeedPanel.svelte
+  s_f94177f0cbee86::t_592ea78ff1a4c8 17,23-24
+  s_f94177f0cbee86::t_d7bf179e79c812 258-262,264
+  s_f94177f0cbee86::t_e22d39486fef78 3
+  s_f94177f0cbee86::t_9659ce954c40d4 263
+src/lib/types.ts
+  s_f94177f0cbee86::t_6b1ac181b610d0 54
+tests-wdio/specs/visual-researcher.js
+  s_f94177f0cbee86::t_856947df1cf29c 122-145
+src/entrypoints/popup/components/ResearchersPanel.svelte
+  s_f94177f0cbee86::t_63c28cae0ff644 1-4,6-52,56-109,112-130,135,137-153
+  s_f94177f0cbee86::t_2d328bd51a034a 110-111
+  s_f94177f0cbee86::t_a2cc5a128146e6 5
+  s_f94177f0cbee86::t_8d4e038f2c74ab 53-55
+  s_f94177f0cbee86::t_62a40d7f80ebe3 131-134,136
+src/lib/store.ts
+  s_f94177f0cbee86::t_c3c0d76c21b16e 378
+src/entrypoints/popup/components/ReliabilityBadge.svelte
+  s_f94177f0cbee86::t_d9f7d9fb4fcf56 1-15
+src/entrypoints/popup/components/TabBar.svelte
+  s_f94177f0cbee86::t_7b4f51117bdce1 7
+src/lib/researcher-profile.ts
+  s_f94177f0cbee86::t_2edc19ec42a460 165-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "6982962db71ad89381cc63284d54ac0a68468a21",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
