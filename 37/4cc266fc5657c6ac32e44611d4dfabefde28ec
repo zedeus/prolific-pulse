@@ -1,0 +1,36 @@
+src/entrypoints/popup/components/ReliabilityBadge.svelte
+  s_f94177f0cbee86::t_2d8e713afed40a 5-14,17-26
+src/entrypoints/popup/components/ResearcherProfileCard.svelte
+  s_f94177f0cbee86::t_8ad1e6945efd26 2,7,12-13,22-23,27,31-33
+  s_f94177f0cbee86::t_da0cd6945e7b56 245-246,249,252-255
+  s_f94177f0cbee86::t_b5f1587697cc50 34
+src/entrypoints/popup/App.svelte
+  s_f94177f0cbee86::t_c558aaff0d67bd 656
+  s_f94177f0cbee86::t_44d9133c69ca3a 829
+  s_f94177f0cbee86::t_58d7dd3861fcf6 106
+  s_f94177f0cbee86::t_a4fcc5b66df014 628,632
+src/entrypoints/popup/components/StudyTitle.svelte
+  s_f94177f0cbee86::t_7ae9244995677e 33
+src/lib/__tests__/fake-submissions.test.ts
+  s_f94177f0cbee86::t_3cd64181b27cca 4
+  s_f94177f0cbee86::t_3af8187bbf54a2 56-68
+src/lib/__dev__/fake-submissions.ts
+  s_f94177f0cbee86::t_75e078cb09e4b8 116-118
+  s_f94177f0cbee86::t_b71f75f958d8c2 46-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "374cc266fc5657c6ac32e44611d4dfabefde28ec",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
