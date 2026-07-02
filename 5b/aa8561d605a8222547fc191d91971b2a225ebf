@@ -1,0 +1,20 @@
+src/lib/__dev__/fake-submissions.ts
+  s_f94177f0cbee86::t_67e543e8ab2809 62-63,65-68
+  s_f94177f0cbee86::t_df45956f3f02fb 125-128,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "5baa8561d605a8222547fc191d91971b2a225ebf",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
