@@ -1,0 +1,60 @@
+src/lib/format.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 56-64
+src/lib/store.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 378
+src/entrypoints/popup/components/ResearcherProfileCard.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 2,7,12-13,22-24,27-33,77-100,118,121,240-258,260,265,269-281,283
+src/entrypoints/popup/components/TabBar.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 7
+src/entrypoints/popup/components/SettingsPanel.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 8,54,77
+tests-wdio/specs/visual-researcher.js
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 68-78,132-154
+  s_f94177f0cbee86::t_52048e59292fa1 155
+src/entrypoints/popup/components/ReliabilityBadge.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 1-31
+src/lib/__dev__/fake-submissions.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 46-68,116-118
+src/lib/researcher-profile.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 165-173
+src/lib/__tests__/format.test.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 1-21
+src/entrypoints/popup/components/LivePanel.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 3,40,46,57,64-73,90-91,122-125,146-149,175,204,208-209,253-257,314
+src/entrypoints/popup/components/ResearchersPanel.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 1-153
+src/entrypoints/popup/components/SubmissionsPanel.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 5,48-49,58-59,364-366,392-398
+src/lib/__tests__/fake-submissions.test.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 4,56-67
+  s_f94177f0cbee86::t_042484eb96ab30 68
+tests-wdio/specs/08-popup-panels.js
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 196,200
+src/lib/types.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 54
+src/lib/__tests__/researcher-profile.test.ts
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 11,389-402
+  s_f94177f0cbee86::t_c64d6947521f8a 403-404
+src/entrypoints/popup/components/StudyTitle.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 2-4,11-12,15,33
+src/entrypoints/popup/components/FeedPanel.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 3,17,23-24,258-264
+src/entrypoints/popup/App.svelte
+  s_f94177f0cbee86::t_44a8cdf0e28dd7 59,67,106-109,628-632,634-639,642,651,653-655,661,733-736,756,769,773,780,784-791,818,837,839
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "f43253c817c4b773a19f22bbd75810dd2a2af442",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
