@@ -1,0 +1,22 @@
+src/entrypoints/popup/App.svelte
+  s_f94177f0cbee86::t_776bd83f02dab2 733-736
+src/entrypoints/popup/components/ResearcherProfileCard.svelte
+  s_f94177f0cbee86::t_5571164f92b641 118
+  s_f94177f0cbee86::t_16b9cb740d4b0f 121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "a7bd3c07b8339c14eb369e4f1456a44ed4f2641e",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
