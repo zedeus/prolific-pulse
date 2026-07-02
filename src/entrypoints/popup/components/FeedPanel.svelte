@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StudyEvent } from '../../../lib/types';
+  import { reliabilityFor, type ResearcherProfile } from '../../../lib/researcher-profile';
   import StudyTitle from './StudyTitle.svelte';
   import {
     formatMoneyFromMinorUnits,
@@ -13,12 +14,14 @@
     getCurrencySymbol,
   } from '../../../lib/format';
 
-  let { active, events, primaryCurrency, overrideMessage, onStudyClick } = $props<{
+  let { active, events, primaryCurrency, overrideMessage, onStudyClick, onViewResearcher, researcherProfiles } = $props<{
     active: boolean;
     events: StudyEvent[];
     primaryCurrency: string;
     overrideMessage: string;
     onStudyClick: (url: string) => void;
+    onViewResearcher?: (researcherId: string, researcherName: string) => void;
+    researcherProfiles?: Map<string, ResearcherProfile>;
   }>();
 
   type SortKey = 'newest' | 'reward' | 'hourly';
@@ -252,7 +255,13 @@
             <div class="event {type} p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 {type === 'available' ? 'bg-base-100 shadow-sm' : 'bg-base-200/60'} border-l-3 {type === 'available' ? 'border-l-success' : 'border-l-error'}">
               <div class="event-top flex items-start justify-between gap-2.5">
                 <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
-                  <StudyTitle {name} researcherName={evt.researcher_name} />
+                  <StudyTitle
+                    {name}
+                    researcherName={evt.researcher_name}
+                    researcherId={evt.researcher_id}
+                    onResearcherClick={onViewResearcher}
+                    reliability={reliabilityFor(researcherProfiles, evt.researcher_id)}
+                  />
                 </div>
                 <div class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{observedAt}</div>
               </div>

@@ -43,13 +43,29 @@ const RESEARCHERS: readonly { id: string; name: string }[] = [
   { id: 'r-008', name: 'Dr A. Singh (UCL)' },
 ];
 
-const STATUS_POOL: readonly string[] = [
-  ...Array(80).fill(APPROVED_STATUS),
-  ...Array(10).fill(AWAITING_REVIEW_STATUS),
-  ...Array(4).fill(RETURNED_STATUS),
-  ...Array(3).fill(REJECTED_STATUS),
-  ...Array(3).fill(SCREENED_OUT_STATUS),
-];
+// Per-researcher quality tiers so seeded reliability spreads across all bands (Excellent→Poor)
+// instead of everyone landing ~90+. Makes the reliability star selective and the "sort by trust" /
+// "hide poor-rated" / directory surfaces show real variation. Tier is keyed by RESEARCHERS index.
+type QualityTier = 'excellent' | 'good' | 'fair' | 'poor';
+const RESEARCHER_QUALITY: readonly QualityTier[] = ['excellent', 'excellent', 'good', 'good', 'fair', 'fair', 'poor', 'poor'];
+
+interface StatusWeights { approved: number; awaiting: number; returned: number; rejected: number; screened: number }
+function buildStatusPool(w: StatusWeights): readonly string[] {
+  return [
+    ...Array(w.approved).fill(APPROVED_STATUS),
+    ...Array(w.awaiting).fill(AWAITING_REVIEW_STATUS),
+    ...Array(w.returned).fill(RETURNED_STATUS),
+    ...Array(w.rejected).fill(REJECTED_STATUS),
+    ...Array(w.screened).fill(SCREENED_OUT_STATUS),
+  ];
+}
+const TIER_STATUS_POOLS: Record<QualityTier, readonly string[]> = {
+  excellent: buildStatusPool({ approved: 90, awaiting: 6, returned: 1, rejected: 1, screened: 2 }),
+  good: buildStatusPool({ approved: 70, awaiting: 9, returned: 8, rejected: 7, screened: 6 }),
+  fair: buildStatusPool({ approved: 55, awaiting: 8, returned: 16, rejected: 13, screened: 11 }),
+  poor: buildStatusPool({ approved: 40, awaiting: 8, returned: 26, rejected: 22, screened: 9 }),
+};
+const RESEARCHER_STATUS_POOLS: readonly (readonly string[])[] = RESEARCHER_QUALITY.map((t) => TIER_STATUS_POOLS[t]);
 
 const RETURN_REASONS: readonly string[] = [
   'Submission timed out',
@@ -97,8 +113,9 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
 
   for (let i = 0; i < opts.count; i++) {
     const template = pick(STUDY_TEMPLATES, rng);
-    const researcher = pick(RESEARCHERS, rng);
-    const status = pick(STATUS_POOL, rng);
+    const researcherIdx = Math.floor(rng() * RESEARCHERS.length);
+    const researcher = RESEARCHERS[researcherIdx];
+    const status = pick(RESEARCHER_STATUS_POOLS[researcherIdx], rng);
 
     // Recency bias: cluster more submissions toward `now`.
     const tBias = Math.pow(rng(), 0.7);

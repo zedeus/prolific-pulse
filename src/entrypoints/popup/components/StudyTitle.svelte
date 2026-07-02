@@ -1,13 +1,18 @@
 <script lang="ts">
+  import type { ReliabilityScore } from '../../../lib/researcher-profile';
+  import ReliabilityBadge from './ReliabilityBadge.svelte';
+
   interface Props {
     name: string;
     researcherName?: string;
     /** When set (with onResearcherClick), the researcher name becomes a button opening their profile. */
     researcherId?: string;
     onResearcherClick?: (id: string, name: string) => void;
+    /** At-a-glance reliability chip shown after the researcher name (self-hides until enough history). */
+    reliability?: ReliabilityScore | null;
   }
 
-  let { name, researcherName = '', researcherId = '', onResearcherClick }: Props = $props();
+  let { name, researcherName = '', researcherId = '', onResearcherClick, reliability = null }: Props = $props();
 
   const clickable = $derived(Boolean(researcherId && onResearcherClick));
 
@@ -25,4 +30,4 @@
       class="researcher-link inline text-inherit hover:text-primary hover:underline underline-offset-2 cursor-pointer bg-transparent border-0 p-0 font-inherit text-left align-baseline"
       title="View {researcherName}'s reliability profile"
       onclick={handleClick}
-    >{researcherName}</button>{:else}{researcherName}{/if}</span>{/if}
+    >{researcherName}</button>{:else}{researcherName}{/if}</span>{#if reliability}<ReliabilityBadge {reliability} star class="ml-1" />{/if}{/if}

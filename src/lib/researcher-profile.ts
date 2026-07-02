@@ -162,6 +162,15 @@ export function reliabilityBandColorClass(band: ReliabilityBand): string {
   return BAND_TEXT_CLASS[band];
 }
 
+/** Look up a researcher's reliability from a compact-profiles map. null when the map/id is missing. */
+export function reliabilityFor(
+  profiles: Map<string, ResearcherProfile> | undefined,
+  id: string | undefined | null,
+): ReliabilityScore | null {
+  if (!profiles || !id) return null;
+  return profiles.get(id)?.reliability ?? null;
+}
+
 // ──────────────────────────────────────────────────────────────
 // Submissions-only metrics
 // ──────────────────────────────────────────────────────────────

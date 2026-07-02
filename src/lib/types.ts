@@ -51,6 +51,7 @@ export interface StudyEvent {
   total_available_places: number;
   places_available: number;
   researcher_name: string;
+  researcher_id: string;
 }
 
 export interface Submission {

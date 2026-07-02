@@ -375,6 +375,7 @@ export async function getRecentAvailabilityEvents(limit: number): Promise<StudyE
       total_available_places: study?.total_available_places ?? 0,
       places_available: study?.places_available ?? 0,
       researcher_name: study?.researcher?.name?.trim() ?? '',
+      researcher_id: study?.researcher?.id?.trim() ?? '',
     };
   });
 }

@@ -5,7 +5,7 @@
   import type { SubmissionRecord, ResearcherRecord } from '../../../lib/db';
   import { createDefaultPriorityFilter } from '../../../lib/priority-filter';
   import ResearcherPicker from './ResearcherPicker.svelte';
-  import { computeCompactProfiles } from '../../../lib/researcher-profile';
+  import type { ResearcherProfile } from '../../../lib/researcher-profile';
   import type { EarningsPrefs } from '../../../lib/earnings-prefs';
   import { listCurrencies } from '../../../lib/earnings';
   import { cacheKey as fxCacheKey } from '../../../lib/fx-rates';
@@ -51,6 +51,7 @@
     earningsPrefs,
     allSubmissions,
     knownResearchers,
+    researcherProfiles,
     focusFilterId,
     onAutoOpenChange,
     onPriorityFiltersChange,
@@ -73,6 +74,7 @@
     earningsPrefs: EarningsPrefs;
     allSubmissions: SubmissionRecord[];
     knownResearchers: ResearcherRecord[];
+    researcherProfiles: Map<string, ResearcherProfile>;
     focusFilterId: string;
     onAutoOpenChange: (enabled: boolean) => void;
     onPriorityFiltersChange: () => void;
@@ -85,10 +87,6 @@
     onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
     onFilterFocused: () => void;
   }>();
-
-  // Per-researcher reliability profiles (submissions-only), keyed by researcher id.
-  // Feeds the reliability badge + pay sparkline shown in ResearcherPicker rows.
-  const researcherProfiles = $derived(computeCompactProfiles(allSubmissions));
 
   // Always show common currencies in the picker even with no data, so users
   // can configure FX pre-emptively. Detected currencies show submission counts.

@@ -56,7 +56,7 @@
   import { applyThemeAttr, readInitialTheme, watchSystemTheme, writeThemePref } from '../../lib/theme';
 
   import { filterSubmissionsByResearcher } from '../../lib/submission-analytics';
-  import { computeResearcherProfile, type ResearcherProfile } from '../../lib/researcher-profile';
+  import { computeResearcherProfile, computeCompactProfiles, type ResearcherProfile } from '../../lib/researcher-profile';
 
   import StatusBar from './components/StatusBar.svelte';
   import TabBar from './components/TabBar.svelte';
@@ -64,6 +64,7 @@
   import FeedPanel from './components/FeedPanel.svelte';
   import SubmissionsPanel from './components/SubmissionsPanel.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
+  import ResearchersPanel from './components/ResearchersPanel.svelte';
   import ResearcherProfileCard from './components/ResearcherProfileCard.svelte';
 
   // EarningsPanel pulls in ~600 kB of layerchart + d3-scale. Lazy-load it on
@@ -102,6 +103,10 @@
   // Researcher reliability profile (opened by clicking a researcher name / the study action menu).
   let profileResearcherId = $state('');
   let researcherProfile: ResearcherProfile | null = $state(null);
+  let profileLatestStudy: Study | null = $state(null);
+  // Submissions-only reliability profiles keyed by researcher id — powers the at-a-glance badges on
+  // study/feed/submission rows and the picker. Computed once from allSubmissions (rare changes).
+  const researcherProfiles = $derived(computeCompactProfiles(allSubmissions));
 
   let savedRefreshPolicy: NormalizedRefreshPolicy = $state(normalizeRefreshPolicy(
     DEFAULT_STUDIES_REFRESH_MIN_DELAY_SECONDS,
@@ -620,14 +625,21 @@
     // Empty (not id) when the click had no name — lets computeResearcherProfile resolve the name
     // from the researchers record / past submissions rather than showing the raw id.
     const name = researcherName?.trim() || '';
+    // Newest currently-available study from this researcher (named on the card's "Open" action).
+    const liveForResearcher = studies
+      .filter((s) => s.researcher?.id?.trim() === id)
+      .sort((a, b) => (b.published_at || b.date_created || '').localeCompare(a.published_at || a.date_created || ''));
+    profileLatestStudy = liveForResearcher[0] ?? null;
     const subs = filterSubmissionsByResearcher(allSubmissions, id);
-    // Show the submissions-only profile instantly, then enrich with study-history context.
-    researcherProfile = computeResearcherProfile({ id, name, submissions: subs });
+    // Build the complete profile in one shot and show the card only once. Study context comes from
+    // local IndexedDB (a few ms), so the old "compact now, enrich after await" approach bought nothing
+    // and caused a visible flicker — the card first rendered without the study-history cells, then
+    // re-rendered larger with them (and with different first/last-seen values). Fall back to a
+    // submissions-only profile only if the study-context read fails.
+    let profile: ResearcherProfile;
     try {
       const ctx = await store.getResearcherStudyData(id);
-      // Ignore if the user already closed or switched to a different researcher.
-      if (profileResearcherId !== id) return;
-      researcherProfile = computeResearcherProfile({
+      profile = computeResearcherProfile({
         id,
         name,
         researcher: ctx.researcher,
@@ -636,13 +648,17 @@
         availabilityEvents: ctx.availabilityEvents,
       });
     } catch {
-      /* keep the compact profile already shown */
+      profile = computeResearcherProfile({ id, name, submissions: subs });
     }
+    // Ignore if the user closed the card or switched researchers while the read was in flight.
+    if (profileResearcherId !== id) return;
+    researcherProfile = profile;
   }
 
   function closeResearcherProfile() {
     profileResearcherId = '';
     researcherProfile = null;
+    profileLatestStudy = null;
   }
 
   function addResearcherFromProfile(field: FilterListField) {
@@ -714,7 +730,10 @@
   });
 </script>
 
-<main class="w-[620px] p-3 bg-base-200 text-base-content">
+<!-- While the researcher card is open, grow the popup to a consistent height (toward the browser's
+     ~600px popup cap) so the modal has the same room regardless of which tab is behind it — otherwise
+     its max-height tracks each tab's differing content height and scrolls by different amounts. -->
+<main class="w-[620px] p-3 bg-base-200 text-base-content" style:min-height={researcherProfile ? '600px' : undefined}>
   <StatusBar
     offline={!!errorMessage}
     {errorMessage}
@@ -734,6 +753,7 @@
     {studies}
     {priorityFilters}
     {telegramSettings}
+    {researcherProfiles}
     primaryCurrency={earningsPrefs.primary_currency || 'USD'}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
@@ -746,18 +766,29 @@
   <FeedPanel
     active={activeTab === 'feed'}
     {events}
+    {researcherProfiles}
     primaryCurrency={earningsPrefs.primary_currency || 'USD'}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
+    onViewResearcher={handleViewResearcher}
   />
   <SubmissionsPanel
     active={activeTab === 'submissions'}
     {submissions}
     {allSubmissions}
     {earningsPrefs}
+    {researcherProfiles}
     overrideMessage={showPanelOverride ? panelOverrideText : ''}
     onStudyClick={handleStudyClick}
     onEarningsPrefsChange={handleEarningsPrefsChange}
+    onViewResearcher={handleViewResearcher}
+  />
+  <ResearchersPanel
+    active={activeTab === 'researchers'}
+    {knownResearchers}
+    {researcherProfiles}
+    overrideMessage=""
+    onViewResearcher={handleViewResearcher}
   />
   {#if EarningsPanelComponent}
     {@const Earnings = EarningsPanelComponent}
@@ -784,6 +815,7 @@
     {earningsPrefs}
     {allSubmissions}
     {knownResearchers}
+    {researcherProfiles}
     {focusFilterId}
     onAutoOpenChange={handleAutoOpenChange}
     onPriorityFiltersChange={handlePriorityFiltersChange}
@@ -802,7 +834,9 @@
 
   <ResearcherProfileCard
     profile={researcherProfile}
+    latestStudy={profileLatestStudy}
     onClose={closeResearcherProfile}
+    onOpenStudy={handleStudyClick}
     onPrioritize={() => addResearcherFromProfile('match')}
     onBlacklist={() => addResearcherFromProfile('ignore')}
   />

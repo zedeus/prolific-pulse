@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Study, PriorityFilter, TelegramSettings, FilterListField } from '../../../lib/types';
+  import { reliabilityFor, type ResearcherProfile } from '../../../lib/researcher-profile';
   import {
     formatMoneyFromMinorUnits,
     moneyMajorValue,
@@ -36,11 +37,13 @@
     onCopyLink,
     onSendStudyToTelegram,
     onViewResearcher,
+    researcherProfiles,
   } = $props<{
     active: boolean;
     studies: Study[];
     priorityFilters: PriorityFilter[];
     telegramSettings: TelegramSettings;
+    researcherProfiles?: Map<string, ResearcherProfile>;
     primaryCurrency: string;
     overrideMessage: string;
     onStudyClick: (url: string) => void;
@@ -51,13 +54,23 @@
     onViewResearcher?: (researcherId: string, researcherName: string) => void;
   }>();
 
-  type SortKey = 'newest' | 'reward' | 'hourly' | 'places' | 'duration';
+  type SortKey = 'newest' | 'reward' | 'hourly' | 'places' | 'duration' | 'reliability';
 
   let sortKey = $state<SortKey>('newest');
   let searchQuery = $state('');
   let minReward = $state<number | null>(null);
   let minHourly = $state<number | null>(null);
   let maxDuration = $state<number | null>(null);
+  let hidePoorResearchers = $state(false);
+
+  function studyReliability(study: Study) {
+    return reliabilityFor(researcherProfiles, study?.researcher?.id?.trim());
+  }
+  /** Reliability score for sorting; NaN (→ sorts last) when the researcher has no rated history. */
+  function studyReliabilityScore(study: Study): number {
+    const rel = studyReliability(study);
+    return rel?.hasEnoughData ? rel.score : NaN;
+  }
 
   const enabledFilters = $derived(priorityFilters.filter((f: PriorityFilter) => f.enabled));
 
@@ -74,7 +87,8 @@
     (maxDuration !== null && maxDuration > 0)
   );
 
-  const hasActiveFilters = $derived(searchQuery.trim() !== '' || hasNumericFilters);
+  const hasQuickFilters = $derived(hasNumericFilters || hidePoorResearchers);
+  const hasActiveFilters = $derived(searchQuery.trim() !== '' || hasQuickFilters);
 
   const currencySymbol = $derived(getCurrencySymbol(primaryCurrency));
 
@@ -105,6 +119,10 @@
         return Number.isFinite(d) && d <= threshold;
       });
     }
+    if (hidePoorResearchers) {
+      // Only hide researchers we've actually rated as poor — never penalise unknowns.
+      result = result.filter((s) => studyReliability(s)?.band !== 'poor');
+    }
 
     result.sort((a, b) => {
       let aVal: number, bVal: number;
@@ -124,6 +142,10 @@
         case 'duration':
           aVal = studyEstimatedMinutes(a);
           bVal = studyEstimatedMinutes(b);
+          break;
+        case 'reliability':
+          aVal = studyReliabilityScore(a);
+          bVal = studyReliabilityScore(b);
           break;
         case 'newest':
         default:
@@ -150,6 +172,7 @@
     minReward = null;
     minHourly = null;
     maxDuration = null;
+    hidePoorResearchers = false;
   }
 
   function handleLinkClick(event: MouseEvent, url: string) {
@@ -178,11 +201,12 @@
           <option value="hourly">Rate ↓</option>
           <option value="places">Spots ↓</option>
           <option value="duration">Time ↑</option>
+          <option value="reliability">Trust ↓</option>
         </select>
         <button
           type="button"
-          class="btn btn-xs btn-square {filtersExpanded || hasNumericFilters ? 'btn-primary' : 'btn-ghost'}"
-          class:btn-outline={hasNumericFilters && !filtersExpanded}
+          class="btn btn-xs btn-square {filtersExpanded || hasQuickFilters ? 'btn-primary' : 'btn-ghost'}"
+          class:btn-outline={hasQuickFilters && !filtersExpanded}
           onclick={() => filtersExpanded = !filtersExpanded}
           title="Quick filters"
         >
@@ -226,7 +250,11 @@
               bind:value={maxDuration}
             />
           </label>
-          {#if hasNumericFilters}
+          <label class="flex items-center gap-1 text-base-content/70 cursor-pointer" title="Hide studies from researchers you've rated Poor">
+            <input type="checkbox" class="checkbox checkbox-xs" bind:checked={hidePoorResearchers} />
+            <span>Hide poor-rated</span>
+          </label>
+          {#if hasQuickFilters}
             <button
               type="button"
               class="btn btn-ghost btn-xs ml-auto px-2 h-6 min-h-0 text-[11px] text-base-content/50 hover:text-error"
@@ -283,6 +311,7 @@
                     {researcherName}
                     researcherId={study.researcher?.id?.trim() || ''}
                     onResearcherClick={onViewResearcher}
+                    reliability={studyReliability(study)}
                   />
                 </div>
                 <div class="flex items-center gap-1 flex-shrink-0">

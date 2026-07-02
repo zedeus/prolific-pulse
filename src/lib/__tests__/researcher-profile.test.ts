@@ -8,6 +8,7 @@ import {
   computeResearcherProfile,
   computeCompactProfiles,
   reliabilityBandLabel,
+  reliabilityFor,
   RELIABILITY_MIN_TERMINAL,
 } from '../researcher-profile';
 
@@ -382,6 +383,22 @@ describe('adversarial / hostile data', () => {
     expect(performance.now() - t0).toBeLessThan(500);
     expect(m.total).toBe(5000);
     expect(m.reliability.band).toBe('excellent');
+  });
+});
+
+describe('reliabilityFor', () => {
+  it('returns null for a missing map or id', () => {
+    expect(reliabilityFor(undefined, 'r-1')).toBeNull();
+    expect(reliabilityFor(new Map(), '')).toBeNull();
+    expect(reliabilityFor(new Map(), null)).toBeNull();
+    expect(reliabilityFor(new Map(), undefined)).toBeNull();
+  });
+
+  it('returns the reliability of a known researcher, null for an unknown one', () => {
+    const profiles = computeCompactProfiles(makeSubs('APPROVED', 5, { researcherId: 'r-x' }));
+    const rel = reliabilityFor(profiles, 'r-x');
+    expect(rel?.band).toBe('excellent');
+    expect(reliabilityFor(profiles, 'r-unknown')).toBeNull();
   });
 });
 

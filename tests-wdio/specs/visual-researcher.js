@@ -65,7 +65,17 @@ async function openRichProfileCard() {
       return true;
     }, i);
     if (!opened) continue;
-    await browser.pause(250);
+    // The card loads its data before it renders (single, flicker-free render), so WAIT for it to
+    // appear rather than assuming a fixed delay.
+    let cardUp = false;
+    try {
+      await browser.waitUntil(
+        async () => browser.execute(() => !!document.querySelector('.researcher-profile-card')),
+        { timeout: 3000, interval: 50 },
+      );
+      cardUp = true;
+    } catch { /* card never appeared for this researcher — try the next */ }
+    if (!cardUp) continue;
     const hasScore = await browser.execute(() => {
       const card = document.querySelector('.researcher-profile-card');
       if (!card) return false;
@@ -117,6 +127,30 @@ describe('Visual: Researcher profiles (issue #18)', () => {
     // close it
     await browser.execute(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     await browser.pause(150);
+  });
+
+  it('researchers directory tab', async () => {
+    await setTheme('light');
+    await navigateTo('researchers');
+    await browser.pause(250);
+    await screenshot('researcher-directory-light');
+    await setTheme('dark');
+    await browser.pause(200);
+    await screenshot('researcher-directory-dark');
+  });
+
+  it('live list: reliability sort + hide-poor toggle', async () => {
+    await setTheme('light');
+    await navigateTo('live');
+    await browser.pause(150);
+    // Sort by reliability + open the quick-filter row (has the hide-poor toggle).
+    await browser.execute(() => {
+      const sel = document.querySelector('#panelLive select');
+      if (sel) { sel.value = 'reliability'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      document.querySelector('#panelLive .btn-square')?.click();
+    });
+    await browser.pause(200);
+    await screenshot('researcher-live-sort-light');
   });
 
   it('settings researcher picker with reliability badges + sparklines', async () => {

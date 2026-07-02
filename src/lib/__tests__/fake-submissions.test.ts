@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateFakeSubmissions } from '../__dev__/fake-submissions';
 import { extractSubmissionReward, extractCompletedAt, extractStartedAt } from '../earnings';
+import { computeCompactProfiles } from '../researcher-profile';
 
 describe('generateFakeSubmissions', () => {
   const now = new Date('2026-04-16T12:00:00Z');
@@ -51,5 +52,18 @@ describe('generateFakeSubmissions', () => {
     const newest = new Date(records[records.length - 1].observed_at);
     const spanMs = newest.getTime() - oldest.getTime();
     expect(spanMs).toBeGreaterThan(90 * 86_400_000); // at least 90 days of spread
+  });
+
+  it('spreads researcher reliability across bands (seeded quality tiers)', () => {
+    const records = generateFakeSubmissions({ count: 2400, seed: 42, now, spanDays: 240 });
+    const profiles = computeCompactProfiles(records);
+    const bands = new Set(
+      [...profiles.values()].filter((p) => p.reliability.hasEnoughData).map((p) => p.reliability.band),
+    );
+    // The demo seed should exercise the top and bottom of the scale, plus middle — otherwise the
+    // reliability star / "sort by trust" / "hide poor-rated" surfaces would look uniform.
+    expect(bands.has('excellent')).toBe(true);
+    expect(bands.has('poor')).toBe(true);
+    expect(bands.size).toBeGreaterThanOrEqual(3);
   });
 });

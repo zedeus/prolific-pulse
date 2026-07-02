@@ -1,12 +1,16 @@
 <script lang="ts">
+  import type { Study } from '../../../lib/types';
   import type { ResearcherProfile } from '../../../lib/researcher-profile';
   import { reliabilityBandColorClass, reliabilityBandLabel } from '../../../lib/researcher-profile';
   import {
     formatMoneyFromMajorUnits,
+    formatMoneyFromMinorUnits,
     formatDurationSeconds,
     formatRelative,
     rateColorClass,
     getCurrencySymbol,
+    studyUrlFromId,
+    compactText,
   } from '../../../lib/format';
   import Sparkline from './Sparkline.svelte';
 
@@ -15,9 +19,18 @@
     onClose: () => void;
     onPrioritize?: () => void;
     onBlacklist?: () => void;
+    /** This researcher's newest currently-available study, if any (named on the "Open" button). */
+    latestStudy?: Study | null;
+    onOpenStudy?: (url: string) => void;
   }
 
-  let { profile, onClose, onPrioritize, onBlacklist }: Props = $props();
+  let { profile, onClose, onPrioritize, onBlacklist, latestStudy = null, onOpenStudy }: Props = $props();
+
+  let copiedHint = $state(false);
+
+  const latestStudyUrl = $derived(latestStudy ? studyUrlFromId(latestStudy.id) : '');
+  const latestStudyName = $derived(compactText(latestStudy?.name?.trim() || 'Untitled study', 42));
+  const latestStudyReward = $derived(latestStudy ? formatMoneyFromMinorUnits(latestStudy.reward) : '');
 
   const pct = (fraction: number | null | undefined): number | null =>
     fraction != null ? Math.round(fraction * 100) : null;
@@ -61,6 +74,30 @@
     return parts.join(' · ');
   });
 
+  function buildSummary(p: ResearcherProfile): string {
+    const lines = [p.country ? `${p.name} (${p.country})` : p.name];
+    if (p.reliability.hasEnoughData) {
+      lines.push(`Reliability: ${p.reliability.score}/100 (${reliabilityBandLabel(p.reliability.band)})`);
+    }
+    if (approvalPct != null) lines.push(`Approval rate: ${approvalPct}% (${p.counts.approved}/${p.decided})`);
+    if (hourlyText) lines.push(`Typical pay: ${hourlyText}`);
+    if (durationVerdict) lines.push(`Time vs estimate: ${durationVerdict.text}`);
+    if (screenedPct != null) lines.push(`Screened out: ${screenedPct}%`);
+    lines.push(`Based on ${p.total} ${p.total === 1 ? 'study' : 'studies'} you've submitted to them.`);
+    return lines.join('\n');
+  }
+
+  async function copySummary() {
+    if (!profile) return;
+    try {
+      await navigator.clipboard.writeText(buildSummary(profile));
+      copiedHint = true;
+      setTimeout(() => { copiedHint = false; }, 1200);
+    } catch {
+      /* clipboard blocked — no-op */
+    }
+  }
+
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
   }
@@ -78,10 +115,10 @@
 {#if profile}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
-    class="researcher-profile-card fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+    class="researcher-profile-card fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-2"
     onclick={handleBackdropClick}
   >
-    <div class="bg-base-100 w-full max-w-md rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto">
+    <div class="bg-base-100 w-full max-w-md rounded-2xl shadow-xl max-h-[calc(100vh-1rem)] overflow-y-auto">
       <div class="sticky top-0 bg-base-100 px-4 pt-4 pb-2 border-b border-base-300 flex items-start justify-between gap-2">
         <div class="flex-1 min-w-0">
           <h3 class="text-sm font-semibold text-base-content line-clamp-2">{profile.name}</h3>
@@ -200,20 +237,50 @@
           Based on {profile.total} {profile.total === 1 ? 'study' : 'studies'} you've submitted to this researcher.
         </p>
 
-        {#if onPrioritize || onBlacklist}
-          <div class="flex items-center gap-2 pt-1 border-t border-base-300">
+        <!-- Quick actions -->
+        <div class="pt-1 border-t border-base-300 space-y-2">
+          {#if latestStudyUrl && onOpenStudy}
+            <button
+              type="button"
+              class="btn btn-primary w-full mt-3 h-auto min-h-0 py-1.5 gap-2 justify-start text-left"
+              title="Open “{latestStudyName}” in Prolific"
+              onclick={() => onOpenStudy?.(latestStudyUrl)}
+            >
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              <span class="flex flex-col min-w-0 leading-tight">
+                <span class="text-[10px] font-normal opacity-80">They have a study live right now</span>
+                <span class="text-[12.5px] font-semibold truncate">{latestStudyName}{latestStudyReward && latestStudyReward !== 'n/a' ? ` · ${latestStudyReward}` : ''}</span>
+              </span>
+            </button>
+          {/if}
+          <div class="flex items-center gap-2 {latestStudyUrl && onOpenStudy ? '' : 'mt-3'}">
             {#if onPrioritize}
-              <button type="button" class="btn btn-sm btn-primary flex-1 mt-3" onclick={onPrioritize}>
+              <button type="button" class="btn btn-sm {latestStudyUrl && onOpenStudy ? 'btn-ghost text-primary hover:bg-primary/10' : 'btn-primary'} flex-1" onclick={onPrioritize}>
                 &#10022; Prioritize
               </button>
             {/if}
             {#if onBlacklist}
-              <button type="button" class="btn btn-sm btn-ghost flex-1 mt-3 text-error hover:bg-error/10" onclick={onBlacklist}>
+              <button type="button" class="btn btn-sm btn-ghost flex-1 text-error hover:bg-error/10" onclick={onBlacklist}>
                 &#128683; Blacklist
               </button>
             {/if}
+            <button
+              type="button"
+              class="btn btn-sm btn-ghost btn-square text-base-content/50 hover:text-base-content"
+              onclick={copySummary}
+              title="Copy a text summary of this profile"
+              aria-label="Copy summary"
+            >
+              {#if copiedHint}
+                <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              {:else}
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              {/if}
+            </button>
           </div>
-        {/if}
+        </div>
       </div>
     </div>
   </div>

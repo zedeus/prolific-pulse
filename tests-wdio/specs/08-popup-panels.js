@@ -193,10 +193,11 @@ describe('Popup Panels', () => {
   it('tab bar has all tabs with correct labels', async () => {
     await navigateToPopup();
     const tabs = await getTabStates();
-    expect(Object.keys(tabs).sort()).toEqual(['earnings', 'feed', 'live', 'settings', 'submissions']);
+    expect(Object.keys(tabs).sort()).toEqual(['earnings', 'feed', 'live', 'researchers', 'settings', 'submissions']);
     expect(tabs.live.text).toBe('Live');
     expect(tabs.feed.text).toBe('Feed');
     expect(tabs.submissions.text).toBe('Submissions');
+    expect(tabs.researchers.text).toBe('Researchers');
     expect(tabs.earnings.text).toBe('Earnings');
     expect(tabs.settings.text).toBe('Settings');
   });

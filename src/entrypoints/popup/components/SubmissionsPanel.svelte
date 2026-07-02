@@ -2,6 +2,7 @@
   import type { Submission } from '../../../lib/types';
   import type { SubmissionRecord } from '../../../lib/db';
   import type { EarningsPrefs } from '../../../lib/earnings-prefs';
+  import { reliabilityFor, type ResearcherProfile } from '../../../lib/researcher-profile';
   import { extractResearcherFromSubmissionPayload } from '../../../lib/store';
   import {
     formatMoneyFromMinorUnits,
@@ -44,6 +45,8 @@
     overrideMessage,
     onStudyClick,
     onEarningsPrefsChange,
+    onViewResearcher,
+    researcherProfiles,
   } = $props<{
     active: boolean;
     submissions: Submission[];
@@ -52,6 +55,8 @@
     overrideMessage: string;
     onStudyClick: (url: string) => void;
     onEarningsPrefsChange: (prefs: EarningsPrefs) => void;
+    onViewResearcher?: (researcherId: string, researcherName: string) => void;
+    researcherProfiles?: Map<string, ResearcherProfile>;
   }>();
 
   type SortKey = 'newest' | 'reward';
@@ -356,7 +361,9 @@
     {:else}
       {#each filteredAndSorted as entry (entry.submission_id)}
         {@const name = entry.study_name || '(unknown study)'}
-        {@const researcherName = extractResearcherFromSubmissionPayload(entry.payload)?.name ?? ''}
+        {@const researcherRef = extractResearcherFromSubmissionPayload(entry.payload)}
+        {@const researcherName = researcherRef?.name ?? ''}
+        {@const researcherId = researcherRef?.id ?? ''}
         {@const completedAt = extractCompletedAt(entry)}
         {@const startedAt = extractStartedAt(entry)}
         {@const displayTime = completedAt ? formatRelative(completedAt.toISOString(), true) : startedAt ? formatRelative(startedAt.toISOString(), true) : `Added ${formatRelative(entry.observed_at, true)}`}
@@ -382,7 +389,13 @@
           <div class="event p-3.5 rounded-lg mb-2.5 text-[12.5px] border border-base-300 shadow-sm bg-base-100 border-l-[3px] {borderClass}">
             <div class="event-top flex items-start justify-between gap-2.5">
               <div class="event-title text-sm font-semibold leading-snug mr-auto text-base-content line-clamp-2">
-                <StudyTitle {name} {researcherName} />
+                <StudyTitle
+                  {name}
+                  {researcherName}
+                  {researcherId}
+                  onResearcherClick={onViewResearcher}
+                  reliability={reliabilityFor(researcherProfiles, researcherId)}
+                />
               </div>
               <div class="flex items-center gap-1.5">
                 <span class="event-time text-base-content/50 text-xs whitespace-nowrap text-right font-medium">{displayTime}</span>

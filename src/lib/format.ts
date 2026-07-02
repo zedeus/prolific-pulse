@@ -53,6 +53,15 @@ export function formatShortNumber(value: number): string {
   return shortNumberFmt.format(value);
 }
 
+/** Comparator for `.sort()`: larger finite numbers first, non-finite (NaN/Infinity) last, else 0. */
+export function compareNumberDesc(a: number, b: number): number {
+  const af = Number.isFinite(a);
+  const bf = Number.isFinite(b);
+  if (af && bf) return b - a;
+  if (af !== bf) return af ? -1 : 1;
+  return 0;
+}
+
 export function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const n = parseInt(String(value), 10);
   if (Number.isNaN(n)) return fallback;
