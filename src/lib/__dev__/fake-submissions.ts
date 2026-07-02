@@ -59,11 +59,13 @@ function buildStatusPool(w: StatusWeights): readonly string[] {
     ...Array(w.screened).fill(SCREENED_OUT_STATUS),
   ];
 }
+// Weights are tuned so each tier's reliability score sits well inside its band (≈97 / 84 / 64 / 47),
+// clear of the 90/75/55 boundaries — so the band a researcher lands in is robust to sampling noise.
 const TIER_STATUS_POOLS: Record<QualityTier, readonly string[]> = {
-  excellent: buildStatusPool({ approved: 90, awaiting: 6, returned: 1, rejected: 1, screened: 2 }),
-  good: buildStatusPool({ approved: 70, awaiting: 9, returned: 8, rejected: 7, screened: 6 }),
-  fair: buildStatusPool({ approved: 55, awaiting: 8, returned: 16, rejected: 13, screened: 11 }),
-  poor: buildStatusPool({ approved: 40, awaiting: 8, returned: 26, rejected: 22, screened: 9 }),
+  excellent: buildStatusPool({ approved: 95, awaiting: 5, returned: 1, rejected: 1, screened: 2 }),
+  good: buildStatusPool({ approved: 74, awaiting: 8, returned: 9, rejected: 7, screened: 6 }),
+  fair: buildStatusPool({ approved: 52, awaiting: 8, returned: 18, rejected: 16, screened: 12 }),
+  poor: buildStatusPool({ approved: 30, awaiting: 8, returned: 32, rejected: 28, screened: 10 }),
 };
 const RESEARCHER_STATUS_POOLS: readonly (readonly string[])[] = RESEARCHER_QUALITY.map((t) => TIER_STATUS_POOLS[t]);
 
@@ -120,8 +122,12 @@ export function generateFakeSubmissions(opts: FakeDataOptions): SubmissionRecord
     // Recency bias: cluster more submissions toward `now`.
     const tBias = Math.pow(rng(), 0.7);
     let startMs = now.getTime() - spanMs * (1 - tBias);
+    // Draw the weekend-nudge unconditionally: `getDay()` is local-timezone, so a *conditional*
+    // draw here would consume a different number of RNG values under a different timezone (e.g. CI
+    // runs in UTC), making the whole "deterministic" dataset diverge between machines.
+    const weekendNudge = rng() < 0.5;
     const initialDow = new Date(startMs).getDay();
-    if ((initialDow === 0 || initialDow === 6) && rng() < 0.5) {
+    if ((initialDow === 0 || initialDow === 6) && weekendNudge) {
       startMs += initialDow === 0 ? 86_400_000 : -86_400_000;
     }
 
