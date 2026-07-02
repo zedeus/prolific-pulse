@@ -1,0 +1,21 @@
+tests-wdio/specs/visual-researcher.js
+  s_f94177f0cbee86::t_67409e5669f18f 68-78
+src/entrypoints/popup/App.svelte
+  s_f94177f0cbee86::t_ef65bf10d0f768 634-639,642,651,653-655
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "fd5979c3f508c96daab7bf3a5726fb8f3ae5fc9c",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
