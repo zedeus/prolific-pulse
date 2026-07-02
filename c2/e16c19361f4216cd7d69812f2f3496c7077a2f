@@ -1,0 +1,107 @@
+src/lib/__dev__/fake-studies.ts
+  s_f94177f0cbee86::t_62e3b8683e6690 2
+  s_f94177f0cbee86::t_9453904e9474d0 123-157,160-161,177-193
+  s_f94177f0cbee86::t_2471fe8d40f3c0 207-218
+src/entrypoints/popup/components/StudyActionMenu.svelte
+  s_f94177f0cbee86::t_6bb08c97c99aa2 14,26
+  s_f94177f0cbee86::t_ac6a9d71e4e36a 120-124,128-130
+  s_f94177f0cbee86::t_b15d42c75bd07a 125-127
+  s_f94177f0cbee86::t_17f442c75424f1 215-226
+tests-wdio/wdio.visual.conf.js
+  s_f94177f0cbee86::t_87c9cb23865464 34
+src/entrypoints/popup/components/LivePanel.svelte
+  s_f94177f0cbee86::t_d725d0aba618e3 281-286
+  s_f94177f0cbee86::t_7a5e670a1c1d82 301
+  s_f94177f0cbee86::t_235b51c62024c2 38,51
+src/lib/__dev__/fake-submissions.ts
+  s_f94177f0cbee86::t_89365d43ebb4c7 138-139
+src/entrypoints/popup/components/StudyTitle.svelte
+  s_f94177f0cbee86::t_8b376df179f459 2-20,24-28
+  s_f94177f0cbee86::t_8a2ab67d71f1b4 23
+src/entrypoints/popup/components/Sparkline.svelte
+  s_f94177f0cbee86::t_098398da249d08 1-69
+src/entrypoints/popup/components/ResearcherPicker.svelte
+  s_f94177f0cbee86::t_378d24df2f3836 164-165,168-171,180,182-192
+  s_f94177f0cbee86::t_d3585b98dc7e0e 4-6,11-12,18-26
+  s_f94177f0cbee86::t_6684118de237d9 181
+  s_f94177f0cbee86::t_b0999029438b98 109,117-120,122,124
+  s_f94177f0cbee86::t_2e44802dc693dd 121
+  s_f94177f0cbee86::t_85b826b299c7f3 123
+src/lib/researcher-profile.ts
+  s_f94177f0cbee86::t_21bce421d4fa8d 249-251,258-265
+  s_f94177f0cbee86::t_f180c65f6b30f0 3
+  s_f94177f0cbee86::t_ab4a346625262e 1-2,4-129,132,139-248,252-257,266-334,341-403
+  s_f94177f0cbee86::t_1fd21a4bb704de 130-131,133-138
+  s_f94177f0cbee86::t_2b7e490b50a2a9 335-339
+  s_f94177f0cbee86::t_a0fa0797479882 340
+src/lib/__tests__/store.test.ts
+  s_f94177f0cbee86::t_f8ce09f60b4e88 682-722
+tests-wdio/specs/visual-researcher.js
+  s_f94177f0cbee86::t_536bdbcb40ba99 1-150
+tests-wdio/specs/10-researcher-lists.js
+  s_f94177f0cbee86::t_4eae39c40f60ee 160-162
+src/entrypoints/popup/components/ResearcherProfileCard.svelte
+  s_f94177f0cbee86::t_8729028368662d 1-8,10-21,25,28-73,78-134,136-137,139,141-143,145-152,154-161,163-164,166-171,173-175,177-189,191-199,201-220
+  s_f94177f0cbee86::t_52866f6e595174 153
+  s_f94177f0cbee86::t_fbe667a9bb9f5c 165
+  s_f94177f0cbee86::t_ab6b9f5674944b 9
+  s_f94177f0cbee86::t_bdffb9f161e868 22-24,26-27
+  s_f94177f0cbee86::t_1fc742151148dc 74-77
+  s_f94177f0cbee86::t_b63ac57fc5598f 144
+  s_f94177f0cbee86::t_aa9614ea81d8ed 135
+  s_f94177f0cbee86::t_ac281570ce8990 162
+  s_f94177f0cbee86::t_9f4e3986465bea 138,140
+  s_f94177f0cbee86::t_a264189b364d3a 172,176
+  s_f94177f0cbee86::t_e55f81eefdc488 190
+  s_f94177f0cbee86::t_fd9f3655a0ad65 200
+src/lib/__tests__/researcher-profile.test.ts
+  s_f94177f0cbee86::t_e37b1cfca27e25 311-387
+  s_f94177f0cbee86::t_4d68c28add13a4 107-117
+  s_f94177f0cbee86::t_83386caeb0a17e 1-106,118-171,187-281,301-310,388-411
+  s_f94177f0cbee86::t_aed7298b11ea0d 282-300
+  s_f94177f0cbee86::t_15664041f19800 172-186
+src/lib/store.ts
+  s_f94177f0cbee86::t_7ae5b1798a8907 9
+  s_f94177f0cbee86::t_fd45d8501e7496 186,188-223
+  s_f94177f0cbee86::t_fce18c6b4c577b 183-185
+  s_f94177f0cbee86::t_688bddc6dfc98a 187
+  s_f94177f0cbee86::t_fb06be3ba1f56e 5
+src/lib/submission-analytics.ts
+  s_f94177f0cbee86::t_c8026fe72bd9c8 2
+  s_f94177f0cbee86::t_316c3818db2a5d 122
+  s_f94177f0cbee86::t_6d3960e8c6118c 128,132-133
+  s_f94177f0cbee86::t_694019233c0075 190
+  s_f94177f0cbee86::t_d7b1026f96a778 121,123-127,129-131,134-136,147-148,150-151,155
+  s_f94177f0cbee86::t_000aa15f76a857 3
+src/entrypoints/popup/App.svelte
+  s_f94177f0cbee86::t_df0678f826d68b 802-805,808
+  s_f94177f0cbee86::t_3b3695140fc213 616-619,623-647,649,651-653
+  s_f94177f0cbee86::t_0c6e3b1d4dae0d 648,650
+  s_f94177f0cbee86::t_dd4adc57c3c3c2 620-622
+  s_f94177f0cbee86::t_4c73fa6532c1f9 591-595
+  s_f94177f0cbee86::t_bfe8dec724ff73 58-60,67
+  s_f94177f0cbee86::t_773ed087265d8a 102-105
+  s_f94177f0cbee86::t_8e10cdacfb9470 744
+  s_f94177f0cbee86::t_13085cf8913655 806-807
+src/entrypoints/popup/components/SettingsPanel.svelte
+  s_f94177f0cbee86::t_81178a08e500fa 949
+  s_f94177f0cbee86::t_9bb08516f77162 8
+  s_f94177f0cbee86::t_9847226f36052a 960
+  s_f94177f0cbee86::t_06c318fcff84d9 89-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "c2e16c19361f4216cd7d69812f2f3496c7077a2f",
+  "prompts": {},
+  "sessions": {
+    "s_f94177f0cbee86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59edb3ec-4dd8-49a3-afa9-de922420723c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Zed <zedeus@pm.me>"
+    }
+  }
+}
